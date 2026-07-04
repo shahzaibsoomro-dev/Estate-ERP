@@ -41,3 +41,13 @@ def create_customer(body: CustomerCreate):
             if "UNIQUE" in str(e):
                 raise HTTPException(400, "CNIC already exists") from e
             raise
+
+
+@router.delete("/{customer_id}")
+def delete_customer(customer_id: int):
+    with get_db() as conn:
+        try:
+            svc.delete_customer(conn, customer_id)
+            return {"ok": True}
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e

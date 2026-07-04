@@ -1,0 +1,121 @@
+import { esc } from './dom.js';
+import { fmt } from './format.js';
+
+/** Normalize JSON array fields that may arrive as strings from the API. */
+export function parseAttrList(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return [];
+    try {
+      const parsed = JSON.parse(s);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function row(label, value, html = false) {
+  if (value == null || value === '' || value === '—') return '';
+  return `<div class="sum-row"><span class="sum-lbl">${esc(label)}</span><span class="sum-val">${html ? value : esc(String(value))}</span></div>`;
+}
+
+function badgeList(items) {
+  const list = parseAttrList(items);
+  if (!list.length) return '';
+  return list.map((a) => `<span class="badge bg-blue" style="margin:2px">${esc(a)}</span>`).join(' ');
+}
+
+export function statusBadgeClass(displayStatus) {
+  if (['sold', 'booked', 'possession_delivered'].includes(displayStatus)) return 'bg-red';
+  if (displayStatus === 'available') return 'bg-green';
+  if (displayStatus === 'hold') return 'bg-yellow';
+  return 'bg-grey';
+}
+
+export function unitDetailsHtml(u, displayStatus) {
+  const statusClass = statusBadgeClass(displayStatus);
+  const attrs = parseAttrList(u.unit_attributes);
+  const holdBlock = displayStatus === 'hold' && (u.hold_until || u.hold_notes)
+    ? `<div class="detail-note" style="margin-top:10px;padding:10px 12px;background:var(--warnp);border-radius:8px;font-size:12px">
+        <strong>Hold:</strong> ${esc(u.hold_until || '—')}${u.hold_notes ? ` · ${esc(u.hold_notes)}` : ''}
+      </div>`
+    : '';
+
+  return `
+    <div class="detail-section">
+      <div class="detail-section-title">📦 Unit Details</div>
+      <div class="g2">
+        <div>
+          ${row('Unit No', u.unit_no)}
+          ${row('Project', u.project_name)}
+          ${row('Block / Tower', u.block_tower)}
+          ${row('Unit Type', u.type || u.unit_type)}
+          ${row('Residential Type', u.residential_type)}
+          ${row('Floor', u.floor != null ? `Floor ${u.floor}` : null)}
+          ${row('Area (Ghaz)', u.area_ghaz != null ? u.area_ghaz : null)}
+          ${row('Size', u.size_sqft ? `${u.size_sqft} sqft` : null)}
+        </div>
+        <div>
+          ${row('Bedrooms', u.bedrooms)}
+          ${row('Bathrooms', u.bathrooms)}
+          ${row('Base Sale Price', u.price || u.base_sale_price ? fmt(u.price || u.base_sale_price) : null)}
+          ${row('Booking Amount Required', u.booking_amount_required ? fmt(u.booking_amount_required) : null)}
+          ${row('Final Sold Price', u.final_sold_price ? fmt(u.final_sold_price) : null)}
+          ${row('Furnishing', u.furnishing_status)}
+          ${row('Possession Date', u.possession_date)}
+          ${row('Status', `<span class="badge ${statusClass}">${esc(displayStatus)}</span>`, true)}
+        </div>
+      </div>
+      ${u.description ? `<div class="detail-block"><div class="detail-block-lbl">Description</div><div class="detail-block-txt">${esc(u.description)}</div></div>` : ''}
+      ${attrs.length ? `<div class="detail-block"><div class="detail-block-lbl">Unit Attributes</div><div>${badgeList(attrs)}</div></div>` : ''}
+      ${u.additional_requirements ? `<div class="detail-block"><div class="detail-block-lbl">Additional Requirements</div><div class="detail-block-txt">${esc(u.additional_requirements)}</div></div>` : ''}
+      ${holdBlock}
+    </div>`;
+}
+
+export function projectDetailsHtml(p, units = []) {
+  const attrs = parseAttrList(p.project_attributes);
+  const statusLabel = p.status || '—';
+  const statusClass = statusLabel === 'Completed' ? 'bg-grey' : 'bg-green';
+
+  const unitPreview = units.length
+    ? `<div class="detail-block"><div class="detail-block-lbl">Units in Project (${units.length})</div>
+        <div class="tbl-wrap"><table><thead><tr><th>Unit</th><th>Type</th><th>Floor</th><th>Price</th><th>Status</th></tr></thead>
+        <tbody>${units.slice(0, 12).map((u) => `
+          <tr class="detail-unit-row" data-unit-open="${u.id}" style="cursor:pointer" title="Open unit details">
+            <td class="td-b">${esc(u.unit_no)}</td><td>${esc(u.type || u.unit_type)}</td>
+          <td>${u.floor ?? '—'}</td><td>${u.price ? fmt(u.price) : '—'}</td>
+          <td><span class="badge ${statusBadgeClass(u.raw_status || u.status)}">${esc(u.raw_status || u.status)}</span></td></tr>`).join('')}
+        ${units.length > 12 ? `<tr><td colspan="5" style="text-align:center;color:var(--g400);font-size:11px">+ ${units.length - 12} more — use View Units</td></tr>` : ''}
+        </tbody></table></div></div>`
+    : '<div class="detail-note" style="padding:12px;background:var(--g50);border-radius:8px;font-size:12px;color:var(--g500)">No units added yet.</div>';
+
+  return `
+    <div class="detail-section">
+      <div class="g2">
+        <div>
+          ${row('Location', p.location)}
+          ${row('Area', p.area)}
+          ${row('City', p.city)}
+          ${row('Start Date', p.start_date)}
+          ${row('Expected End', p.end_date || p.expected_end_date)}
+          ${row('Status', `<span class="badge ${statusClass}">${esc(statusLabel)}</span>`, true)}
+          ${row('Floors', p.number_of_floors)}
+          ${row('Planned Units', p.number_of_units)}
+        </div>
+        <div>
+          ${row('Total Area (Ghaz)', p.total_area_ghaz)}
+          ${row('Estimated Cost', p.estimated_cost ? fmt(p.estimated_cost) : null)}
+          ${row('Construction Progress', `${p.progress ?? p.current_progress ?? 0}%`)}
+          ${row('Live Inventory', `${p.total_units} total · ${p.sold} sold · ${p.available} avail · ${p.hold} hold`)}
+        </div>
+      </div>
+      ${p.description ? `<div class="detail-block"><div class="detail-block-lbl">Description</div><div class="detail-block-txt">${esc(p.description)}</div></div>` : ''}
+      ${attrs.length ? `<div class="detail-block"><div class="detail-block-lbl">Project Attributes</div><div>${badgeList(attrs)}</div></div>` : ''}
+      <div class="prog" style="margin:12px 0 4px"><div class="prog-fill ${(p.progress ?? 0) === 100 ? 'g' : (p.progress ?? 0) < 50 ? 'a' : ''}" style="width:${p.progress ?? 0}%"></div></div>
+    </div>
+    ${unitPreview}`;
+}

@@ -90,3 +90,13 @@ def create_customer(conn, data: dict) -> dict:
         ),
     )
     return enrich_customer(conn, fetch_one(conn, "SELECT * FROM customers WHERE id=?", (cur.lastrowid,)))
+
+
+def delete_customer(conn, customer_id: int) -> None:
+    if not fetch_one(conn, "SELECT id FROM customers WHERE id=?", (customer_id,)):
+        raise ValueError("Customer not found")
+    if fetch_one(conn, "SELECT id FROM bookings WHERE customer_id=? LIMIT 1", (customer_id,)):
+        raise ValueError("Cannot delete a customer with bookings")
+    if fetch_one(conn, "SELECT id FROM payments WHERE customer_id=? LIMIT 1", (customer_id,)):
+        raise ValueError("Cannot delete a customer with payment history")
+    conn.execute("DELETE FROM customers WHERE id=?", (customer_id,))

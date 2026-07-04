@@ -17,6 +17,8 @@ def inventory_counts(conn, project_id: int) -> dict:
 
 
 def enrich_project(conn, project: dict) -> dict:
+    raw_status = project.get("status", "")
+    project["raw_status"] = raw_status
     counts = inventory_counts(conn, project["id"])
     project.update(counts)
     project["total_units"] = counts["total_units"] or project.get("number_of_units", 0)
@@ -68,6 +70,41 @@ def create_project(conn, data: dict) -> dict:
         ),
     )
     return get_project(conn, cur.lastrowid)
+
+
+def delete_project(conn, project_id: int) -> None:
+    if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
+        raise ValueError("Project not found")
+
+    unit_row = fetch_one(
+        conn,
+        """SELECT COUNT(*) AS total,
+                  SUM(CASE WHEN status IN ('sold','booked','possession_delivered') THEN 1 ELSE 0 END) AS locked,
+                  SUM(CASE WHEN status NOT IN ('sold','booked','possession_delivered') THEN 1 ELSE 0 END) AS removable
+           FROM units WHERE project_id=?""",
+        (project_id,),
+    )
+    total = unit_row["total"] if unit_row else 0
+    if total:
+        locked = unit_row["locked"] or 0
+        removable = unit_row["removable"] or 0
+        parts = [f"{total} unit(s) total"]
+        if locked:
+            parts.append(f"{locked} sold/booked")
+        if removable:
+            parts.append(f"{removable} can be removed from Unit Inventory")
+        raise ValueError(f"Cannot delete project — {' · '.join(parts)}. Delete all units first.")
+
+    po = fetch_one(conn, "SELECT COUNT(*) AS n FROM purchase_orders WHERE project_id=?", (project_id,))
+    if po and po["n"]:
+        raise ValueError(f"Cannot delete project — {po['n']} purchase order(s) linked. Remove POs first.")
+
+    inv = fetch_one(conn, "SELECT COUNT(*) AS n FROM investor_agreements WHERE project_id=?", (project_id,))
+    if inv and inv["n"]:
+        raise ValueError(f"Cannot delete project — {inv['n']} investor agreement(s) linked.")
+
+    conn.execute("DELETE FROM project_budget_lines WHERE project_id=?", (project_id,))
+    conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
 
 
 def update_project(conn, project_id: int, data: dict) -> dict | None:

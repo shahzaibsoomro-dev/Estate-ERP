@@ -68,3 +68,13 @@ def update_project(project_id: int, body: ProjectUpdate):
         if not p:
             raise HTTPException(404, "Project not found")
         return p
+
+
+@router.delete("/{project_id}")
+def delete_project(project_id: int):
+    with get_db() as conn:
+        try:
+            svc.delete_project(conn, project_id)
+            return {"ok": True}
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e

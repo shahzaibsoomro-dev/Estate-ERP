@@ -256,3 +256,6 @@ Planned Amount
 Actual Spent
 Variance
 Status (Within Budget, Near Limit, Exceeded)
+
+
+

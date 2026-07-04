@@ -325,6 +325,82 @@ for path, expect in [
     except Exception as e:
         fail(f"stub {path}", str(e))
 
+def delete(path):
+    req = urllib.request.Request(BASE + path, method="DELETE")
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read())
+
+
+def expect_http_error(path, method, data, code=400):
+    req = urllib.request.Request(
+        BASE + path,
+        data=json.dumps(data).encode() if data else None,
+        headers={"Content-Type": "application/json"} if data else {},
+        method=method,
+    )
+    try:
+        urllib.request.urlopen(req)
+        return False, "expected error"
+    except urllib.error.HTTPError as e:
+        return e.code == code, e.read().decode()[:200]
+
+
+print("\n=== Step 15: Project-Unit lifecycle ===")
+try:
+    tag = f"PU{SUFFIX}"
+    proj = post("/api/projects", {
+        "name": f"Lifecycle {tag}",
+        "location": "Test City",
+        "status": "planning",
+        "number_of_units": 2,
+    })
+    pid = proj["id"]
+    ok("create project without units")
+
+    u1 = post("/api/units", {
+        "project_id": pid, "unit_no": f"LC-{tag}-1",
+        "unit_type": "Flat", "floor_number": 2, "base_sale_price": 5000000,
+    })
+    uid = u1["id"]
+    ok("add unit to project via POST")
+
+    u1b = put(f"/api/units/{uid}", {
+        "unit_no": f"LC-{tag}-1",
+        "unit_type": "Flat", "floor_number": 3, "base_sale_price": 5500000,
+    })
+    if u1b.get("floor_number") == 3 and u1b.get("base_sale_price") == 5500000:
+        ok("update unit via PUT")
+    else:
+        fail("update unit", str(u1b))
+
+    dup_ok, _ = expect_http_error("/api/units", "POST", {
+        "project_id": pid, "unit_no": f"LC-{tag}-1",
+    })
+    if dup_ok:
+        ok("reject duplicate unit_no in same project")
+    else:
+        fail("duplicate unit_no", "should return 400")
+
+    del_proj_ok, _ = expect_http_error(f"/api/projects/{pid}", "DELETE", None)
+    if del_proj_ok:
+        ok("block delete project while units exist")
+    else:
+        fail("delete project with units", "should return 400")
+
+    delete(f"/api/units/{uid}")
+    ok("delete available unit")
+
+    delete(f"/api/projects/{pid}")
+    ok("delete project after all units removed")
+
+    listed = get(f"/api/projects")
+    if any(p["id"] == pid for p in listed):
+        fail("project removed", "still in list")
+    else:
+        ok("project no longer listed")
+except Exception as e:
+    fail("project-unit lifecycle", str(e))
+
 print("\n=== Step 14: Audit log ===")
 audit_count = conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
 if audit_count > 0:

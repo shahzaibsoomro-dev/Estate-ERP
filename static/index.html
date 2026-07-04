@@ -4,177 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Haven Builders ERP</title>
-<style>
-:root{
-  --navy:#091830;--navy2:#0F2447;--navy3:#163260;
-  --blue:#1B62D4;--blueb:#2A7AFF;--bluepale:#EBF2FF;
-  --success:#0D9F72;--successp:#ECFDF5;
-  --danger:#E53E3E;--dangerp:#FFF5F5;
-  --warn:#DD6B20;--warnp:#FFFAF0;
-  --accent:#F59E0B;
-  --white:#fff;--g50:#F7F9FC;--g100:#EEF2F8;--g200:#DDE4F0;
-  --g300:#B8C5DC;--g400:#8A9BBF;--g500:#5E6F8E;--g700:#2D3A54;
-  --sidebar:242px;--topbar:56px;--r:10px;--r2:7px;
-  --shadow:0 1px 12px rgba(9,24,48,.09);--shadowmd:0 4px 24px rgba(9,24,48,.13);--shadowlg:0 8px 48px rgba(9,24,48,.18);
-  --tr:all .18s cubic-bezier(.4,0,.2,1);
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif}
-body{background:var(--g50);color:var(--navy);display:flex}
-.sb{width:var(--sidebar);min-width:var(--sidebar);background:var(--navy);display:flex;flex-direction:column;height:100vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;flex-shrink:0}
-.sb::-webkit-scrollbar{display:none}
-.sb-logo{padding:16px 18px 14px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(255,255,255,.07)}
-.sb-logo-ico{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--blueb) 0%,#5B8FFF 100%);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;box-shadow:0 4px 12px rgba(42,122,255,.4)}
-.sb-logo-name{color:#fff;font-weight:800;font-size:14px;line-height:1.25}
-.sb-logo-sub{color:var(--g400);font-size:9.5px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
-.sb-sec{padding:14px 16px 4px;color:var(--g500);font-size:9.5px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase}
-.nav{padding:2px 10px}
-.ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:rgba(255,255,255,.55);cursor:pointer;font-size:12.5px;font-weight:500;transition:var(--tr);user-select:none;position:relative}
-.ni:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85)}
-.ni.active{background:rgba(42,122,255,.2);color:var(--blueb);font-weight:700}
-.ni-ico{font-size:15px;width:18px;text-align:center;flex-shrink:0}
-.ni-badge{margin-left:auto;background:var(--danger);color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:20px}
-.sb-bot{margin-top:auto;padding:14px 16px;border-top:1px solid rgba(255,255,255,.07)}
-.ucard{display:flex;align-items:center;gap:9px}
-.uav{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--blueb));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px;flex-shrink:0}
-.uname{color:#fff;font-size:12px;font-weight:700}
-.urole{color:var(--g400);font-size:10px}
-.main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
-.topbar{height:var(--topbar);min-height:var(--topbar);background:#fff;border-bottom:1px solid var(--g200);display:flex;align-items:center;padding:0 22px;gap:12px;box-shadow:0 1px 4px rgba(9,24,48,.05);flex-shrink:0}
-.tb-title{font-size:15.5px;font-weight:800;color:var(--navy)}
-.tb-crumb{font-size:10.5px;color:var(--g400)}
-.tb-right{margin-left:auto;display:flex;align-items:center;gap:9px}
-.btn{padding:7px 15px;border-radius:var(--r2);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:var(--tr);border:1.5px solid var(--g200);background:#fff;color:var(--navy)}
-.btn:hover{background:var(--g50)}
-.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-.btn.primary:hover{background:#1554BE}
-.btn.success{background:var(--success);border-color:var(--success);color:#fff}
-.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
-.btn.sm{padding:4px 10px;font-size:11px}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.content{flex:1;overflow-y:auto;padding:20px 24px;scrollbar-width:thin}
-.content::-webkit-scrollbar{width:5px}
-.content::-webkit-scrollbar-thumb{background:var(--g200);border-radius:10px}
-.screen{display:none}
-.screen.active{display:block;animation:fi .18s ease}
-@keyframes fi{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-.card{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--g100);overflow:hidden;margin-bottom:14px}
-.card-hd{padding:13px 18px 11px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.card-title{font-size:13px;font-weight:700;color:var(--navy)}
-.card-bd{padding:14px 18px}
-.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:11px;margin-bottom:14px}
-.kpi{background:#fff;border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);border:1px solid var(--g100);position:relative;overflow:hidden;transition:var(--tr)}
-.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadowmd)}
-.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:0 2px 2px 0}
-.kpi.blue::before{background:var(--blue)}.kpi.green::before{background:var(--success)}
-.kpi.amber::before{background:var(--accent)}.kpi.red::before{background:var(--danger)}
-.kpi.navy::before{background:var(--navy3)}.kpi.purple::before{background:#7C3AED}
-.kpi-lbl{font-size:9.5px;font-weight:800;color:var(--g400);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
-.kpi-val{font-size:21px;font-weight:900;color:var(--navy);line-height:1}
-.kpi-sub{font-size:10px;color:var(--g400);margin-top:4px}
-.kpi-ico{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:24px;opacity:.10}
-.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
-.bg-green{background:#D1FAE5;color:#065F46}.bg-red{background:#FEE2E2;color:#991B1B}
-.bg-yellow{background:#FEF9C3;color:#854D0E}.bg-blue{background:#DBEAFE;color:#1E40AF}
-.bg-grey{background:var(--g100);color:var(--g500)}.bg-purple{background:#EDE9FE;color:#5B21B6}
-.bg-orange{background:#FFEDD5;color:#9A3412}
-.tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{padding:8px 13px;text-align:left;background:var(--g50);color:var(--g500);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;border-bottom:2px solid var(--g200);white-space:nowrap}
-td{padding:9px 13px;border-bottom:1px solid var(--g100);color:var(--g700)}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:#FAFBFE}
-.td-b{font-weight:700;color:var(--navy)}.td-mono{font-family:monospace;font-size:11px}
-.td-sm{font-size:10.5px;color:var(--g400)}.td-green{color:var(--success);font-weight:700}
-.td-red{color:var(--danger);font-weight:700}.td-amber{color:var(--accent);font-weight:700}
-.prog{height:6px;background:var(--g100);border-radius:20px;overflow:hidden}
-.prog-fill{height:100%;border-radius:20px;background:linear-gradient(90deg,var(--blue),var(--blueb));transition:width .5s}
-.prog-fill.g{background:linear-gradient(90deg,#0D9F72,#34D399)}
-.prog-fill.a{background:linear-gradient(90deg,var(--accent),#FCD34D)}
-.row{display:flex;gap:14px;margin-bottom:14px}
-.col{flex:1;min-width:0}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.sm{background:#fff;border-radius:var(--r);padding:13px 15px;box-shadow:var(--shadow);border:1px solid var(--g100);text-align:center}
-.sm-v{font-size:20px;font-weight:900}.sm-l{font-size:10px;color:var(--g400);font-weight:700;text-transform:uppercase;margin-top:2px}
-.unit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:7px}
-.utile{border-radius:7px;padding:9px 7px;text-align:center;cursor:pointer;transition:var(--tr);border:2px solid transparent;font-size:11px;font-weight:600;user-select:none}
-.utile:hover{transform:scale(1.06);box-shadow:var(--shadowmd)}
-.utile.available{background:#ECFDF5;color:#065F46;border-color:#6EE7B7}
-.utile.sold{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5}
-.utile.hold{background:#FEF9C3;color:#854D0E;border-color:#FCD34D}
-.utile-no{font-size:13px;font-weight:900;margin-bottom:1px}
-.utile-type{font-size:9px;opacity:.7}
-.bar-chart{display:flex;align-items:flex-end;gap:5px;height:100px;padding:0 2px}
-.bw{display:flex;flex-direction:column;align-items:center;flex:1;height:100%;justify-content:flex-end}
-.bar{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--blueb),var(--blue));min-height:3px;transition:height .7s;position:relative;cursor:pointer}
-.bar.accent{background:linear-gradient(180deg,var(--accent),#F97316)}
-.bar:hover::after{content:attr(data-tip);position:absolute;top:-24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;font-size:9.5px;padding:2px 7px;border-radius:4px;white-space:nowrap;font-weight:700}
-.bar-lbl{font-size:9px;color:var(--g400);margin-top:3px;font-weight:700}
-.rec-row{display:flex;align-items:center;gap:9px;margin-bottom:8px}
-.rec-lbl{font-size:11px;color:var(--g500);width:28px;flex-shrink:0;font-weight:700}
-.rec-bg{flex:1;height:6px;background:var(--g100);border-radius:20px;overflow:hidden}
-.rec-fill{height:100%;border-radius:20px}
-.rec-pct{font-size:11px;font-weight:800;color:var(--navy);width:32px;text-align:right}
-.alert-item{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid var(--g100);font-size:11.5px}
-.alert-item:last-child{border-bottom:none}
-.adot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:3px}
-.adot.red{background:var(--danger)}.adot.amber{background:var(--accent)}.adot.green{background:var(--success)}
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(9,24,48,.55);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-.modal-bg.open{display:flex}
-.modal{background:#fff;border-radius:12px;box-shadow:var(--shadowlg);padding:22px;max-width:700px;width:94%;max-height:90vh;overflow-y:auto;animation:fi .2s ease;scrollbar-width:thin}
-.modal-title{font-size:16px;font-weight:900;margin-bottom:16px;color:var(--navy);display:flex;align-items:center;justify-content:space-between}
-.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--g400);padding:0 4px}
-.modal-close:hover{color:var(--navy)}
-.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
-.fg label{font-size:10.5px;font-weight:800;color:var(--g500);text-transform:uppercase;letter-spacing:.5px}
-input,select,textarea{padding:7px 10px;border:1.5px solid var(--g200);border-radius:var(--r2);font-family:inherit;font-size:12.5px;color:var(--navy);background:#fff;outline:none;transition:var(--tr);width:100%}
-input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(27,98,212,.1)}
-textarea{resize:vertical;min-height:60px}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.inst-hd,.inst-row{display:grid;grid-template-columns:140px 130px 110px 1fr 34px;gap:6px;align-items:center}
-.inst-hd{padding-bottom:7px;border-bottom:2px solid var(--g200);font-size:10px;font-weight:800;color:var(--g400);text-transform:uppercase;margin-bottom:4px}
-.inst-row{padding:4px 0;border-bottom:1px solid var(--g100)}
-.del-btn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:15px}
-.add-inst{background:none;border:1.5px dashed var(--blue);color:var(--blue);font-family:inherit;font-size:12px;font-weight:700;padding:7px;border-radius:7px;cursor:pointer;width:100%;margin-top:7px;transition:var(--tr)}
-.add-inst:hover{background:var(--bluepale)}
-.gl-hd,.gl-row{display:grid;grid-template-columns:95px 1fr 105px 105px 115px;gap:6px;padding:8px 15px;align-items:center;font-size:11.5px}
-.gl-hd{background:var(--g50);border-bottom:2px solid var(--g200);font-size:9.5px;font-weight:800;color:var(--g400);text-transform:uppercase;letter-spacing:.7px}
-.gl-row{border-bottom:1px solid var(--g100)}.gl-row:hover{background:#FAFBFE}
-.dr{color:var(--danger);font-weight:700;font-family:monospace}.cr{color:var(--success);font-weight:700;font-family:monospace}
-.portal-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 100%);border-radius:var(--r);padding:24px 26px;color:#fff;margin-bottom:16px;position:relative;overflow:hidden}
-.portal-hero::after{content:'🏠';position:absolute;right:24px;top:50%;transform:translateY(-50%);font-size:60px;opacity:.1}
-.site-log{background:#fff;border-radius:var(--r);padding:13px 15px;border:1px solid var(--g100);margin-bottom:9px;box-shadow:var(--shadow)}
-.notice{background:#fff;border:1.5px solid var(--g200);border-radius:var(--r);padding:22px;box-shadow:var(--shadowmd)}
-.notice-lh{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--navy);padding-bottom:12px;margin-bottom:14px}
-.notice-body{font-size:12px;line-height:1.8;color:var(--g700)}
-.notice-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11.5px}
-.notice-table td{padding:5px 8px;border:1px solid var(--g200)}
-.notice-table td:first-child{font-weight:700;background:var(--g50);width:130px}
-.agent-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--g100)}
-.agent-row:last-child{border-bottom:none}
-.agent-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:#fff;flex-shrink:0}
-.rep-tile{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--g100);padding:20px 16px;text-align:center;cursor:pointer;transition:var(--tr)}
-.rep-tile:hover{transform:translateY(-3px);box-shadow:var(--shadowmd);border-color:var(--blue)}
-.rep-ico{font-size:32px;margin-bottom:8px}.rep-name{font-weight:800;font-size:13px;margin-bottom:3px}.rep-desc{font-size:11px;color:var(--g400);margin-bottom:12px}
-.sum-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);font-size:12px}
-.sum-row:last-child{border-bottom:none}
-.sum-lbl{color:var(--g500)}.sum-val{font-weight:700;color:var(--navy)}
-.loading{text-align:center;padding:40px;color:var(--g400);font-size:13px}
-.error-box{background:var(--dangerp);border:1px solid var(--danger);border-radius:8px;padding:12px;color:var(--danger);font-size:12px;margin-bottom:12px}
-.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--g200);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
-@keyframes spin{to{transform:rotate(360deg)}}
-#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:9px 18px;border-radius:8px;font-size:12.5px;font-weight:600;box-shadow:var(--shadowlg);opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
-#toast.show{opacity:1}
-</style>
+<link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
 
 <aside class="sb">
   <div class="sb-logo">
     <div class="sb-logo-ico">🏗️</div>
-    <div><div class="sb-logo-name">Haven Builders</div><div class="sb-logo-sub">ERP v2.0 · Live DB</div></div>
+    <div><div class="sb-logo-name">Haven Builders</div><div class="sb-logo-sub">ERP v4.0 · FastAPI</div></div>
   </div>
   <div class="sb-sec">Core</div>
   <nav class="nav">
@@ -220,12 +57,17 @@ textarea{resize:vertical;min-height:60px}
       <div class="tb-crumb" id="tb-crumb">Home / Overview</div>
     </div>
     <div class="tb-right">
-      <select id="proj-select" style="font-size:11.5px;padding:6px 10px;border-radius:7px;border:1.5px solid var(--g200)">
-        <option value="1">Haven Heights A</option>
-        <option value="2">Haven Residencia</option>
-        <option value="3">Commercial Hub</option>
-      </select>
-      <button class="btn primary" id="tb-cta" onclick="goScreen('booking')">+ New Booking</button>
+      <div id="proj-filter-wrap" class="proj-filter-wrap" hidden>
+        <button type="button" class="proj-filter-btn" id="proj-filter-btn">All Projects ▾</button>
+        <div class="proj-filter-menu" id="proj-filter-menu">
+          <label class="pf-item pf-all"><input type="checkbox" id="pf-all" checked> <strong>All Projects</strong></label>
+          <div class="pf-divider"></div>
+          <div id="pf-list"></div>
+        </div>
+      </div>
+      <div id="tb-cta-wrap" hidden>
+        <button type="button" class="btn primary" id="tb-cta">+ New Booking</button>
+      </div>
     </div>
   </div>
 
@@ -271,15 +113,18 @@ textarea{resize:vertical;min-height:60px}
 <div class="screen" id="s-projects">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div><div style="font-size:16px;font-weight:900">Project Management</div><div style="font-size:11px;color:var(--g400);margin-top:2px">Live data from database</div></div>
-    <button class="btn primary">+ New Project</button>
+    <button class="btn primary" id="btn-new-project">+ New Project</button>
   </div>
   <div id="projects-list"><div class="loading"><span class="spinner"></span>Loading projects…</div></div>
 </div>
 
 <div class="screen" id="s-units">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Unit Inventory</div><div style="font-size:11px;color:var(--g400);margin-top:2px">Click a unit to view full details, including sold units</div></div>
+    <div><div style="font-size:16px;font-weight:900">Unit Inventory</div><div style="font-size:11px;color:var(--g400);margin-top:2px" id="units-scope">Loading…</div></div>
     <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+      <select id="u-proj" style="font-size:11.5px;padding:6px 10px;border-radius:7px;border:1.5px solid var(--g200);min-width:160px" title="Filter by project">
+        <option value="">All Projects</option>
+      </select>
       <select id="u-floor" style="font-size:11.5px;padding:6px 10px;border-radius:7px;border:1.5px solid var(--g200)">
         <option value="">All Floors</option>
         <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
@@ -291,6 +136,8 @@ textarea{resize:vertical;min-height:60px}
         <option value="hold">Hold</option>
         <option value="sold">Sold</option>
       </select>
+      <button type="button" class="btn sm primary" id="btn-add-unit">+ Add Unit</button>
+      <button type="button" class="btn sm" id="btn-bulk-units" title="Coming soon">📤 Bulk CSV Upload</button>
       <div style="display:flex;gap:6px;font-size:11px;align-items:center">
         <span style="color:var(--success);font-weight:700">●</span>Available
         <span style="color:var(--accent);font-weight:700">●</span>Hold
@@ -311,15 +158,28 @@ textarea{resize:vertical;min-height:60px}
   <div style="display:grid;grid-template-columns:1fr 360px;gap:14px;align-items:start">
     <div>
       <div class="card">
-        <div class="card-hd"><span class="card-title">👤 Customer Information</span></div>
-        <div class="card-bd">
-          <div class="form-row">
-            <div class="fg"><label>Full Name *</label><input id="bk-name" type="text" placeholder="Full legal name"></div>
-            <div class="fg"><label>CNIC *</label><input id="bk-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
-            <div class="fg"><label>Mobile</label><input id="bk-phone" type="text" placeholder="+92 3XX XXXXXXX"></div>
-            <div class="fg"><label>Email</label><input id="bk-email" type="email" placeholder="email@domain.com"></div>
+        <div class="card-hd">
+          <span class="card-title">👤 Customer</span>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn sm primary" data-cust-mode="existing">Existing</button>
+            <button type="button" class="btn sm" data-cust-mode="new">New</button>
           </div>
-          <div class="fg"><label>Address</label><textarea id="bk-address" placeholder="Permanent address"></textarea></div>
+        </div>
+        <div class="card-bd">
+          <div id="bk-existing-wrap">
+            <div class="fg"><label>Select Customer *</label>
+              <select id="bk-customer-select"><option value="">Loading…</option></select>
+            </div>
+          </div>
+          <div id="bk-new-wrap" style="display:none">
+            <div class="form-row">
+              <div class="fg"><label>Full Name *</label><input id="bk-name" type="text" placeholder="Full legal name"></div>
+              <div class="fg"><label>CNIC *</label><input id="bk-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
+              <div class="fg"><label>Mobile</label><input id="bk-phone" type="text" placeholder="+92 3XX XXXXXXX"></div>
+              <div class="fg"><label>Email</label><input id="bk-email" type="email" placeholder="email@domain.com"></div>
+            </div>
+            <div class="fg"><label>Address</label><textarea id="bk-address" placeholder="Permanent address"></textarea></div>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -327,27 +187,27 @@ textarea{resize:vertical;min-height:60px}
         <div class="card-bd">
           <div class="form-row">
             <div class="fg"><label>Project</label>
-              <select id="bk-project" onchange="loadAvailableUnits()">
+              <select id="bk-project" >
                 <option value="1">Haven Heights A</option>
                 <option value="2">Haven Residencia</option>
               </select>
             </div>
             <div class="fg"><label>Available Unit *</label>
-              <select id="bk-unit" onchange="updateBookingSummary()"><option>Loading…</option></select>
+              <select id="bk-unit" ><option>Loading…</option></select>
             </div>
             <div class="fg"><label>Booking Date</label><input id="bk-date" type="date"></div>
-            <div class="fg"><label>Sale Price (PKR) *</label><input id="bk-price" type="number" placeholder="e.g. 8500000" oninput="updateBookingSummary()"></div>
-            <div class="fg"><label>Down Payment (PKR) *</label><input id="bk-dp" type="number" placeholder="e.g. 2500000" oninput="updateBookingSummary()"></div>
+            <div class="fg"><label>Sale Price (PKR) *</label><input id="bk-price" type="number" placeholder="e.g. 8500000" ></div>
+            <div class="fg"><label>Down Payment (PKR) *</label><input id="bk-dp" type="number" placeholder="e.g. 2500000" ></div>
             <div class="fg"><label>Agent</label><select id="bk-agent"><option>None — Direct</option><option>Tariq Associates (2%)</option><option>Raza Realty (2.5%)</option></select></div>
           </div>
         </div>
       </div>
       <div class="card">
-        <div class="card-hd"><span class="card-title">📅 Installment Plan</span><button class="btn sm" onclick="addInstRow()">+ Row</button></div>
+        <div class="card-hd"><span class="card-title">📅 Installment Plan</span><button class="btn sm" id="btn-add-inst">+ Row</button></div>
         <div class="card-bd">
           <div class="inst-hd"><span>Amount (PKR)</span><span>Due Date</span><span>Type</span><span>Notes</span><span></span></div>
           <div id="instRows"></div>
-          <button class="add-inst" onclick="addInstRow()">+ Add Installment Milestone</button>
+          <button type="button" class="add-inst btn-add-inst">+ Add Installment Milestone</button>
         </div>
       </div>
     </div>
@@ -358,8 +218,8 @@ textarea{resize:vertical;min-height:60px}
       </div>
       <div class="card" style="margin-top:14px">
         <div class="card-bd" style="display:flex;gap:9px">
-          <button class="btn" style="flex:1" onclick="resetBookingForm()">Reset</button>
-          <button class="btn primary" style="flex:2" onclick="submitBooking()">✅ Confirm Booking</button>
+          <button class="btn" style="flex:1" id="btn-reset-booking">Reset</button>
+          <button class="btn primary" style="flex:2" id="btn-submit-booking">✅ Confirm Booking</button>
         </div>
       </div>
     </div>
@@ -396,8 +256,8 @@ textarea{resize:vertical;min-height:60px}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div><div style="font-size:16px;font-weight:900">Customer Management</div></div>
     <div style="display:flex;gap:8px">
-      <input type="text" placeholder="Search…" id="cust-search" style="width:200px" oninput="filterCustomers()">
-      <button class="btn primary" onclick="openAddCustomer()">+ Add Customer</button>
+      <input type="text" placeholder="Search…" id="cust-search" style="width:200px" >
+      <button class="btn primary" id="btn-add-customer">+ Add Customer</button>
     </div>
   </div>
   <div class="g3" style="margin-bottom:14px">
@@ -484,7 +344,7 @@ textarea{resize:vertical;min-height:60px}
 <div class="screen" id="s-site">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div><div style="font-size:16px;font-weight:900">Site Management</div></div>
-    <button class="btn primary" onclick="openSiteLogModal()">+ Daily Entry</button>
+    <button class="btn primary" id="btn-site-log">+ Daily Entry</button>
   </div>
   <div class="g3" style="margin-bottom:14px">
     <div class="sm"><div class="sm-v" style="color:var(--blue)">72%</div><div class="sm-l">Block A Progress</div><div class="prog" style="margin-top:6px"><div class="prog-fill" style="width:72%"></div></div></div>
@@ -500,7 +360,7 @@ textarea{resize:vertical;min-height:60px}
     <div style="display:flex;gap:8px">
       <button class="btn" onclick="toast('Trial Balance generated!')">Trial Balance</button>
       <button class="btn" onclick="toast('P&L generated!')">P&L</button>
-      <button class="btn primary" onclick="openLedgerModal()">+ Journal Entry</button>
+      <button class="btn primary" id="btn-ledger-entry">+ Journal Entry</button>
     </div>
   </div>
   <div class="g3" style="margin-bottom:14px">
@@ -532,8 +392,8 @@ textarea{resize:vertical;min-height:60px}
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
     <div class="rep-tile" onclick="toast('Customer Statement generated!')"><div class="rep-ico">📋</div><div class="rep-name">Customer Statement</div><div class="rep-desc">Per-customer payment history</div><button class="btn primary" style="width:100%">Generate</button></div>
     <div class="rep-tile" onclick="toast('Installment Schedule generated!')"><div class="rep-ico">📅</div><div class="rep-name">Installment Schedule</div><div class="rep-desc">Full repayment plan per unit</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" onclick="loadAgeing()"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">30 / 60 / 90 day buckets</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" onclick="loadSalesReport()"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise sales analysis</div><button class="btn primary" style="width:100%">Generate</button></div>
+    <div class="rep-tile" data-report="ageing"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">30 / 60 / 90 day buckets</div><button class="btn primary" style="width:100%">Generate</button></div>
+    <div class="rep-tile" data-report="sales"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise sales analysis</div><button class="btn primary" style="width:100%">Generate</button></div>
     <div class="rep-tile" onclick="toast('Expense Report generated!')"><div class="rep-ico">💸</div><div class="rep-name">Expense Report</div><div class="rep-desc">Site & operational costs</div><button class="btn primary" style="width:100%">Generate</button></div>
     <div class="rep-tile" onclick="toast('Trial Balance generated!')"><div class="rep-ico">⚖️</div><div class="rep-name">Trial Balance</div><div class="rep-desc">Full DR/CR summary</div><button class="btn primary" style="width:100%">Generate</button></div>
   </div>
@@ -593,16 +453,99 @@ textarea{resize:vertical;min-height:60px}
   </div>
 </div>
 
+<div class="modal-bg" id="project-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="pd-title">Project Details</span><button type="button" class="modal-close" data-close-modal="project-detail-modal">✕</button></div>
+    <div id="pd-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="unit-modal">
-  <div class="modal" style="max-width:760px">
-    <div class="modal-title"><span id="um-title">Unit Details</span><button class="modal-close" onclick="closeModal('unit-modal')">✕</button></div>
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="um-title">Unit Details</span><button class="modal-close" data-close-modal="unit-modal">✕</button></div>
     <div id="um-body"><div class="loading"><span class="spinner"></span>Loading unit details…</div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="unit-form-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="unit-form-title">Add Unit</span><button type="button" class="modal-close" data-close-modal="unit-form-modal">✕</button></div>
+    <div id="uf-body"></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="unit-form-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-unit-form">Save Unit</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="proj-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title">
+      <span>Project Onboarding</span>
+      <button type="button" class="modal-close" data-close-modal="proj-modal">✕</button>
+    </div>
+    <div class="onboard-steps">
+      <div class="onboard-step active" data-onboard-step="1"><span>1</span> Project Details</div>
+      <div class="onboard-step" data-onboard-step="2"><span>2</span> Unit Inventory</div>
+    </div>
+    <div class="onboard-body">
+      <div id="onboard-step-1" class="onboard-panel">
+        <div class="form-row">
+          <div class="fg"><label>Project Name *</label><input id="np-name" type="text" placeholder="e.g. Haven Heights Block B"></div>
+          <div class="fg"><label>Location *</label><input id="np-location" type="text" placeholder="e.g. Bahria Town, Lahore"></div>
+          <div class="fg"><label>Area</label><input id="np-area" type="text" placeholder="e.g. Sector C"></div>
+          <div class="fg"><label>City</label><input id="np-city" type="text" placeholder="e.g. Lahore"></div>
+          <div class="fg"><label>Start Date</label><input id="np-start" type="date"></div>
+          <div class="fg"><label>Expected End Date</label><input id="np-end" type="date"></div>
+          <div class="fg"><label>Status</label>
+            <select id="np-status">
+              <option value="planning">Planning</option>
+              <option value="under_construction" selected>Under Construction</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div class="fg"><label>Construction Progress (%)</label><input id="np-progress" type="number" min="0" max="100" placeholder="0"></div>
+          <div class="fg"><label>Number of Floors</label><input id="np-floors" type="number" min="0" placeholder="e.g. 10"></div>
+          <div class="fg"><label>Planned Units</label><input id="np-units" type="number" min="0" placeholder="e.g. 120"></div>
+          <div class="fg"><label>Total Area (Ghaz)</label><input id="np-area-ghaz" type="number" min="0" step="0.01" placeholder="e.g. 500"></div>
+          <div class="fg"><label>Estimated Cost (PKR)</label><input id="np-cost" type="number" min="0" placeholder="e.g. 850000000"></div>
+        </div>
+        <div class="fg"><label>Description</label><textarea id="np-notes" placeholder="Project overview, phases, notes…"></textarea></div>
+        <div class="fg"><label>Project Attributes</label>
+          <div class="chk-grid" id="np-attributes">
+            <label><input type="checkbox" value="lift"> Lift</label>
+            <label><input type="checkbox" value="parking"> Parking</label>
+            <label><input type="checkbox" value="generator"> Generator</label>
+            <label><input type="checkbox" value="park"> Park</label>
+            <label><input type="checkbox" value="security"> Security</label>
+            <label><input type="checkbox" value="gym"> Gym</label>
+            <label><input type="checkbox" value="mosque"> Mosque</label>
+            <label><input type="checkbox" value="commercial"> Commercial</label>
+          </div>
+        </div>
+      </div>
+      <div id="onboard-step-2" class="onboard-panel" hidden>
+        <div class="onboard-hint">Add units for this project now with full details, or click <strong>Skip for now</strong> to create the project only and add units later from Unit Inventory.</div>
+        <div id="np-units-list"></div>
+        <button type="button" class="add-inst" id="btn-add-unit-row">+ Add Another Unit</button>
+      </div>
+    </div>
+    <div class="onboard-footer">
+      <button type="button" class="btn" data-close-modal="proj-modal">Cancel</button>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" id="btn-onboard-back" hidden>← Back</button>
+        <button type="button" class="btn" id="btn-onboard-skip" hidden>Skip for now</button>
+        <button type="button" class="btn primary" id="btn-onboard-next">Next: Add Units →</button>
+        <button type="button" class="btn primary" id="btn-onboard-finish" hidden>Create Project &amp; Units</button>
+        <button type="button" class="btn primary" id="btn-save-project" hidden>Save Changes</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <div class="modal-bg" id="cust-modal">
   <div class="modal" style="max-width:480px">
-    <div class="modal-title"><span>Add New Customer</span><button class="modal-close" onclick="closeModal('cust-modal')">✕</button></div>
+    <div class="modal-title"><span>Add New Customer</span><button class="modal-close" data-close-modal="cust-modal">✕</button></div>
     <div class="form-row">
       <div class="fg"><label>Full Name *</label><input id="nc-name" type="text" placeholder="Full legal name"></div>
       <div class="fg"><label>CNIC *</label><input id="nc-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
@@ -611,15 +554,15 @@ textarea{resize:vertical;min-height:60px}
     </div>
     <div class="fg"><label>Address</label><textarea id="nc-address" placeholder="Residential address"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
-      <button class="btn" onclick="closeModal('cust-modal')">Cancel</button>
-      <button class="btn primary" onclick="submitCustomer()">Save Customer</button>
+      <button class="btn" data-close-modal="cust-modal">Cancel</button>
+      <button class="btn primary" id="btn-save-customer">Save Customer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-bg" id="site-modal">
   <div class="modal" style="max-width:520px">
-    <div class="modal-title"><span>Daily Site Entry</span><button class="modal-close" onclick="closeModal('site-modal')">✕</button></div>
+    <div class="modal-title"><span>Daily Site Entry</span><button class="modal-close" data-close-modal="site-modal">✕</button></div>
     <div class="fg"><label>Project</label><select id="sl-proj"><option value="1">Haven Heights A</option><option value="2">Haven Residencia</option></select></div>
     <div class="form-row">
       <div class="fg"><label>Date</label><input id="sl-date" type="date"></div>
@@ -630,15 +573,15 @@ textarea{resize:vertical;min-height:60px}
     <div class="fg"><label>Material Used</label><input id="sl-mat" type="text" placeholder="e.g. Cement:120 bags, Steel:2T"></div>
     <div class="fg"><label>Work Done</label><textarea id="sl-work" placeholder="Describe work completed today"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
-      <button class="btn" onclick="closeModal('site-modal')">Cancel</button>
-      <button class="btn primary" onclick="submitSiteLog()">Save Entry</button>
+      <button class="btn" data-close-modal="site-modal">Cancel</button>
+      <button class="btn primary" id="btn-save-site-log">Save Entry</button>
     </div>
   </div>
 </div>
 
 <div class="modal-bg" id="ledger-modal">
   <div class="modal" style="max-width:440px">
-    <div class="modal-title"><span>New Journal Entry</span><button class="modal-close" onclick="closeModal('ledger-modal')">✕</button></div>
+    <div class="modal-title"><span>New Journal Entry</span><button class="modal-close" data-close-modal="ledger-modal">✕</button></div>
     <div class="form-row">
       <div class="fg"><label>Date</label><input id="le-date" type="date"></div>
       <div class="fg"><label>Account Type</label><select id="le-type"><option>Sales</option><option>Expense</option><option>Purchase</option><option>General</option></select></div>
@@ -649,521 +592,14 @@ textarea{resize:vertical;min-height:60px}
       <div class="fg"><label>Credit (PKR)</label><input id="le-cr" type="number" placeholder="0"></div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
-      <button class="btn" onclick="closeModal('ledger-modal')">Cancel</button>
-      <button class="btn primary" onclick="submitLedger()">Post Entry</button>
+      <button class="btn" data-close-modal="ledger-modal">Cancel</button>
+      <button class="btn primary" id="btn-save-ledger">Post Entry</button>
     </div>
   </div>
 </div>
 
 <div id="toast"></div>
 
-<script>
-const $ = id => document.getElementById(id);
-const fmt = n => n || n===0 ? 'PKR ' + Number(n).toLocaleString('en-PK') : 'PKR 0';
-const fmtShort = n => {
-  if (!n) return 'PKR 0';
-  if (n >= 10000000) return 'PKR ' + (n/10000000).toFixed(1) + 'Cr';
-  if (n >= 100000)   return 'PKR ' + (n/100000).toFixed(1) + 'L';
-  return 'PKR ' + Number(n).toLocaleString();
-};
-
-function toast(msg, type) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.style.background = type === 'error' ? '#E53E3E' : '#091830';
-  t.classList.add('show');
-  clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-async function api(path, opts) {
-  try {
-    const r = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...opts});
-    if (!r.ok) { const txt = await r.text(); throw new Error('HTTP ' + r.status + ': ' + txt.slice(0,150)); }
-    return await r.json();
-  } catch(e) {
-    toast('⚠ ' + e.message, 'error');
-    console.error(e);
-    throw e;
-  }
-}
-
-function closeModal(id) { $(id).classList.remove('open'); }
-function openModal(id)  { $(id).classList.add('open'); }
-
-const meta = {
-  dashboard:['Dashboard','Home / Overview'], projects:['Projects','Home / Projects'],
-  units:['Unit Inventory','Projects / Units'], booking:['New Booking','Sales / New Booking'],
-  demand:['Demand Notices','Sales / Notices'], customers:['Customers','Sales / Customers'],
-  recovery:['Recovery','Finance / Receivables'], procurement:['Procurement','Operations / Purchase'],
-  vendors:['Vendors','Operations / Vendors'], site:['Site Management','Operations / Site'],
-  accounts:['Accounts / GL','Finance / General Ledger'], agents:['Agent Commission','Finance / Commissions'],
-  reports:['Reports','Finance / Reports'], portal:['Customer Portal','Portal / Preview'],
-};
-const loaders = {
-  dashboard:loadDashboard, projects:loadProjects, units:loadUnits, booking:initBooking,
-  demand:loadDemand, customers:loadCustomers, recovery:loadRecovery, procurement:loadProcurement,
-  vendors:loadVendors, site:loadSite, accounts:loadAccounts, agents:loadAgents, portal:loadPortal,
-};
-
-function goScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
-  $('s-' + id)?.classList.add('active');
-  document.querySelector(`[data-s="${id}"]`)?.classList.add('active');
-  const m = meta[id] || [id, ''];
-  $('tb-title').textContent = m[0];
-  $('tb-crumb').textContent = m[1];
-  if (loaders[id]) loaders[id]();
-}
-document.querySelectorAll('.ni[data-s]').forEach(el => el.addEventListener('click', () => goScreen(el.dataset.s)));
-
-async function loadDashboard() {
-  const d = await api('/api/dashboard');
-  const k = d.kpi;
-  $('kpi-row').innerHTML = `
-    <div class="kpi blue"><div class="kpi-lbl">Total Units</div><div class="kpi-val">${k.total_units}</div><div class="kpi-sub">All projects</div><div class="kpi-ico">🏢</div></div>
-    <div class="kpi green"><div class="kpi-lbl">Sold</div><div class="kpi-val">${k.sold}</div><div class="kpi-sub">${Math.round(k.sold/k.total_units*100)}% of total</div><div class="kpi-ico">✅</div></div>
-    <div class="kpi amber"><div class="kpi-lbl">Available</div><div class="kpi-val">${k.available}</div><div class="kpi-sub">${k.hold} on hold</div><div class="kpi-ico">🟢</div></div>
-    <div class="kpi navy"><div class="kpi-lbl">Receivable</div><div class="kpi-val">${fmtShort(k.receivable)}</div><div class="kpi-sub">Outstanding dues</div><div class="kpi-ico">📥</div></div>
-    <div class="kpi red"><div class="kpi-lbl">Payable</div><div class="kpi-val">${fmtShort(k.payable)}</div><div class="kpi-sub">Vendor dues</div><div class="kpi-ico">📤</div></div>
-    <div class="kpi purple"><div class="kpi-lbl">Overdue Cases</div><div class="kpi-val">${d.overdue.length}</div><div class="kpi-sub">Need attention</div><div class="kpi-ico">⚠️</div></div>
-  `;
-  $('overdue-badge').textContent = d.overdue.length;
-  $('overdue-count-badge').textContent = d.overdue.length + ' Overdue';
-  $('overdue-tbody').innerHTML = d.overdue.length ? d.overdue.map(o => `
-    <tr><td class="td-b">${o.customer_name}</td><td>${o.unit_no}</td><td>${o.project_name}</td>
-    <td class="td-red">${fmt(o.amount)}</td>
-    <td><span class="badge ${o.days_overdue >= 45 ? 'bg-red' : 'bg-yellow'}">${o.days_overdue} Days</span></td>
-    <td style="font-family:monospace">${o.phone}</td>
-    <td><button class="btn sm" onclick="toast('WhatsApp reminder sent to ${o.customer_name}!')">💬 WA</button></td></tr>
-  `).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:20px">✅ No overdue installments</td></tr>';
-
-  const sc = $('salesChart'); sc.innerHTML = '';
-  const months = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
-  const peak = Math.max(...d.sales_chart);
-  d.sales_chart.forEach((v, i) => {
-    const pct = Math.round(v/peak*100);
-    const w = document.createElement('div'); w.className = 'bw';
-    w.innerHTML = `<div class="bar ${v===peak?'accent':''}" style="height:${pct}%" data-tip="PKR ${v}L"></div><div class="bar-lbl">${months[i]}</div>`;
-    sc.appendChild(w);
-  });
-
-  const rcMonths = ['Jan','Feb','Mar','Apr','May'];
-  const rcColors = ['var(--blue)','var(--blue)','var(--success)','var(--accent)','var(--danger)'];
-  $('rec-chart').innerHTML = d.recovery_chart.map((v,i) => `
-    <div class="rec-row"><span class="rec-lbl">${rcMonths[i]}</span><div class="rec-bg"><div class="rec-fill" style="width:${v}%;background:${rcColors[i]}"></div></div><span class="rec-pct">${v}%</span></div>
-  `).join('');
-
-  $('alerts-box').innerHTML = d.alerts.map(a => `
-    <div class="alert-item"><div class="adot ${a.type==='danger'?'red':a.type==='success'?'green':'amber'}"></div>
-    <div><div style="font-weight:700;font-size:12px">${a.title}</div><div style="font-size:10.5px;color:var(--g400);margin-top:1px">${a.sub}</div></div></div>
-  `).join('');
-}
-
-async function loadProjects() {
-  const data = await api('/api/projects');
-  $('projects-list').innerHTML = data.map(p => `
-    <div class="card"><div class="card-bd">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-        <div><div style="font-size:16px;font-weight:900">${p.name}</div><div style="font-size:11.5px;color:var(--g400);margin-top:2px">📍 ${p.location} &nbsp;|&nbsp; ${p.start_date} → ${p.end_date}</div></div>
-        <span class="badge ${p.status==='Completed'?'bg-grey':'bg-green'}">${p.status}</span>
-      </div>
-      <div class="g4" style="margin-bottom:14px">
-        <div class="sm"><div class="sm-v">${p.total_units}</div><div class="sm-l">Total</div></div>
-        <div class="sm"><div class="sm-v" style="color:var(--success)">${p.sold}</div><div class="sm-l">Sold</div></div>
-        <div class="sm"><div class="sm-v" style="color:var(--blue)">${p.available}</div><div class="sm-l">Available</div></div>
-        <div class="sm"><div class="sm-v" style="color:var(--accent)">${p.hold}</div><div class="sm-l">Hold</div></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px">
-        <span style="font-weight:700;color:var(--g500)">Construction Progress</span>
-        <span style="font-weight:900;color:${p.progress>=80?'var(--success)':p.progress>=50?'var(--blue)':'var(--accent)'}">${p.progress}%</span>
-      </div>
-      <div class="prog"><div class="prog-fill ${p.progress===100?'g':p.progress<50?'a':''}" style="width:${p.progress}%"></div></div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn sm" onclick="$('proj-select').value='${p.id}';goScreen('units')">View Units</button>
-        <button class="btn sm" onclick="goScreen('site')">Site Logs</button>
-        <button class="btn sm" onclick="goScreen('accounts')">Financials</button>
-      </div>
-    </div></div>
-  `).join('');
-}
-
-let allUnits = [];
-async function loadUnits() {
-  const projId = $('proj-select').value || 1;
-  $('unit-floors').innerHTML = '<div class="loading"><span class="spinner"></span>Loading units…</div>';
-  allUnits = await api(`/api/units?project_id=${projId}`);
-  renderUnits(allUnits);
-}
-function renderUnits(units) {
-  const floorFilter = $('u-floor').value;
-  const statusFilter = $('u-status').value;
-  let filtered = units;
-  if (floorFilter) filtered = filtered.filter(u => u.floor == floorFilter);
-  if (statusFilter) filtered = filtered.filter(u => u.status === statusFilter);
-  $('u-sold-cnt').textContent = filtered.filter(u=>u.status==='sold').length;
-  $('u-avail-cnt').textContent = filtered.filter(u=>u.status==='available').length;
-  $('u-hold-cnt').textContent = filtered.filter(u=>u.status==='hold').length;
-  const floors = {};
-  filtered.forEach(u => { (floors[u.floor] = floors[u.floor]||[]).push(u); });
-  if (!filtered.length) { $('unit-floors').innerHTML = '<div class="loading">No units match the filter</div>'; return; }
-  $('unit-floors').innerHTML = Object.entries(floors).sort((a,b)=>a[0]-b[0]).map(([fl, units]) => `
-    <div class="card"><div class="card-hd"><span class="card-title">Floor ${fl} — ${units.length} Units</span></div>
-    <div class="card-bd"><div class="unit-grid">
-      ${units.map(u => `
-        <div class="utile ${u.status}" onclick="openUnit(${u.id})" title="${u.unit_no} · ${u.type} · ${u.status.toUpperCase()}">
-          <div class="utile-no">${u.unit_no}</div><div class="utile-type">${u.type}</div>
-          <div style="font-size:9px;opacity:.6;margin-top:1px">${u.size_sqft} sqft</div>
-        </div>`).join('')}
-    </div></div></div>
-  `).join('');
-}
-$('u-floor').addEventListener('change', () => renderUnits(allUnits));
-$('u-status').addEventListener('change', () => renderUnits(allUnits));
-$('proj-select').addEventListener('change', () => { if (document.querySelector('#s-units.active')) loadUnits(); });
-
-async function openUnit(uid) {
-  openModal('unit-modal');
-  $('um-title').textContent = 'Loading…';
-  $('um-body').innerHTML = '<div class="loading"><span class="spinner"></span>Fetching unit details from database…</div>';
-  let d;
-  try { d = await api(`/api/units/${uid}`); }
-  catch(e) { $('um-body').innerHTML = `<div class="error-box">Failed to load unit: ${e.message}</div>`; return; }
-
-  const u = d.unit, b = d.booking, s = d.summary;
-  $('um-title').textContent = `${u.unit_no} — ${u.project_name}`;
-
-  const instRows = (d.installments||[]).length ? d.installments.map(i => `
-    <tr><td>${i.due_date}</td><td>${i.type}</td><td>${fmt(i.amount)}</td><td>${i.notes||'—'}</td>
-    <td><span class="badge ${i.status==='paid'?'bg-green':i.status==='overdue'?'bg-red':'bg-yellow'}">${i.status}</span></td>
-    ${(i.status==='pending'||i.status==='overdue') ? `<td><button class="btn sm primary" onclick="payInstallment(${i.id},${b.id},${b.customer_id},${i.amount},${uid})">Pay</button></td>` : '<td>—</td>'}
-    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--g400)">No installments</td></tr>';
-
-  const payRows = (d.payments||[]).length ? d.payments.map(p => `
-    <tr><td>${p.paid_date}</td><td>${p.inst_type}</td><td class="td-green">${fmt(p.amount)}</td><td>${p.method}</td><td><span class="badge bg-green">${p.receipt_no}</span></td></tr>
-  `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--g400)">No payments recorded yet</td></tr>';
-
-  $('um-body').innerHTML = b ? `
-    <div class="g2" style="margin-bottom:14px">
-      <div>
-        <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">📦 Unit Details</div>
-        <div class="sum-row"><span class="sum-lbl">Unit No</span><span class="sum-val">${u.unit_no}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Type</span><span class="sum-val">${u.type}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Floor</span><span class="sum-val">Floor ${u.floor}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Size</span><span class="sum-val">${u.size_sqft} sqft</span></div>
-        <div class="sum-row"><span class="sum-lbl">Facing</span><span class="sum-val">${u.facing}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${u.status==='sold'?'bg-red':u.status==='available'?'bg-green':'bg-yellow'}">${u.status}</span></span></div>
-      </div>
-      <div>
-        <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">👤 Customer</div>
-        <div class="sum-row"><span class="sum-lbl">Name</span><span class="sum-val">${b.customer_name}</span></div>
-        <div class="sum-row"><span class="sum-lbl">CNIC</span><span class="sum-val" style="font-family:monospace;font-size:11px">${b.cnic}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Phone</span><span class="sum-val">${b.phone}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Booked</span><span class="sum-val">${b.booking_date}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Agent</span><span class="sum-val">${b.agent}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Payment</span><span class="sum-val">${b.payment_mode}</span></div>
-      </div>
-    </div>
-    <div class="g3" style="margin-bottom:14px">
-      <div class="sm"><div class="sm-v" style="color:var(--navy)">${fmt(s.sale_price)}</div><div class="sm-l">Sale Price</div></div>
-      <div class="sm"><div class="sm-v" style="color:var(--success)">${fmt(s.total_paid)}</div><div class="sm-l">Total Paid</div></div>
-      <div class="sm"><div class="sm-v" style="color:${s.outstanding>0?'var(--danger)':'var(--success)'}">${fmt(s.outstanding)}</div><div class="sm-l">Outstanding</div></div>
-    </div>
-    <div class="prog" style="margin-bottom:4px"><div class="prog-fill g" style="width:${s.pct_paid}%"></div></div>
-    <div style="font-size:10.5px;color:var(--g400);margin-bottom:14px">${s.pct_paid}% paid</div>
-    <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">📅 Installment Schedule</div>
-    <div class="tbl-wrap" style="margin-bottom:14px"><table><thead><tr><th>Due Date</th><th>Type</th><th>Amount</th><th>Notes</th><th>Status</th><th>Action</th></tr></thead><tbody>${instRows}</tbody></table></div>
-    <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">💳 Payment History</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Paid Date</th><th>Type</th><th>Amount</th><th>Method</th><th>Receipt</th></tr></thead><tbody>${payRows}</tbody></table></div>
-  ` : `
-    <div class="g2" style="margin-bottom:14px"><div>
-      <div style="font-size:13px;font-weight:800;margin-bottom:8px">📦 Unit Details</div>
-      <div class="sum-row"><span class="sum-lbl">Unit No</span><span class="sum-val">${u.unit_no}</span></div>
-      <div class="sum-row"><span class="sum-lbl">Type</span><span class="sum-val">${u.type}</span></div>
-      <div class="sum-row"><span class="sum-lbl">Floor</span><span class="sum-val">Floor ${u.floor}</span></div>
-      <div class="sum-row"><span class="sum-lbl">Size</span><span class="sum-val">${u.size_sqft} sqft</span></div>
-      <div class="sum-row"><span class="sum-lbl">Price</span><span class="sum-val" style="color:var(--success);font-size:14px">${fmt(u.price)}</span></div>
-      <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${u.status==='available'?'bg-green':'bg-yellow'}">${u.status.toUpperCase()}</span></span></div>
-    </div></div>
-    <div style="text-align:center;padding:20px;color:var(--g400)">
-      <div style="font-size:32px;margin-bottom:8px">${u.status==='available'?'🟢':'🟡'}</div>
-      <div style="font-weight:700;margin-bottom:12px">${u.status==='available'?'This unit is available for booking':'This unit is on hold'}</div>
-      ${u.status==='available'?`<button class="btn primary" onclick="closeModal('unit-modal');goScreen('booking')">📋 Book This Unit</button>`:''}
-    </div>`;
-}
-
-async function payInstallment(instId, bookingId, custId, amount, uid) {
-  if (!confirm(`Record payment of ${fmt(amount)}?`)) return;
-  const r = await api('/api/payments', {method: 'POST', body: JSON.stringify({installment_id: instId, booking_id: bookingId, customer_id: custId, amount, method: 'Cash'})});
-  toast(`✅ Payment recorded! Receipt: ${r.receipt}`);
-  openUnit(uid);
-  loadDashboard();
-}
-
-async function initBooking() {
-  loadAvailableUnits();
-  $('instRows').innerHTML = '';
-  addInstRow();
-  $('bk-date').value = new Date().toISOString().split('T')[0];
-}
-async function loadAvailableUnits() {
-  const pid = $('bk-project').value;
-  const units = await api(`/api/units?project_id=${pid}&status=available`);
-  $('bk-unit').innerHTML = units.length
-    ? units.map(u => `<option value="${u.id}" data-price="${u.price}">${u.unit_no} · ${u.type} · ${u.size_sqft} sqft · ${fmt(u.price)}</option>`).join('')
-    : '<option value="">No available units</option>';
-  updateBookingSummary();
-}
-function updateBookingSummary() {
-  const unit = $('bk-unit');
-  const opt = unit.options[unit.selectedIndex];
-  const price = parseInt($('bk-price').value) || parseInt(opt?.dataset.price) || 0;
-  const dp = parseInt($('bk-dp').value) || 0;
-  if (!price) { $('booking-summary').textContent = 'Enter price to see summary'; return; }
-  const remaining = price - dp;
-  const pct = price > 0 ? Math.round(dp/price*100) : 0;
-  $('booking-summary').innerHTML = `
-    <div class="sum-row"><span class="sum-lbl">Unit</span><span class="sum-val">${unit.value ? unit.options[unit.selectedIndex].text.split('·')[0].trim() : '—'}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Sale Price</span><span class="sum-val" style="font-size:15px">${fmt(price)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Down Payment</span><span class="sum-val" style="color:var(--success)">${fmt(dp)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Remaining</span><span class="sum-val" style="color:var(--danger)">${fmt(remaining)}</span></div>
-    <div class="prog" style="margin-top:10px"><div class="prog-fill g" style="width:${pct}%"></div></div>
-    <div style="font-size:10.5px;color:var(--g400);margin-top:3px">${pct}% paid upfront</div>`;
-}
-function addInstRow() {
-  const r = document.createElement('div'); r.className = 'inst-row';
-  r.innerHTML = `<input type="number" placeholder="Amount PKR"><input type="date"><select><option>Booking</option><option>Monthly</option><option>Stage</option></select><input type="text" placeholder="Notes"><button class="del-btn" onclick="this.closest('.inst-row').remove()">🗑</button>`;
-  $('instRows').appendChild(r);
-}
-function resetBookingForm() {
-  ['bk-name','bk-cnic','bk-phone','bk-email','bk-address','bk-price','bk-dp'].forEach(id => $(id).value = '');
-  initBooking();
-}
-async function submitBooking() {
-  const name = $('bk-name').value.trim(), cnic = $('bk-cnic').value.trim(), phone = $('bk-phone').value.trim();
-  const unitId = parseInt($('bk-unit').value), projId = parseInt($('bk-project').value);
-  const price = parseInt($('bk-price').value), dp = parseInt($('bk-dp').value);
-  if (!name||!cnic||!unitId||!price||!dp) { toast('Please fill all required fields (*)','error'); return; }
-  const cu = await api('/api/customers', {method:'POST', body: JSON.stringify({name,cnic,phone,email:$('bk-email').value,address:$('bk-address').value})});
-  const insts = [];
-  $('instRows').querySelectorAll('.inst-row').forEach(r => {
-    const inputs = r.querySelectorAll('input,select');
-    const amount = parseInt(inputs[0].value), due_date = inputs[1].value, type = inputs[2].value, notes = inputs[3].value;
-    if (amount && due_date) insts.push({amount, due_date, type, notes});
-  });
-  const r = await api('/api/bookings', {method:'POST', body: JSON.stringify({
-    unit_id: unitId, customer_id: cu.id, project_id: projId, booking_date: $('bk-date').value,
-    sale_price: price, down_payment: dp, agent: $('bk-agent').value, payment_mode: 'Cheque', installments: insts,
-  })});
-  toast(`🎉 Booking confirmed! ID: ${r.booking_id}`);
-  resetBookingForm();
-}
-
-async function loadDemand() {
-  const data = await api('/api/demand-notices');
-  window._demandData = data;
-  $('demand-tbody').innerHTML = data.length ? data.map((n,idx) => `
-    <tr><td class="td-b">${n.customer_name}</td><td>${n.unit_no}</td><td class="td-red">${fmt(n.amount)}</td>
-    <td><span class="badge ${n.days_overdue>=45?'bg-red':'bg-yellow'}">${n.days_overdue}d</span></td>
-    <td><button class="btn sm" onclick="showNotice(${idx})">Preview</button></td></tr>
-  `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:20px">✅ No overdue notices</td></tr>';
-}
-function showNotice(idx) {
-  const n = window._demandData[idx];
-  const fee = Math.round(n.amount * 0.05);
-  $('notice-area').innerHTML = `
-    <div class="notice">
-      <div class="notice-lh"><div style="font-size:26px">🏗️</div>
-        <div><div style="font-weight:900;font-size:16px;color:var(--navy)">Haven Builders (Pvt.) Ltd.</div><div style="font-size:10.5px;color:var(--g400)">Head Office: Main Blvd, Lahore</div></div></div>
-      <div style="font-size:11px;font-weight:700;color:var(--g500);text-align:right;margin-bottom:12px">CNIC: ${n.cnic}</div>
-      <div class="notice-body">
-        <p><strong>To:</strong> ${n.customer_name} &nbsp;|&nbsp; <strong>Unit:</strong> ${n.unit_no}, ${n.project_name}</p><br>
-        <p>Dear ${n.customer_name},</p><br><p>This is a formal demand notice for your overdue installment payment.</p><br>
-        <table class="notice-table">
-          <tr><td>Amount Due</td><td><strong>${fmt(n.amount)}</strong></td></tr>
-          <tr><td>Days Overdue</td><td><strong style="color:var(--danger)">${n.days_overdue} Days</strong></td></tr>
-          <tr><td>Late Fee (5%)</td><td>${fmt(fee)}</td></tr>
-          <tr><td>Total Payable</td><td><strong style="color:var(--danger)">${fmt(n.amount + fee)}</strong></td></tr>
-        </table>
-        <p>Please clear within <strong>7 working days</strong> to avoid legal action.</p>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn primary" style="flex:1" onclick="toast('WA sent to ${n.customer_name}!')">💬 WA</button>
-        <button class="btn" style="flex:1" onclick="toast('Email sent!')">📧 Email</button>
-        <button class="btn" onclick="toast('PDF downloaded!')">🖨 PDF</button>
-      </div>
-    </div>`;
-}
-
-let allCustomers = [];
-async function loadCustomers() {
-  allCustomers = await api('/api/customers');
-  $('c-total').textContent = allCustomers.length;
-  $('c-overdue').textContent = allCustomers.filter(c => c.cust_status === 'Overdue').length;
-  $('c-cleared').textContent = allCustomers.filter(c => c.cust_status !== 'Overdue').length;
-  renderCustomers(allCustomers);
-}
-function renderCustomers(custs) {
-  $('cust-tbody').innerHTML = custs.length ? custs.map(c => `
-    <tr><td><div class="td-b">${c.name}</div><div class="td-sm">${c.phone||'—'}</div></td>
-    <td class="td-mono">${c.cnic}</td>
-    <td>${c.units ? c.units.split(',').map(u=>`<span class="badge bg-blue" style="margin:1px">${u.trim()}</span>`).join(' ') : '—'}</td>
-    <td>${c.total_value ? fmt(c.total_value) : '—'}</td>
-    <td class="td-green">${fmt(c.total_paid)}</td>
-    <td class="${c.outstanding>0?'td-red':'td-green'}">${fmt(c.outstanding)}</td>
-    <td class="td-sm">${c.last_payment || '—'}</td>
-    <td><span class="badge ${c.cust_status==='Overdue'?'bg-red':c.cust_status==='Cleared'?'bg-green':'bg-blue'}">${c.cust_status||'—'}</span></td>
-    <td><button class="btn sm" onclick="toast('Statement for ${c.name} downloaded!')">Stmt</button></td></tr>
-  `).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--g400);padding:20px">No customers found</td></tr>';
-}
-function filterCustomers() {
-  const q = $('cust-search').value.toLowerCase();
-  renderCustomers(allCustomers.filter(c => c.name.toLowerCase().includes(q) || c.cnic.includes(q)));
-}
-function openAddCustomer() { openModal('cust-modal'); }
-async function submitCustomer() {
-  const name = $('nc-name').value.trim(), cnic = $('nc-cnic').value.trim();
-  if (!name || !cnic) { toast('Name and CNIC required', 'error'); return; }
-  await api('/api/customers', {method:'POST', body: JSON.stringify({name, cnic, phone: $('nc-phone').value, email: $('nc-email').value, address: $('nc-address').value})});
-  closeModal('cust-modal'); toast('✅ Customer added!'); loadCustomers();
-}
-
-async function loadRecovery() {
-  const d = await api('/api/recovery');
-  $('r-recv').textContent = fmtShort(d.receivable);
-  $('r-over').textContent = fmtShort(d.overdue_amt);
-  $('r-coll').textContent = fmtShort(d.collected_month);
-  $('r-cases').textContent = d.overdue.length;
-  $('recovery-tbody').innerHTML = d.overdue.length ? d.overdue.map(o => `
-    <tr><td class="td-b">${o.customer_name}</td><td>${o.unit_no}</td><td>${o.project_name}</td>
-    <td class="td-red">${fmt(o.amount)}</td><td>${o.due_date}</td>
-    <td><span class="badge ${o.days_overdue>=45?'bg-red':'bg-yellow'}">${o.days_overdue} Days</span></td>
-    <td style="font-family:monospace;font-size:11px">${o.phone}</td>
-    <td><button class="btn sm" onclick="toast('WA sent to ${o.customer_name}!')">💬 WA</button></td></tr>
-  `).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--success);padding:20px">✅ No overdue installments</td></tr>';
-}
-
-async function loadProcurement() {
-  const pos = await api('/api/purchase-orders');
-  $('po-total').textContent = pos.length;
-  $('po-draft').textContent = pos.filter(p=>p.status==='draft'||p.status==='approved').length;
-  $('po-done').textContent = pos.filter(p=>p.status==='completed').length;
-  $('po-pay').textContent = pos.filter(p=>p.status==='payment_pending').length;
-  $('po-tbody').innerHTML = pos.map(p => `
-    <tr><td class="td-mono">${p.po_no}</td><td class="td-b">${p.vendor_name}</td><td>${p.material}</td><td>${p.qty}</td>
-    <td>${fmt(p.total)}</td><td>${p.site}</td>
-    <td><span class="badge ${p.grn_status==='done'?'bg-green':p.grn_status==='na'?'bg-grey':'bg-yellow'}">${p.grn_status}</span></td>
-    <td><span class="badge ${p.status==='completed'?'bg-green':p.status==='payment_pending'?'bg-red':p.status==='approved'?'bg-blue':'bg-grey'}">${p.status}</span></td>
-    <td>${p.status==='draft'?`<button class="btn sm primary" onclick="approvePO(${p.id})">Approve</button>`:''}${p.status==='approved'?`<button class="btn sm" onclick="toast('GRN recorded!')">GRN</button>`:''}${p.status==='payment_pending'?`<button class="btn sm danger" onclick="toast('Payment recorded!')">Pay</button>`:''}</td></tr>
-  `).join('');
-}
-async function approvePO(id) {
-  await api(`/api/purchase-orders/${id}/status`, {method:'PUT', body: JSON.stringify({status:'approved'})});
-  toast('✅ PO approved!'); loadProcurement();
-}
-
-async function loadVendors() {
-  const vendors = await api('/api/vendors');
-  const totalPay = vendors.reduce((a,v)=>a+v.total_payable,0), totalPaid = vendors.reduce((a,v)=>a+v.total_paid,0);
-  $('v-payable').textContent = fmtShort(totalPay); $('v-paid').textContent = fmtShort(totalPaid); $('v-bal').textContent = fmtShort(totalPay - totalPaid);
-  const stars = n => '⭐'.repeat(n);
-  $('vendor-tbody').innerHTML = vendors.map(v => `
-    <tr><td class="td-b">${v.name}</td><td>${v.category}</td><td>${fmt(v.total_payable)}</td>
-    <td class="td-green">${fmt(v.total_paid)}</td><td class="${v.balance>0?'td-red':'td-green'}">${fmt(v.balance)}</td>
-    <td>${stars(v.rating)}</td><td><span class="badge ${v.balance<=0?'bg-green':v.balance>5000000?'bg-red':'bg-yellow'}">${v.balance<=0?'Clear':v.balance>5000000?'Overdue':'Due'}</span></td></tr>
-  `).join('');
-}
-
-async function loadSite() {
-  const logs = await api('/api/site-logs');
-  $('site-workers').textContent = logs.length ? (logs[0].workers_skilled + logs[0].workers_unskilled) : 0;
-  $('site-logs-list').innerHTML = logs.map(l => `
-    <div class="site-log">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-        <span style="font-weight:800;font-size:13px">${l.project_name} — ${l.work_done.substring(0,50)}</span>
-        <span style="font-size:11px;color:var(--g400)">${l.log_date} &nbsp;|&nbsp; ${l.engineer}</span></div>
-      <div class="g3" style="font-size:11.5px">
-        <div><span style="color:var(--g400);font-weight:700">LABOR: </span>${l.workers_skilled} skilled + ${l.workers_unskilled} unskilled</div>
-        <div><span style="color:var(--g400);font-weight:700">MATERIAL: </span>${l.material_used}</div>
-        <div><span style="color:var(--g400);font-weight:700">WORK: </span>${l.work_done}</div>
-      </div></div>`).join('');
-}
-function openSiteLogModal() { $('sl-date').value = new Date().toISOString().split('T')[0]; openModal('site-modal'); }
-async function submitSiteLog() {
-  const d = {project_id: $('sl-proj').value, log_date: $('sl-date').value, engineer: $('sl-eng').value,
-    workers_skilled: parseInt($('sl-sk').value)||0, workers_unskilled: parseInt($('sl-usk').value)||0,
-    material_used: $('sl-mat').value, work_done: $('sl-work').value};
-  if (!d.engineer || !d.work_done) { toast('Fill all fields','error'); return; }
-  await api('/api/site-logs', {method:'POST', body: JSON.stringify(d)});
-  closeModal('site-modal'); toast('✅ Site log saved!'); loadSite();
-}
-
-async function loadAccounts() {
-  const d = await api('/api/ledger');
-  $('gl-rev').textContent = fmtShort(d.revenue); $('gl-exp').textContent = fmtShort(d.expenses); $('gl-profit').textContent = fmtShort(d.profit);
-  $('gl-entries').innerHTML = d.entries.map(e => `
-    <div class="gl-row"><span>${e.entry_date}</span><span>${e.narration}</span>
-    <span>${e.debit ? `<span class="dr">${fmt(e.debit)}</span>` : '—'}</span>
-    <span>${e.credit ? `<span class="cr">${fmt(e.credit)}</span>` : '—'}</span>
-    <span style="font-family:monospace;font-size:11px">${fmt(e.balance)}</span></div>`).join('');
-}
-function openLedgerModal() { $('le-date').value = new Date().toISOString().split('T')[0]; openModal('ledger-modal'); }
-async function submitLedger() {
-  const nar = $('le-nar').value.trim();
-  if (!nar) { toast('Narration required','error'); return; }
-  await api('/api/ledger', {method:'POST', body: JSON.stringify({entry_date: $('le-date').value, narration: nar, debit: parseInt($('le-dr').value)||0, credit: parseInt($('le-cr').value)||0, account_type: $('le-type').value})});
-  closeModal('ledger-modal'); toast('✅ Journal entry posted!'); loadAccounts();
-}
-
-async function loadAgents() {
-  const agents = await api('/api/agents');
-  $('ag-total').textContent = agents.length;
-  $('ag-earned').textContent = fmtShort(agents.reduce((a,ag)=>a+ag.commission_earned,0));
-  $('ag-unpaid').textContent = fmtShort(agents.reduce((a,ag)=>a+(ag.commission_earned-ag.commission_paid),0));
-  const avColors = ['linear-gradient(135deg,#3B82F6,#8B5CF6)','linear-gradient(135deg,#F59E0B,#EF4444)','linear-gradient(135deg,#10B981,#3B82F6)'];
-  $('agents-list').innerHTML = agents.map((ag,i) => {
-    const unpaid = ag.commission_earned - ag.commission_paid;
-    return `<div class="agent-row">
-      <div class="agent-av" style="background:${avColors[i%avColors.length]}">${ag.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
-      <div style="flex:1"><div style="font-weight:800;font-size:13px">${ag.name}</div><div style="font-size:11px;color:var(--g400)">${ag.bookings_count} bookings · ${ag.rate}% rate · ${ag.project}</div></div>
-      <div style="text-align:right;margin-right:14px"><div style="font-weight:900;font-size:15px">${fmt(ag.commission_earned)}</div><div style="font-size:10.5px;color:var(--g400)">Earned</div></div>
-      <span class="badge ${unpaid===0?'bg-green':unpaid===ag.commission_earned?'bg-red':'bg-yellow'}">${unpaid===0?'Paid':unpaid===ag.commission_earned?'Unpaid':'Partial'}</span>
-      ${unpaid>0?`<button class="btn sm primary" style="margin-left:10px" onclick="toast('Payment of ${fmt(unpaid)} initiated!')">Pay</button>`:''}
-    </div>`;
-  }).join('');
-}
-
-async function loadAgeing() {
-  const d = await api('/api/reports/ageing');
-  $('report-output').innerHTML = `<div class="card"><div class="card-hd"><span class="card-title">Ageing Report</span></div>
-    <div class="g3">
-      <div class="sm"><div class="sm-v" style="color:var(--danger)">${fmtShort(d.d90||0)}</div><div class="sm-l">90+ Days</div></div>
-      <div class="sm"><div class="sm-v" style="color:var(--warn)">${fmtShort(d.d60||0)}</div><div class="sm-l">60–90 Days</div></div>
-      <div class="sm"><div class="sm-v" style="color:var(--accent)">${fmtShort(d.d30||0)}</div><div class="sm-l">30–60 Days</div></div>
-    </div></div>`;
-}
-async function loadSalesReport() {
-  const data = await api('/api/reports/sales');
-  $('report-output').innerHTML = `<div class="card"><div class="card-hd"><span class="card-title">Sales Report</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Project</th><th>Bookings</th><th>Total Sales</th><th>DP Collected</th></tr></thead>
-    <tbody>${data.map(r=>`<tr><td class="td-b">${r.project_name}</td><td>${r.bookings}</td><td class="td-green">${fmt(r.total_sales)}</td><td>${fmt(r.collected_dp)}</td></tr>`).join('')}</tbody></table></div></div>`;
-}
-
-async function loadPortal() {
-  const d = await api('/api/units/1');
-  const insts = d.installments || [];
-  $('portal-sched').innerHTML = insts.length ? insts.map(i => `
-    <tr><td>${i.due_date}</td><td>${i.type}</td><td>${fmt(i.amount)}</td>
-    <td><span class="badge ${i.status==='paid'?'bg-green':i.status==='overdue'?'bg-red':'bg-yellow'}">${i.status}</span></td>
-    <td>${i.status!=='paid'?`<button class="btn sm primary" onclick="toast('Online payment portal opened!')">Pay Now</button>`:`<button class="btn sm" onclick="toast('Receipt downloaded!')">🧾 Receipt</button>`}</td></tr>
-  `).join('') : '<tr><td colspan="5">No schedule</td></tr>';
-}
-
-document.querySelectorAll('.modal-bg').forEach(bg => bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); }));
-
-loadDashboard();
-initBooking();
-</script>
+<script type="module" src="/static/js/app.js"></script>
 </body>
 </html>
