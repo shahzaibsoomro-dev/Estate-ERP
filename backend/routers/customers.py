@@ -6,7 +6,7 @@ from backend.services import customers as svc
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
 
-class CustomerCreate(BaseModel):
+class CustomerWrite(BaseModel):
     name: str
     cnic: str
     father_name: str | None = None
@@ -14,6 +14,14 @@ class CustomerCreate(BaseModel):
     email: str | None = None
     address: str | None = None
     emergency_contact_number: str | None = None
+    description: str | None = None
+
+
+def _http_from_value_error(exc: ValueError) -> HTTPException:
+    msg = str(exc)
+    if msg == "Customer not found":
+        return HTTPException(404, msg)
+    return HTTPException(400, msg)
 
 
 @router.get("")
@@ -32,15 +40,29 @@ def get_customer(customer_id: int):
 
 
 @router.post("")
-def create_customer(body: CustomerCreate):
+def create_customer(body: CustomerWrite):
     with get_db() as conn:
         try:
             c = svc.create_customer(conn, body.model_dump())
             return {"ok": True, "id": c["id"], **c}
+        except ValueError as e:
+            raise _http_from_value_error(e) from e
         except Exception as e:
-            if "UNIQUE" in str(e):
+            if "UNIQUE" in str(e).upper():
                 raise HTTPException(400, "CNIC already exists") from e
             raise
+
+
+@router.put("/{customer_id}")
+def update_customer(customer_id: int, body: CustomerWrite):
+    with get_db() as conn:
+        try:
+            c = svc.update_customer(conn, customer_id, body.model_dump())
+        except ValueError as e:
+            raise _http_from_value_error(e) from e
+    if not c:
+        raise HTTPException(404, "Customer not found")
+    return c
 
 
 @router.delete("/{customer_id}")
@@ -50,4 +72,4 @@ def delete_customer(customer_id: int):
             svc.delete_customer(conn, customer_id)
             return {"ok": True}
         except ValueError as e:
-            raise HTTPException(400, str(e)) from e
+            raise _http_from_value_error(e) from e

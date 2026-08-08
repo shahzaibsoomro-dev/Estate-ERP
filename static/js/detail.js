@@ -76,6 +76,85 @@ export function unitDetailsHtml(u, displayStatus) {
     </div>`;
 }
 
+export function customerStatusBadgeClass(status) {
+  if (status === 'Overdue') return 'bg-red';
+  if (status === 'Cleared') return 'bg-green';
+  if (status === 'On Track') return 'bg-blue';
+  return 'bg-grey';
+}
+
+export function customerDetailsHtml(c) {
+  const status = c.cust_status || 'New';
+  const bookings = Array.isArray(c.bookings) ? c.bookings : [];
+  const payments = Array.isArray(c.payments) ? c.payments : [];
+
+  const bookingRows = bookings.length
+    ? bookings.map((b) => `
+        <tr>
+          <td class="td-mono">${esc(b.booking_no || b.id)}</td>
+          <td>${esc(b.unit_no || '—')}</td>
+          <td>${esc(b.project_name || '—')}</td>
+          <td>${esc(b.booking_date || '—')}</td>
+          <td>${fmt(b.final_sale_price || b.sale_price || 0)}</td>
+          <td>${fmt(b.booking_amount || 0)}</td>
+          <td><span class="badge ${b.status === 'active' ? 'bg-green' : 'bg-grey'}">${esc(b.status || '—')}</span></td>
+        </tr>`).join('')
+    : '<tr><td colspan="7" style="text-align:center;color:var(--g400)">No bookings</td></tr>';
+
+  const payRows = payments.length
+    ? payments.map((p) => `
+        <tr>
+          <td>${esc(p.payment_date || p.paid_date || '—')}</td>
+          <td>${esc(p.unit_no || '—')}</td>
+          <td class="td-green">${fmt(p.amount)}</td>
+          <td>${esc(p.payment_method || p.method || '—')}</td>
+          <td><span class="badge bg-green">${esc(p.receipt_no || '—')}</span></td>
+        </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--g400)">No payments</td></tr>';
+
+  return `
+    <div class="detail-section">
+      <div class="g2">
+        <div>
+          ${row('Father name', c.father_name)}
+          ${row('CNIC', c.cnic)}
+          ${row('Phone', c.phone || c.contact_number)}
+          ${row('Emergency', c.emergency_contact_number)}
+          ${row('Email', c.email)}
+          ${row('Address', c.address || c.residential_address)}
+        </div>
+        <div>
+          ${row('Status', `<span class="badge ${customerStatusBadgeClass(status)}">${esc(status)}</span>`, true)}
+          ${row('Booked units', c.units)}
+          ${row('Total value', c.total_value ? fmt(c.total_value) : 'PKR 0')}
+          ${row('Paid', fmt(c.total_paid || 0))}
+          ${row('Outstanding', fmt(c.outstanding || 0))}
+          ${row('Last payment', c.last_payment)}
+          ${row('Registered', c.created_at)}
+        </div>
+      </div>
+      ${c.description ? `<div class="detail-block"><div class="detail-block-lbl">Notes</div><div class="detail-block-txt">${esc(c.description)}</div></div>` : ''}
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Bookings</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Booking</th><th>Unit</th><th>Project</th><th>Date</th><th>Sale Price</th><th>Down Payment</th><th>Status</th></tr></thead>
+        <tbody>${bookingRows}</tbody>
+      </table></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Payments</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Date</th><th>Unit</th><th>Amount</th><th>Method</th><th>Receipt</th></tr></thead>
+        <tbody>${payRows}</tbody>
+      </table></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+      <button type="button" class="btn" data-cust-edit="${c.id}">Edit</button>
+      <button type="button" class="btn danger" data-cust-delete="${c.id}">Delete</button>
+    </div>`;
+}
+
 export function projectDetailsHtml(p, units = []) {
   const attrs = parseAttrList(p.project_attributes);
   const statusLabel = p.status || '—';

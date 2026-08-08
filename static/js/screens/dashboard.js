@@ -5,7 +5,8 @@ import { projectFilterQuery, filterLabelShort } from '../project-filter.js';
 
 export async function loadDashboard() {
   const d = await api(`/api/dashboard${projectFilterQuery()}`);
-  const k = d.kpi;
+  const k = d?.kpi;
+  if (!k || !$('kpi-row')) return;
   const soldPct = k.total_units ? Math.round((k.sold / k.total_units) * 100) : 0;
   const scope = filterLabelShort();
 

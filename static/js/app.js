@@ -7,7 +7,7 @@ import { initProjectFilter, loadProjectFilterOptions, syncTopbar } from './proje
 import { loadDashboard } from './screens/dashboard.js';
 import { loadProjects, initProjectEvents, refreshProjectSelects } from './screens/projects.js';
 import { loadUnits, initUnitsFilters } from './screens/units.js';
-import { initBooking, initBookingEvents } from './screens/booking.js?v=7';
+import { initBooking, initBookingEvents } from './screens/booking.js';
 import { loadDemand, loadCustomers, initCustomerEvents } from './screens/customers.js';
 import { loadRecovery } from './screens/recovery.js';
 import { loadProcurement, loadVendors } from './screens/operations.js';
@@ -43,27 +43,30 @@ function initGlobalHandlers() {
 }
 
 async function init() {
-  initModals();
-  initNavigation();
-  initGlobalHandlers();
-  initProjectFilter();
-  initUnitsFilters();
-  initBookingEvents();
-  initCustomerEvents();
-  initProjectEvents();
-  initUnitFormEvents();
-  initAccountsEvents();
-  initReportsEvents();
+  const safe = (label, fn) => {
+    try { fn(); } catch (e) { console.error(label, e); }
+  };
+  safe('modals', initModals);
+  safe('nav', initNavigation);
+  safe('global', initGlobalHandlers);
+  safe('projectFilter', initProjectFilter);
+  safe('unitsFilters', initUnitsFilters);
+  safe('bookingEvents', initBookingEvents);
+  safe('customerEvents', initCustomerEvents);
+  safe('projectEvents', initProjectEvents);
+  safe('unitForm', initUnitFormEvents);
+  safe('accounts', initAccountsEvents);
+  safe('reports', initReportsEvents);
   try {
     await refreshProjectSelects();
   } catch (e) {
     console.error('Failed to load projects for selects', e);
   }
-  syncTopbar('dashboard');
+  try { syncTopbar('dashboard'); } catch (e) { console.error(e); }
   goScreen('dashboard');
 }
 
-init();
+init().catch((e) => console.error('App init failed', e));
 
 window.goScreen = goScreen;
 window.toast = toast;

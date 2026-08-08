@@ -55,5 +55,5 @@ if Path(STATIC_DIR).exists():
 def index():
     index_path = Path(STATIC_DIR) / "index.html"
     if index_path.exists():
-        return FileResponse(index_path)
+        return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     return {"message": "Haven Builders ERP API"}

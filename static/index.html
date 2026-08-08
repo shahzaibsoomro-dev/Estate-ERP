@@ -292,16 +292,17 @@
 
 <div class="screen" id="s-customers">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Customer Management</div></div>
+    <div><div style="font-size:16px;font-weight:900">Customers</div></div>
     <div style="display:flex;gap:8px">
-      <input type="text" placeholder="Search…" id="cust-search" style="width:200px" >
-      <button class="btn primary" id="btn-add-customer">+ Add Customer</button>
+      <input type="search" placeholder="Search…" id="cust-search" style="width:220px">
+      <button type="button" class="btn primary" id="btn-add-customer">+ Add Customer</button>
     </div>
   </div>
-  <div class="g3" style="margin-bottom:14px">
-    <div class="sm"><div class="sm-v" id="c-total">—</div><div class="sm-l">Total Customers</div></div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="c-total">—</div><div class="sm-l">Total</div></div>
     <div class="sm"><div class="sm-v" style="color:var(--danger)" id="c-overdue">—</div><div class="sm-l">Overdue</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--success)" id="c-cleared">—</div><div class="sm-l">On Track / Cleared</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="c-track">—</div><div class="sm-l">On Track</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--success)" id="c-cleared">—</div><div class="sm-l">Cleared</div></div>
   </div>
   <div class="card">
     <div class="tbl-wrap">
@@ -580,19 +581,34 @@
   </div>
 </div>
 
+<div class="modal-bg" id="customer-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="cd-title">Customer</span><button type="button" class="modal-close" data-close-modal="customer-detail-modal">✕</button></div>
+    <div id="cd-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="cust-modal">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-title"><span>Add New Customer</span><button class="modal-close" data-close-modal="cust-modal">✕</button></div>
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title"><span id="cust-modal-title">Add Customer</span><button type="button" class="modal-close" data-close-modal="cust-modal">✕</button></div>
+    <input type="hidden" id="nc-id" value="">
     <div class="form-row">
-      <div class="fg"><label>Full Name *</label><input id="nc-name" type="text" placeholder="Full legal name"></div>
-      <div class="fg"><label>CNIC *</label><input id="nc-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
-      <div class="fg"><label>Phone</label><input id="nc-phone" type="text" placeholder="+92 3XX XXXXXXX"></div>
-      <div class="fg"><label>Email</label><input id="nc-email" type="email" placeholder="email@domain.com"></div>
+      <div class="fg"><label>Full Name *</label><input id="nc-name" type="text"></div>
+      <div class="fg"><label>Father Name</label><input id="nc-father" type="text"></div>
     </div>
-    <div class="fg"><label>Address</label><textarea id="nc-address" placeholder="Residential address"></textarea></div>
+    <div class="form-row">
+      <div class="fg"><label>CNIC *</label><input id="nc-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
+      <div class="fg"><label>Phone</label><input id="nc-phone" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Emergency Contact</label><input id="nc-emergency" type="text"></div>
+      <div class="fg"><label>Email</label><input id="nc-email" type="email"></div>
+    </div>
+    <div class="fg"><label>Address</label><textarea id="nc-address"></textarea></div>
+    <div class="fg"><label>Notes</label><textarea id="nc-description"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
-      <button class="btn" data-close-modal="cust-modal">Cancel</button>
-      <button class="btn primary" id="btn-save-customer">Save Customer</button>
+      <button type="button" class="btn" data-close-modal="cust-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-customer">Save Customer</button>
     </div>
   </div>
 </div>
@@ -637,6 +653,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=booking7"></script>
+<script type="module" src="/static/js/app.js?v=fix2"></script>
 </body>
 </html>

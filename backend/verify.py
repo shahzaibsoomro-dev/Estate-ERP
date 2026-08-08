@@ -345,6 +345,120 @@ def expect_http_error(path, method, data, code=400):
         return e.code == code, e.read().decode()[:200]
 
 
+print("\n=== Step 16: Customer CRUD ===")
+try:
+    cnic_a = f"1{SUFFIX}-1111111-1"
+    cnic_b = f"1{SUFFIX}-2222222-2"
+    c1 = post("/api/customers", {
+        "name": f"CRUD {SUFFIX}",
+        "cnic": cnic_a,
+        "father_name": "Test Father",
+        "phone": "03001234567",
+        "emergency_contact_number": "03007654321",
+        "email": "crud@test.local",
+        "address": "Lahore Test",
+        "description": "Verify customer",
+    })
+    if c1.get("father_name") == "Test Father" and c1.get("phone") == "03001234567":
+        ok("POST customer with full profile")
+    else:
+        fail("POST customer", str(c1)[:160])
+
+    d1 = get(f"/api/customers/{c1['id']}")
+    if (
+        isinstance(d1.get("bookings"), list)
+        and isinstance(d1.get("payments"), list)
+        and d1.get("father_name") == "Test Father"
+        and d1.get("address") == "Lahore Test"
+    ):
+        ok("GET /api/customers/{id} detail shape")
+    else:
+        fail("GET customer detail", str({k: d1.get(k) for k in ("bookings", "payments", "father_name", "address")}))
+
+    u1 = put(f"/api/customers/{c1['id']}", {
+        "name": f"CRUD {SUFFIX} Edit",
+        "cnic": cnic_a,
+        "father_name": "Father Edit",
+        "phone": "03111234567",
+        "email": "edit@test.local",
+        "address": "Karachi Test",
+        "emergency_contact_number": "03000000000",
+        "description": "Updated",
+    })
+    if u1.get("name", "").endswith("Edit") and u1.get("phone") == "03111234567" and u1.get("address") == "Karachi Test":
+        ok("PUT customer updates profile")
+    else:
+        fail("PUT customer", str(u1)[:160])
+
+    c2 = post("/api/customers", {"name": f"CRUD B {SUFFIX}", "cnic": cnic_b})
+    dup_ok, _ = expect_http_error(f"/api/customers/{c2['id']}", "PUT", {
+        "name": f"CRUD B {SUFFIX}", "cnic": cnic_a,
+    })
+    if dup_ok:
+        ok("PUT rejects duplicate CNIC")
+    else:
+        fail("PUT duplicate CNIC", "should return 400")
+
+    blank_ok, _ = expect_http_error(f"/api/customers/{c2['id']}", "PUT", {
+        "name": "  ", "cnic": cnic_b,
+    })
+    if blank_ok:
+        ok("PUT rejects blank name")
+    else:
+        fail("PUT blank name", "should return 400")
+
+    delete(f"/api/customers/{c2['id']}")
+    delete(f"/api/customers/{c1['id']}")
+    ok("DELETE customer without bookings")
+
+    gone_ok, _ = expect_http_error(f"/api/customers/{c1['id']}", "GET", None, 404)
+    if gone_ok:
+        ok("GET deleted customer returns 404")
+    else:
+        fail("GET deleted customer", "should return 404")
+
+    c3 = post("/api/customers", {"name": f"Hold {SUFFIX}", "cnic": f"1{SUFFIX}-3333333-3"})
+    proj = post("/api/projects", {"name": f"CustHold {SUFFIX}", "location": "Test", "status": "planning"})
+    unit = post("/api/units", {
+        "project_id": proj["id"], "unit_no": f"CH-{SUFFIX}",
+        "unit_type": "Flat", "floor_number": 1, "base_sale_price": 1000000,
+    })
+    put(f"/api/units/{unit['id']}/status", {
+        "status": "hold",
+        "hold_customer_id": c3["id"],
+        "hold_until": "2026-12-31",
+        "hold_notes": "verify",
+    })
+    hold_ok, _ = expect_http_error(f"/api/customers/{c3['id']}", "DELETE", None, 400)
+    if hold_ok:
+        ok("block delete customer holding a unit")
+    else:
+        fail("delete holding customer", "should return 400")
+    put(f"/api/units/{unit['id']}/status", {"status": "available"})
+    delete(f"/api/units/{unit['id']}")
+    delete(f"/api/projects/{proj['id']}")
+    delete(f"/api/customers/{c3['id']}")
+    ok("cleanup hold-customer fixtures")
+
+    c4 = post("/api/customers", {"name": f"Booked {SUFFIX}", "cnic": f"1{SUFFIX}-4444444-4"})
+    proj2 = post("/api/projects", {"name": f"CustBk {SUFFIX}", "location": "Test", "status": "planning"})
+    unit2 = post("/api/units", {
+        "project_id": proj2["id"], "unit_no": f"CB-{SUFFIX}",
+        "unit_type": "Flat", "floor_number": 1, "base_sale_price": 2000000,
+    })
+    post("/api/bookings", {
+        "unit_id": unit2["id"], "project_id": proj2["id"], "customer_id": c4["id"],
+        "sale_price": 2000000, "down_payment": 200000, "booking_date": "2026-01-15",
+        "installments": [{"amount": 1800000, "due_date": "2026-02-15", "type": "Monthly"}],
+    })
+    booked_ok, _ = expect_http_error(f"/api/customers/{c4['id']}", "DELETE", None, 400)
+    if booked_ok:
+        ok("block delete customer with bookings")
+    else:
+        fail("delete booked customer", "should return 400")
+except Exception as e:
+    fail("customer CRUD", str(e))
+
 print("\n=== Step 15: Project-Unit lifecycle ===")
 try:
     tag = f"PU{SUFFIX}"
