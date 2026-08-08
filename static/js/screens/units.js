@@ -68,12 +68,7 @@ export async function loadUnits() {
 function updateUnitsScopeLabel() {
   const el = $('units-scope');
   if (!el) return;
-  const scope = unitsScopeLabel();
-  if (!state.unitsProjectId) {
-    el.textContent = 'All projects — grouped by project';
-  } else {
-    el.textContent = `${scope} — click a unit for full details`;
-  }
+  el.textContent = unitsScopeLabel();
 }
 
 function applyLocalFilters(units) {
@@ -205,6 +200,7 @@ export async function openUnit(uid) {
 
     $('um-body').querySelector('[data-book-unit]')?.addEventListener('click', () => {
       closeModal('unit-modal');
+      state.pendingBookingUnitId = uid;
       import('../nav.js').then(({ goScreen }) => goScreen('booking'));
     });
 

@@ -23,17 +23,24 @@ def _resolve_agent_id(conn, agent_name: str | None) -> int | None:
 def create_booking(conn, data: dict) -> dict:
     unit = fetch_one(conn, "SELECT * FROM units WHERE id=?", (data["unit_id"],))
     if not unit:
-        raise ValueError("Unit not found")
+        raise ValueError("Unit not found — register the unit first")
     if unit["status"] not in ("available", "hold"):
         raise ValueError(f"Unit is not available for booking (status: {unit['status']})")
 
+    if data.get("customer"):
+        raise ValueError("Register the customer first, then select them on the booking form")
     customer_id = data.get("customer_id")
-    if not customer_id and data.get("customer"):
-        from backend.services import customers as cust_svc
-        cu = cust_svc.create_customer(conn, data["customer"])
-        customer_id = cu["id"]
     if not customer_id:
-        raise ValueError("customer_id or customer data required")
+        raise ValueError("Select an existing customer")
+    customer = fetch_one(conn, "SELECT id FROM customers WHERE id=?", (customer_id,))
+    if not customer:
+        raise ValueError("Customer not found — register the customer first")
+
+    project_id = data.get("project_id") or unit["project_id"]
+    if project_id != unit["project_id"]:
+        raise ValueError("Selected unit does not belong to the selected project")
+    if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
+        raise ValueError("Project not found")
 
     agent_id = data.get("agent_id") or _resolve_agent_id(conn, data.get("agent"))
     booking_no = data.get("booking_no") or _next_booking_no(conn)
@@ -46,7 +53,7 @@ def create_booking(conn, data: dict) -> dict:
            possession_date, status, payment_mode, notes)
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            booking_no, customer_id, data["unit_id"], data["project_id"], agent_id,
+            booking_no, customer_id, data["unit_id"], project_id, agent_id,
             data.get("booking_date") or date.today().isoformat(),
             data.get("base_sale_price") or sale_price, sale_price, booking_amount,
             data.get("possession_date"), "active",

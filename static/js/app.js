@@ -7,7 +7,7 @@ import { initProjectFilter, loadProjectFilterOptions, syncTopbar } from './proje
 import { loadDashboard } from './screens/dashboard.js';
 import { loadProjects, initProjectEvents, refreshProjectSelects } from './screens/projects.js';
 import { loadUnits, initUnitsFilters } from './screens/units.js';
-import { initBooking, initBookingEvents } from './screens/booking.js';
+import { initBooking, initBookingEvents } from './screens/booking.js?v=7';
 import { loadDemand, loadCustomers, initCustomerEvents } from './screens/customers.js';
 import { loadRecovery } from './screens/recovery.js';
 import { loadProcurement, loadVendors } from './screens/operations.js';

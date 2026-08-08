@@ -24,7 +24,7 @@ class CustomerInline(BaseModel):
 class BookingCreate(BaseModel):
     unit_id: int
     project_id: int
-    customer_id: int | None = None
+    customer_id: int
     customer: CustomerInline | None = None
     booking_date: str | None = None
     sale_price: int

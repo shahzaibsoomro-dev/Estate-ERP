@@ -8,4 +8,5 @@ export const state = {
   projectFilterAll: true,
   selectedProjectIds: [],
   unitsProjectId: null,
+  pendingBookingUnitId: null,
 };
