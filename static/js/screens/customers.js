@@ -28,7 +28,6 @@ export async function loadDemand() {
 
 function showNotice(idx) {
   const n = state.demandData[idx];
-  const fee = Math.round(n.amount * 0.05);
   $('notice-area').innerHTML = `
     <div class="notice">
       <div class="notice-lh">
@@ -44,20 +43,11 @@ function showNotice(idx) {
         <table class="notice-table">
           <tr><td>Amount Due</td><td><strong>${fmt(n.amount)}</strong></td></tr>
           <tr><td>Days Overdue</td><td><strong style="color:var(--danger)">${n.days_overdue} Days</strong></td></tr>
-          <tr><td>Late Fee (5%)</td><td>${fmt(fee)}</td></tr>
-          <tr><td>Total Payable</td><td><strong style="color:var(--danger)">${fmt(n.amount + fee)}</strong></td></tr>
         </table>
         <p>Please clear within <strong>7 working days</strong> to avoid legal action.</p>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn primary" style="flex:1" data-wa>💬 WA</button>
-        <button class="btn" style="flex:1" data-email>📧 Email</button>
-        <button class="btn" data-pdf>🖨 PDF</button>
+        <p style="font-size:11px;color:var(--g400);margin-top:10px">This is an in-app preview. WhatsApp, email and PDF sending are not connected yet. Late fees are not calculated by the system.</p>
       </div>
     </div>`;
-  $('notice-area').querySelector('[data-wa]')?.addEventListener('click', () => toast(`WA sent to ${n.customer_name}!`));
-  $('notice-area').querySelector('[data-email]')?.addEventListener('click', () => toast('Email sent!'));
-  $('notice-area').querySelector('[data-pdf]')?.addEventListener('click', () => toast('PDF downloaded!'));
 }
 
 function displayStatus(c) {

@@ -280,10 +280,7 @@
 <div class="screen" id="s-demand">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div><div style="font-size:16px;font-weight:900">Demand Notices</div></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn" onclick="toast('All WA notices sent!')">💬 Send All WA</button>
-      <button class="btn primary" onclick="toast('All PDFs downloaded!')">⬇ Download PDFs</button>
-    </div>
+    <div style="font-size:12px;color:var(--g400);max-width:360px;text-align:right">Preview only — WhatsApp, email and PDF are not connected yet</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div>
@@ -452,7 +449,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div>
       <div style="font-size:16px;font-weight:900">Accounts</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Cash movement — collections, vendors, agents, investors</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Company-wide cash movement (all projects) — collections, vendors, agents, investors</div>
     </div>
     <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
   </div>
@@ -836,7 +833,7 @@
     <input type="hidden" id="pay-bk-id" value="">
     <input type="hidden" id="pay-cust-id" value="">
     <div class="fg" id="pay-pick-wrap" hidden>
-      <label>Overdue installment</label>
+      <label>Installment</label>
       <select id="pay-pick"><option value="">Select…</option></select>
     </div>
     <div id="pay-summary" class="bk-dcard" style="margin-bottom:12px" hidden></div>
@@ -1084,10 +1081,54 @@
       </div>
       <input type="hidden" id="xfer-cust" value="">
     </div>
+    <div class="fg"><label>Transfer date</label><input id="xfer-date" type="date"></div>
     <div class="fg"><label>Notes</label><textarea id="xfer-notes"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="xfer-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-xfer">Transfer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="hold-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title"><span id="hold-title">Hold unit</span><button type="button" class="modal-close" data-close-modal="hold-modal">✕</button></div>
+    <input type="hidden" id="hold-unit-id" value="">
+    <div id="hold-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="fg"><label>Interested customer</label>
+      <select id="hold-cust"><option value="">— none —</option></select>
+    </div>
+    <div class="fg"><label>Hold until</label><input id="hold-until" type="date"></div>
+    <div class="fg"><label>Notes</label><textarea id="hold-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="hold-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-hold">Put on hold</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="cancel-bk-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Cancel booking</span><button type="button" class="modal-close" data-close-modal="cancel-bk-modal">✕</button></div>
+    <input type="hidden" id="cancel-bk-id" value="">
+    <div id="cancel-bk-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="fg"><label>Reason</label><textarea id="cancel-bk-reason" placeholder="Optional"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="cancel-bk-modal">Back</button>
+      <button type="button" class="btn danger" id="btn-confirm-cancel-bk">Cancel booking</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="poss-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title"><span>Mark possession</span><button type="button" class="modal-close" data-close-modal="poss-modal">✕</button></div>
+    <input type="hidden" id="poss-unit-id" value="">
+    <div id="poss-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="fg"><label>Possession date</label><input id="poss-date" type="date"></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="poss-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-confirm-poss">Mark possession</button>
     </div>
   </div>
 </div>
@@ -1105,6 +1146,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=sweep7"></script>
+<script type="module" src="/static/js/app.js?v=sweep8"></script>
 </body>
 </html>

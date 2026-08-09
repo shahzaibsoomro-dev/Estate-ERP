@@ -9,7 +9,7 @@ def _customer_status(conn, customer_id: int) -> str | None:
         """SELECT
              SUM(CASE WHEN status='overdue' THEN 1 ELSE 0 END) AS ov,
              SUM(CASE WHEN status IN ('pending','partial') THEN 1 ELSE 0 END) AS pe
-           FROM installments WHERE customer_id=?""",
+           FROM installments WHERE customer_id=? AND status != 'cancelled'""",
         (customer_id,),
     )
     if not row:

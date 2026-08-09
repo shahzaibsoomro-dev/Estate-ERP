@@ -12,8 +12,14 @@ def refresh_statuses(conn, booking_id: int | None = None):
         where = "WHERE booking_id=?"
         params = (booking_id,)
 
-    rows = fetch_all(conn, f"SELECT id, amount, paid_amount, due_date FROM installments {where}", params)
+    rows = fetch_all(
+        conn,
+        f"SELECT id, amount, paid_amount, due_date, status FROM installments {where}",
+        params,
+    )
     for r in rows:
+        if (r.get("status") or "").lower() == "cancelled":
+            continue
         paid = r["paid_amount"] or 0
         amount = r["amount"]
         remaining = max(amount - paid, 0)

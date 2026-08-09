@@ -1,6 +1,6 @@
 import { $, esc } from '../dom.js';
 import { api, toast } from '../api.js';
-import { fmtShort } from '../format.js';
+import { fmt, fmtShort } from '../format.js';
 import { askConfirm } from '../dialog.js';
 import { openModal, closeModal } from '../modal.js';
 import { state } from '../state.js';
@@ -139,13 +139,24 @@ export async function openProjectDetail(projectId) {
   $('pd-body').innerHTML = '<div class="loading"><span class="spinner"></span>Loading project…</div>';
 
   try {
-    const [p, units] = await Promise.all([
+    const [p, units, budget] = await Promise.all([
       api(`/api/projects/${projectId}`),
       api(`/api/units?project_id=${projectId}`),
+      api(`/api/budget/summary?project_id=${projectId}`).catch(() => []),
     ]);
+    const budgetRows = (budget || []).length
+      ? `<div class="detail-block"><div class="detail-block-lbl">Budget</div>
+          <div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Planned</th><th>Actual</th><th>Variance</th><th>Status</th></tr></thead>
+          <tbody>${budget.map((b) => `
+            <tr><td>${esc(b.category_name)}</td><td>${fmt(b.planned_amount)}</td>
+            <td>${fmt(b.actual_spent)}</td><td>${fmt(b.variance)}</td>
+            <td>${esc(b.status)}</td></tr>`).join('')}
+          </tbody></table></div></div>`
+      : '';
     $('pd-title').textContent = p.name;
     $('pd-body').innerHTML = `
       ${projectDetailsHtml(p, units)}
+      ${budgetRows}
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
         <button type="button" class="btn sm" data-pd-edit="${p.id}">✏️ Edit Project</button>
         <button type="button" class="btn sm primary" data-pd-units="${p.id}">View All Units</button>

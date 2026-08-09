@@ -9,6 +9,7 @@ import { loadDashboard } from './dashboard.js';
 import { askConfirm } from '../dialog.js';
 
 let recoveryOverdue = [];
+let payChoices = [];
 let ageFilter = null;
 let payContext = null;
 let calYear = null;
@@ -243,7 +244,27 @@ export function openPayForInstallment(row) {
   openModal('pay-modal');
 }
 
-function openPayModal(row = null) {
+async function loadPayChoices() {
+  const seen = new Map();
+  recoveryOverdue.forEach((o) => seen.set(o.id, o));
+  const now = new Date();
+  for (let i = 0; i < 3; i++) {
+    let y = now.getFullYear();
+    let m = now.getMonth() + 1 + i;
+    if (m > 12) { m -= 12; y += 1; }
+    try {
+      const cal = await api(`/api/recovery/calendar?year=${y}&month=${m}${projectFilterQuery()}`);
+      for (const day of cal.days || []) {
+        for (const item of day.items || []) {
+          if (!seen.has(item.id)) seen.set(item.id, item);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  return [...seen.values()];
+}
+
+async function openPayModal(row = null) {
   resetPayForm();
   openModal('pay-modal');
   if (row) {
@@ -251,19 +272,20 @@ function openPayModal(row = null) {
     fillPayFromRow(row);
     return;
   }
-  if (!recoveryOverdue.length) {
+  payChoices = await loadPayChoices();
+  if (!payChoices.length) {
     closeModal('pay-modal');
-    toast('No overdue installments.', 'error');
+    toast('No upcoming or overdue installments.', 'error');
     return;
   }
   $('pay-pick-wrap').hidden = false;
-  $('pay-pick').innerHTML = '<option value="">Select…</option>' + recoveryOverdue.map((o) =>
-    `<option value="${o.id}">${esc(o.customer_name)} · ${esc(o.unit_no)} · ${fmt(o.amount)}</option>`).join('');
+  $('pay-pick').innerHTML = '<option value="">Select…</option>' + payChoices.map((o) =>
+    `<option value="${o.id}">${esc(o.customer_name)} · ${esc(o.unit_no)} · ${fmt(o.amount || o.amount_due || 0)}</option>`).join('');
 }
 
 function onPayPickChange() {
   const id = parseInt($('pay-pick')?.value, 10);
-  const row = recoveryOverdue.find((x) => x.id === id);
+  const row = payChoices.find((x) => x.id === id) || recoveryOverdue.find((x) => x.id === id);
   if (row) {
     payContext = row;
     fillPayFromRow(row);
@@ -280,6 +302,7 @@ async function submitPayment() {
   const custId = parseInt($('pay-cust-id').value, 10);
   const amount = parseInt($('pay-amount').value, 10);
   const row = recoveryOverdue.find((x) => x.id === instId)
+    || payChoices.find((x) => x.id === instId)
     || (payContext && payContext.id === instId ? payContext : null);
   const due = row?.amount || row?.remaining_amount || 0;
   if (!instId || !bkId || !custId) {
@@ -325,7 +348,7 @@ async function submitPayment() {
 
 export function initRecoveryEvents() {
   $('rec-search')?.addEventListener('input', renderRecoveryTable);
-  $('btn-rec-pay')?.addEventListener('click', () => openPayModal(null));
+  $('btn-rec-pay')?.addEventListener('click', () => { openPayModal(null); });
   $('pay-pick')?.addEventListener('change', onPayPickChange);
   $('btn-save-payment')?.addEventListener('click', submitPayment);
   $('cal-prev')?.addEventListener('click', () => {

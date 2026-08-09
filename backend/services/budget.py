@@ -62,7 +62,7 @@ def summary(conn, project_id: int | None = None) -> list[dict]:
         actual = fetch_one(
             conn,
             """SELECT COALESCE(SUM(total),0) AS spent FROM purchase_orders
-               WHERE project_id=? AND budget_category_id=?""",
+               WHERE project_id=? AND budget_category_id=? AND status != 'cancelled'""",
             (line["project_id"], line["category_id"]),
         )
         spent = actual["spent"] if actual else 0

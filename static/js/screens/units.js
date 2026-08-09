@@ -7,8 +7,9 @@ import { loadDashboard } from './dashboard.js';
 import { openUnitFormModal, UNIT_ATTRS } from '../unit-form.js';
 import { loadProjects } from './projects.js';
 import { unitDetailsHtml, parseAttrList } from '../detail.js';
-import { confirmCancelBooking, confirmPossession, openTransferModal, initTransferEvents } from '../booking-actions.js';
+import { confirmCancelBooking, confirmPossession, openTransferModal, initTransferEvents, initCancelPossEvents } from '../booking-actions.js';
 import { askConfirm } from '../dialog.js';
+import { openPayForInstallment } from './recovery.js';
 
 let unitsLoadSeq = 0;
 
@@ -266,7 +267,7 @@ export async function openUnit(uid) {
             <td>${fmt(i.amount)}${i.remaining_amount < i.amount ? `<div class="td-sm">Due: ${fmt(i.remaining_amount)}</div>` : ''}</td>
             <td>${esc(i.notes || '—')}</td>
             <td><span class="badge ${instStatusBadge(i.status)}">${esc(i.status)}</span></td>
-            <td>${canPay ? `<button type="button" class="btn sm primary" data-pay='${JSON.stringify({ instId: i.id, bkId: b.id, custId: b.customer_id, amount: i.remaining_amount, uid })}'>Pay</button>` : '—'}</td>
+            <td>${canPay ? `<button type="button" class="btn sm primary" data-pay='${JSON.stringify({ instId: i.id, bkId: b.id, custId: b.customer_id, amount: i.remaining_amount, due: i.due_date })}'>Pay</button>` : '—'}</td>
           </tr>`;
         }).join('')
       : '<tr><td colspan="6" style="text-align:center;color:var(--g400)">No installments</td></tr>';
@@ -283,7 +284,21 @@ export async function openUnit(uid) {
     $('um-body').scrollTop = 0;
 
     $('um-body').querySelectorAll('[data-pay]').forEach((btn) => {
-      btn.addEventListener('click', () => payInstallment(JSON.parse(btn.dataset.pay)));
+      btn.addEventListener('click', () => {
+        const p = JSON.parse(btn.dataset.pay);
+        openPayForInstallment({
+          id: p.instId,
+          booking_id: p.bkId,
+          customer_id: p.custId,
+          amount: p.amount,
+          remaining_amount: p.amount,
+          customer_name: b.customer_name,
+          unit_no: u.unit_no,
+          project_name: u.project_name,
+          due_date: p.due || '',
+          days_overdue: 0,
+        });
+      });
     });
 
     $('um-body').querySelector('[data-book-unit]')?.addEventListener('click', () => {
@@ -324,6 +339,9 @@ export async function openUnit(uid) {
         unitNo: u.unit_no,
       });
     });
+
+    $('um-body').querySelector('[data-hold-unit]')?.addEventListener('click', () => openHoldModal(u));
+    $('um-body').querySelector('[data-release-hold]')?.addEventListener('click', () => releaseHold(u));
 
     $('um-body').querySelector('[data-poss-unit]')?.addEventListener('click', async () => {
       if (await confirmPossession(uid, s.outstanding)) {
@@ -395,29 +413,65 @@ function availableUnitHtml(u, displayStatus) {
     <div style="text-align:center;padding:16px 0 4px;color:var(--g400)">
       ${canManage ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         ${isAvail ? '<button class="btn primary" data-book-unit>📋 Book This Unit</button>' : ''}
+        ${isAvail ? '<button type="button" class="btn" data-hold-unit>Hold</button>' : ''}
+        ${isHold ? '<button type="button" class="btn" data-release-hold>Release hold</button>' : ''}
         <button class="btn" data-edit-unit>✏️ Edit</button>
         <button class="btn danger" data-delete-unit>🗑 Delete</button>
       </div>` : ''}
     </div>`;
 }
 
-async function payInstallment({ instId, bkId, custId, amount, uid }) {
-  if (!await askConfirm(`Record payment of ${fmt(amount)}?`, {
-    title: 'Record payment', confirmLabel: 'Record payment',
-  })) return;
-  const r = await api('/api/payments', {
-    method: 'POST',
-    body: JSON.stringify({
-      installment_id: instId,
-      booking_id: bkId,
-      customer_id: custId,
-      amount,
-      method: 'Cash',
-    }),
-  });
-  toast(`✅ Payment recorded! Receipt: ${r.receipt}`);
-  openUnit(uid);
-  loadDashboard();
+async function openHoldModal(u) {
+  $('hold-unit-id').value = String(u.id);
+  $('hold-title').textContent = `Hold ${u.unit_no}`;
+  $('hold-summary').innerHTML = `<div class="bk-dname">${esc(u.unit_no)}</div>
+    <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(u.project_name || '—')}</span></div>`;
+  if ($('hold-until')) $('hold-until').value = '';
+  if ($('hold-notes')) $('hold-notes').value = u.hold_notes || '';
+  try {
+    const custs = await api('/api/customers');
+    $('hold-cust').innerHTML = '<option value="">— none —</option>' + (custs || []).map((c) =>
+      `<option value="${c.id}"${c.id === u.hold_customer_id ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+  } catch {
+    $('hold-cust').innerHTML = '<option value="">— none —</option>';
+  }
+  openModal('hold-modal');
+}
+
+async function releaseHold(u) {
+  if (!await askConfirm(`Release hold on ${u.unit_no}?`, { title: 'Release hold', confirmLabel: 'Release' })) return;
+  try {
+    await api(`/api/units/${u.id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'available' }),
+    });
+    toast('Hold released');
+    await loadUnits();
+    loadProjects();
+    openUnit(u.id);
+  } catch { /* toasted */ }
+}
+
+async function saveHold() {
+  const uid = parseInt($('hold-unit-id').value, 10);
+  if (!uid) return;
+  const cust = parseInt($('hold-cust').value, 10) || null;
+  try {
+    await api(`/api/units/${uid}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        status: 'hold',
+        hold_customer_id: cust,
+        hold_until: $('hold-until')?.value || null,
+        hold_notes: ($('hold-notes')?.value || '').trim() || null,
+      }),
+    });
+    closeModal('hold-modal');
+    toast('Unit on hold');
+    await loadUnits();
+    loadProjects();
+    openUnit(uid);
+  } catch { /* toasted */ }
 }
 
 export function initUnitsFilters() {
@@ -480,4 +534,6 @@ export function initUnitsFilters() {
     loadProjects();
     if (unitId) openUnit(unitId);
   });
+  initCancelPossEvents();
+  $('btn-save-hold')?.addEventListener('click', saveHold);
 }

@@ -128,6 +128,10 @@ def delete_project(conn, project_id: int) -> None:
     if inv and inv["n"]:
         raise ValueError(f"Cannot delete project — {inv['n']} investor agreement(s) linked.")
 
+    logs = fetch_one(conn, "SELECT COUNT(*) AS n FROM site_logs WHERE project_id=?", (project_id,))
+    if logs and logs["n"]:
+        raise ValueError(f"Cannot delete project — {logs['n']} site log(s). Remove them first.")
+
     conn.execute("DELETE FROM project_budget_lines WHERE project_id=?", (project_id,))
     conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
 

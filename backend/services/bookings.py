@@ -7,9 +7,14 @@ from backend.services import settings as settings_svc
 
 
 def _next_booking_no(conn) -> str:
-    row = fetch_one(conn, "SELECT COUNT(*) AS n FROM bookings")
-    n = (row["n"] if row else 0) + 1
-    return f"BK-{1000 + n}"
+    rows = fetch_all(conn, "SELECT booking_no FROM bookings WHERE booking_no LIKE 'BK-%'")
+    best = 1000
+    for r in rows:
+        try:
+            best = max(best, int(str(r["booking_no"]).split("-")[-1]))
+        except (TypeError, ValueError):
+            pass
+    return f"BK-{best + 1}"
 
 
 def _resolve_agent_id(conn, agent_name: str | None) -> int | None:
@@ -132,7 +137,7 @@ def cancel_booking(conn, booking_id: int, reason: str | None = None) -> dict:
     comm = fetch_one(conn, "SELECT id FROM agent_commissions WHERE booking_id=?", (booking_id,))
     if comm:
         conn.execute(
-            "UPDATE agent_commissions SET status='reversed', paid_amount=0 WHERE booking_id=?",
+            "UPDATE agent_commissions SET status='reversed' WHERE booking_id=?",
             (booking_id,),
         )
 
@@ -171,7 +176,8 @@ def preview_cancel(conn, booking_id: int) -> dict:
     }
 
 
-def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | None = None) -> dict:
+def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | None = None,
+                    transfer_date: str | None = None) -> dict:
     booking = fetch_one(conn, "SELECT * FROM bookings WHERE id=? AND status='active'", (booking_id,))
     if not booking:
         raise ValueError("Active booking not found")
@@ -181,12 +187,14 @@ def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | N
     if not new_c:
         raise ValueError("Customer not found")
     from_id = booking["customer_id"]
+    when = (transfer_date or "").strip() or date.today().isoformat()
     conn.execute("UPDATE bookings SET customer_id=? WHERE id=?", (new_customer_id, booking_id))
     conn.execute("UPDATE installments SET customer_id=? WHERE booking_id=?", (new_customer_id, booking_id))
+    conn.execute("UPDATE payments SET customer_id=? WHERE booking_id=?", (new_customer_id, booking_id))
     conn.execute(
         """INSERT INTO booking_transfers(booking_id, from_customer_id, to_customer_id, transfer_date, notes)
            VALUES(?,?,?,?,?)""",
-        (booking_id, from_id, new_customer_id, date.today().isoformat(), (notes or "").strip() or None),
+        (booking_id, from_id, new_customer_id, when, (notes or "").strip() or None),
     )
     audit_svc.log(conn, "booking", booking_id, "transferred", {
         "from_customer_id": from_id, "to_customer_id": new_customer_id,

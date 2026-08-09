@@ -1,6 +1,6 @@
 from datetime import date
 
-from backend.database import fetch_one
+from backend.database import fetch_all, fetch_one
 from backend.services import audit as audit_svc
 from backend.services import installments as inst_svc
 from backend.services import settings as settings_svc
@@ -8,9 +8,14 @@ from backend.services import settings as settings_svc
 
 def _next_receipt_no(conn) -> str:
     prefix = settings_svc.get(conn, "receipt_prefix", "RCP")
-    row = fetch_one(conn, "SELECT COUNT(*) AS n FROM receipts")
-    n = (row["n"] if row else 0) + 1
-    return f"{prefix}-{1000 + n}"
+    rows = fetch_all(conn, "SELECT receipt_no FROM receipts WHERE receipt_no LIKE ?", (f"{prefix}-%",))
+    best = 1000
+    for r in rows:
+        try:
+            best = max(best, int(str(r["receipt_no"]).split("-")[-1]))
+        except (TypeError, ValueError):
+            pass
+    return f"{prefix}-{best + 1}"
 
 
 def record_payment(conn, data: dict) -> dict:
@@ -53,7 +58,29 @@ def record_payment(conn, data: dict) -> dict:
             "UPDATE installments SET paid_amount=?, remaining_amount=? WHERE id=?",
             (new_paid, remaining, installment_id),
         )
-        inst_svc.refresh_statuses(conn, booking_id)
+    else:
+        left = amount
+        insts = fetch_all(
+            conn,
+            """SELECT id, amount, paid_amount, remaining_amount FROM installments
+               WHERE booking_id=? AND status != 'cancelled' AND remaining_amount > 0
+               ORDER BY due_date, installment_no""",
+            (booking_id,),
+        )
+        for inst in insts:
+            if left <= 0:
+                break
+            take = min(left, inst["remaining_amount"] or 0)
+            if take < 1:
+                continue
+            new_paid = (inst["paid_amount"] or 0) + take
+            remaining = max((inst["amount"] or 0) - new_paid, 0)
+            conn.execute(
+                "UPDATE installments SET paid_amount=?, remaining_amount=? WHERE id=?",
+                (new_paid, remaining, inst["id"]),
+            )
+            left -= take
+    inst_svc.refresh_statuses(conn, booking_id)
 
     audit_svc.log(conn, "payment", payment_id, "recorded", {
         "amount": amount, "receipt_no": receipt_no, "installment_id": installment_id,

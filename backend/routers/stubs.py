@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from backend.database import fetch_all, fetch_one, get_db
+from backend.services import installments as inst_svc
 
 router = APIRouter(prefix="/api", tags=["stubs"])
 
@@ -7,19 +8,32 @@ router = APIRouter(prefix="/api", tags=["stubs"])
 @router.get("/reports/ageing")
 def report_ageing():
     with get_db() as conn:
-        row = fetch_one(
+        inst_svc.refresh_statuses(conn)
+        items = fetch_all(
             conn,
-            """SELECT
-                 COALESCE(SUM(CASE WHEN days BETWEEN 1 AND 30 THEN remaining_amount ELSE 0 END),0) AS d30,
-                 COALESCE(SUM(CASE WHEN days BETWEEN 31 AND 60 THEN remaining_amount ELSE 0 END),0) AS d60,
-                 COALESCE(SUM(CASE WHEN days > 60 THEN remaining_amount ELSE 0 END),0) AS d90
-               FROM (
-                 SELECT remaining_amount,
-                        CAST(julianday('now') - julianday(due_date) AS INTEGER) AS days
-                 FROM installments WHERE status='overdue' AND remaining_amount > 0
-               )""",
+            """SELECT i.id, i.booking_id, i.customer_id, i.due_date, i.remaining_amount AS amount,
+                      i.status, i.type,
+                      c.name AS customer_name, u.unit_no, p.name AS project_name,
+                      CAST(julianday('now') - julianday(i.due_date) AS INTEGER) AS days_overdue
+               FROM installments i
+               JOIN customers c ON c.id=i.customer_id
+               JOIN units u ON u.id=i.unit_id
+               JOIN projects p ON p.id=u.project_id
+               WHERE i.status IN ('overdue','partial') AND i.remaining_amount > 0
+                 AND i.due_date < date('now')
+               ORDER BY days_overdue DESC, c.name""",
         )
-        return row or {"d90": 0, "d60": 0, "d30": 0}
+        d30 = d60 = d90 = 0
+        for r in items:
+            days = r.get("days_overdue") or 0
+            amt = r.get("amount") or 0
+            if days <= 30:
+                d30 += amt
+            elif days <= 60:
+                d60 += amt
+            else:
+                d90 += amt
+        return {"d30": d30, "d60": d60, "d90": d90, "items": items}
 
 
 @router.get("/reports/sales")

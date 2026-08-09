@@ -20,51 +20,92 @@ function initials(name) {
     .toUpperCase() || '?';
 }
 
-export async function confirmCancelBooking(bookingId) {
-  let preview;
-  try {
-    preview = await api(`/api/bookings/${bookingId}/cancel-preview`);
-  } catch {
-    return false;
-  }
-  const msg = [
-    `Cancel booking ${preview.booking_no || bookingId}?`,
-    '',
-    `Paid so far: ${fmt(preview.total_paid)}`,
-    `Forfeit (${preview.forfeit_pct}% of booking amount): ${fmt(preview.forfeit_amount)}`,
-    `Refund: ${fmt(preview.refund_amount)}`,
-    '',
-    'Unit becomes available. Unpaid installments are cancelled. Agent commission is reversed.',
-  ].join('\n');
-  if (!await askConfirm(msg, { title: 'Cancel booking', confirmLabel: 'Cancel booking', danger: true })) return false;
-  try {
-    await api(`/api/bookings/${bookingId}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-    toast('Booking cancelled');
-    return true;
-  } catch {
-    return false;
-  }
+let cancelResolver = null;
+let possResolver = null;
+let possOutstanding = 0;
+
+export function confirmCancelBooking(bookingId) {
+  return (async () => {
+    let preview;
+    try {
+      preview = await api(`/api/bookings/${bookingId}/cancel-preview`);
+    } catch {
+      return false;
+    }
+    $('cancel-bk-id').value = String(bookingId);
+    if ($('cancel-bk-reason')) $('cancel-bk-reason').value = '';
+    $('cancel-bk-summary').innerHTML = `
+      <div class="bk-dname">${esc(preview.booking_no || `Booking ${bookingId}`)}</div>
+      <div class="sum-row"><span class="sum-lbl">Paid so far</span><span class="sum-val">${fmt(preview.total_paid)}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Forfeit (${preview.forfeit_pct}%)</span><span class="sum-val">${fmt(preview.forfeit_amount)}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Refund (not auto-posted)</span><span class="sum-val">${fmt(preview.refund_amount)}</span></div>
+      <div style="font-size:11px;color:var(--g400);margin-top:8px">Unit becomes available. Unpaid installments are cancelled. Agent commission is reversed.</div>`;
+    openModal('cancel-bk-modal');
+    return await new Promise((resolve) => { cancelResolver = resolve; });
+  })();
 }
 
-export async function confirmPossession(unitId, outstanding) {
-  let msg = 'Mark possession delivered for this unit?';
-  if ((outstanding || 0) > 0) {
-    msg += `\n\nOutstanding is still ${fmt(outstanding)}. Continue anyway?`;
-  }
-  if (!await askConfirm(msg, { title: 'Mark possession', confirmLabel: 'Mark possession' })) return false;
-  try {
-    await api(`/api/units/${unitId}/possession`, {
-      method: 'POST',
-      body: JSON.stringify({ possession_date: todayISO() }),
-    });
-    toast('Possession recorded');
-    return true;
-  } catch {
-    return false;
-  }
+export function confirmPossession(unitId, outstanding) {
+  possOutstanding = outstanding || 0;
+  $('poss-unit-id').value = String(unitId);
+  if ($('poss-date')) $('poss-date').value = todayISO();
+  $('poss-summary').innerHTML = possOutstanding > 0
+    ? `<div class="sum-row"><span class="sum-lbl">Outstanding</span><span class="sum-val td-red">${fmt(possOutstanding)}</span></div>
+       <div style="font-size:11px;color:var(--g400);margin-top:8px">Possession can still be recorded while dues remain.</div>`
+    : `<div style="font-size:12px;color:var(--g500)">Mark this unit as possession delivered.</div>`;
+  openModal('poss-modal');
+  return new Promise((resolve) => { possResolver = resolve; });
+}
+
+export function initCancelPossEvents() {
+  $('btn-confirm-cancel-bk')?.addEventListener('click', async () => {
+    const bookingId = parseInt($('cancel-bk-id').value, 10);
+    if (!bookingId) return;
+    if (!await askConfirm('Cancel this booking? This cannot be undone.', {
+      title: 'Cancel booking', confirmLabel: 'Cancel booking', danger: true,
+    })) return;
+    try {
+      await api(`/api/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: ($('cancel-bk-reason')?.value || '').trim() || null }),
+      });
+      closeModal('cancel-bk-modal');
+      toast('Booking cancelled');
+      if (cancelResolver) cancelResolver(true);
+    } catch {
+      if (cancelResolver) cancelResolver(false);
+    }
+    cancelResolver = null;
+  });
+  document.querySelector('[data-close-modal="cancel-bk-modal"]')?.addEventListener('click', () => {
+    if (cancelResolver) cancelResolver(false);
+    cancelResolver = null;
+  });
+  $('btn-confirm-poss')?.addEventListener('click', async () => {
+    const unitId = parseInt($('poss-unit-id').value, 10);
+    if (!unitId) return;
+    if (possOutstanding > 0) {
+      if (!await askConfirm(`Outstanding is still ${fmt(possOutstanding)}. Mark possession anyway?`, {
+        title: 'Outstanding balance', confirmLabel: 'Mark possession',
+      })) return;
+    }
+    try {
+      await api(`/api/units/${unitId}/possession`, {
+        method: 'POST',
+        body: JSON.stringify({ possession_date: $('poss-date')?.value || todayISO() }),
+      });
+      closeModal('poss-modal');
+      toast('Possession recorded');
+      if (possResolver) possResolver(true);
+    } catch {
+      if (possResolver) possResolver(false);
+    }
+    possResolver = null;
+  });
+  document.querySelector('[data-close-modal="poss-modal"]')?.addEventListener('click', () => {
+    if (possResolver) possResolver(false);
+    possResolver = null;
+  });
 }
 
 let xferCustomers = [];
@@ -127,6 +168,7 @@ export async function openTransferModal({ bookingId, unitId, currentCustomerId, 
   xferSelectedId = null;
   if ($('xfer-cust')) $('xfer-cust').value = '';
   $('xfer-notes').value = '';
+  if ($('xfer-date')) $('xfer-date').value = todayISO();
   if ($('xfer-q')) $('xfer-q').value = '';
   $('xfer-summary').innerHTML = `
     <div class="bk-dname">${esc(unitNo || 'Unit')}</div>
@@ -169,7 +211,7 @@ export function initTransferEvents(onDone) {
       toast('Select a registered customer.', 'error');
       return;
     }
-    if (!await askConfirm('Transfer this booking to the selected customer?\n\nInstallments move to the new owner. Payment history stays on the original customer.', {
+    if (!await askConfirm('Transfer this booking to the selected customer?\n\nInstallments and payment history move to the new owner.', {
       title: 'Transfer ownership',
       confirmLabel: 'Transfer',
     })) {
@@ -181,6 +223,7 @@ export function initTransferEvents(onDone) {
         body: JSON.stringify({
           customer_id: customerId,
           notes: $('xfer-notes').value.trim() || null,
+          transfer_date: $('xfer-date')?.value || todayISO(),
         }),
       });
       closeModal('xfer-modal');

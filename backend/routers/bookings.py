@@ -45,6 +45,7 @@ class CancelBody(BaseModel):
 class TransferBody(BaseModel):
     customer_id: int
     notes: str | None = None
+    transfer_date: str | None = None
 
 
 @router.get("")
@@ -87,6 +88,8 @@ def cancel_booking(booking_id: int, body: CancelBody | None = None):
 def transfer_booking(booking_id: int, body: TransferBody):
     with get_db() as conn:
         try:
-            return svc.transfer_booking(conn, booking_id, body.customer_id, body.notes)
+            return svc.transfer_booking(
+                conn, booking_id, body.customer_id, body.notes, body.transfer_date,
+            )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

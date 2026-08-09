@@ -646,6 +646,11 @@ export async function submitBooking() {
     installments,
   };
 
+  if (!await askConfirm(
+    `Confirm booking ${selectedUnit.unit_no || ''} for ${selectedCustomer.name} at ${fmt(price)} (DP ${fmt(dp)})?`,
+    { title: 'Confirm booking', confirmLabel: 'Confirm booking' },
+  )) return;
+
   const r = await api('/api/bookings', { method: 'POST', body: JSON.stringify(payload) });
   toast(`Booking confirmed · ${r.booking_id}`);
   await resetBookingForm();

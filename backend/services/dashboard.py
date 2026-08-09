@@ -52,30 +52,43 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
                   AND u.project_id IN ({ph})""",
             tuple(project_ids),
         )
-        pay_filt = f" AND po.project_id IN ({ph})"
-        pay_params = tuple(project_ids)
     else:
         recv = fetch_one(
             conn,
             "SELECT COALESCE(SUM(remaining_amount),0) AS v FROM installments WHERE status IN ('pending','partial','overdue')",
         )
-        pay_filt = ""
-        pay_params = ()
 
-    vendor_pay = fetch_one(
-        conn,
-        f"""SELECT COALESCE(SUM(po.total),0) - COALESCE(SUM(vp.amount),0) AS v
-           FROM purchase_orders po
-           LEFT JOIN vendor_payments vp ON vp.purchase_order_id=po.id
-           WHERE po.status != 'closed'{pay_filt}""",
-        pay_params,
-    )
+    if project_ids:
+        ph = ",".join("?" * len(project_ids))
+        po_tot = fetch_one(
+            conn,
+            f"""SELECT COALESCE(SUM(total),0) AS v FROM purchase_orders
+                WHERE status != 'cancelled' AND project_id IN ({ph})""",
+            tuple(project_ids),
+        )
+        vp_paid = fetch_one(
+            conn,
+            f"""SELECT COALESCE(SUM(vp.amount),0) AS v FROM vendor_payments vp
+                JOIN purchase_orders po ON po.id=vp.purchase_order_id
+                WHERE po.project_id IN ({ph})""",
+            tuple(project_ids),
+        )
+    else:
+        po_tot = fetch_one(
+            conn,
+            "SELECT COALESCE(SUM(total),0) AS v FROM purchase_orders WHERE status != 'cancelled'",
+        )
+        vp_paid = fetch_one(
+            conn, "SELECT COALESCE(SUM(amount),0) AS v FROM vendor_payments",
+        )
+    vendor_bal = (po_tot["v"] if po_tot else 0) - (vp_paid["v"] if vp_paid else 0)
     agent_unpaid = fetch_one(
         conn,
         """SELECT COALESCE(SUM(commission_amount - paid_amount),0) AS v
-           FROM agent_commissions WHERE paid_amount < commission_amount""",
+           FROM agent_commissions
+           WHERE status != 'reversed' AND paid_amount < commission_amount""",
     )
-    payable = (vendor_pay["v"] if vendor_pay else 0) + (agent_unpaid["v"] if agent_unpaid else 0)
+    payable = vendor_bal + (agent_unpaid["v"] if agent_unpaid else 0)
 
     overdue = get_overdue_list(conn, project_ids)
 
