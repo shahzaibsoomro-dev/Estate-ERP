@@ -37,6 +37,24 @@ def list_cashbook(conn) -> dict:
            JOIN agents a ON a.id=ac.agent_id
            LEFT JOIN bookings b ON b.id=ac.booking_id""",
     )
+    inv_in = fetch_all(
+        conn,
+        """SELECT ic.id AS source_id, ic.contribution_date AS entry_date,
+                  'Investor in · ' || inv.name AS narration,
+                  ic.amount AS inflow, 0 AS outflow, 'investor' AS source, NULL AS id
+           FROM investor_contributions ic
+           JOIN investor_agreements a ON a.id=ic.agreement_id
+           JOIN investors inv ON inv.id=a.investor_id""",
+    )
+    inv_out = fetch_all(
+        conn,
+        """SELECT d.id AS source_id, d.distribution_date AS entry_date,
+                  'Investor out · ' || inv.name AS narration,
+                  0 AS inflow, d.amount AS outflow, 'investor' AS source, NULL AS id
+           FROM investor_distributions d
+           JOIN investor_agreements a ON a.id=d.agreement_id
+           JOIN investors inv ON inv.id=a.investor_id""",
+    )
     manual = fetch_all(
         conn,
         """SELECT id AS source_id, entry_date, narration,
@@ -46,7 +64,7 @@ def list_cashbook(conn) -> dict:
            FROM ledger_entries""",
     )
     rows = []
-    for group in (inflows, vendor_out, agent_out, manual):
+    for group in (inflows, vendor_out, agent_out, inv_in, inv_out, manual):
         rows.extend(group)
     rows.sort(key=lambda r: (r.get("entry_date") or "", r.get("source") or "", r.get("source_id") or 0))
     balance = 0

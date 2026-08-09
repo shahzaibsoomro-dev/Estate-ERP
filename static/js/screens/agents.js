@@ -2,6 +2,7 @@ import { $, esc, loadingHtml } from '../dom.js';
 import { api, toast } from '../api.js';
 import { fmt, fmtShort } from '../format.js';
 import { closeModal, openModal } from '../modal.js';
+import { askConfirm } from '../dialog.js';
 
 let allAgents = [];
 let apayMax = null;
@@ -14,10 +15,7 @@ function todayISO() {
 
 function agentBadge(ag) {
   if ((ag.status || '').toLowerCase() === 'inactive') return ['bg-grey', 'Inactive'];
-  const unpaid = ag.commission_unpaid ?? ((ag.commission_earned || 0) - (ag.commission_paid || 0));
-  if (unpaid <= 0) return ['bg-green', 'Clear'];
-  if ((ag.commission_paid || 0) > 0) return ['bg-yellow', 'Partial'];
-  return ['bg-red', 'Unpaid'];
+  return ['bg-green', 'Active'];
 }
 
 export async function loadAgents() {
@@ -36,7 +34,7 @@ function filteredAgents() {
   const q = ($('agent-search')?.value || '').trim().toLowerCase();
   if (!q) return allAgents;
   return allAgents.filter((ag) =>
-    [ag.name, ag.contact, ag.description, ag.project].filter(Boolean).join(' ').toLowerCase().includes(q));
+    [ag.name, ag.contact, ag.description, ag.category, ag.project].filter(Boolean).join(' ').toLowerCase().includes(q));
 }
 
 function renderAgents() {
@@ -50,7 +48,9 @@ function renderAgents() {
         return `
       <tr>
         <td class="td-b">${esc(ag.name)}</td>
+        <td>${esc(ag.category || '—')}</td>
         <td>${esc(ag.contact || '—')}</td>
+        <td title="${esc(ag.description || '')}" style="max-width:220px;white-space:normal;color:var(--g400)">${esc(ag.description || '—')}</td>
         <td>${ag.rate ?? ag.default_rate_pct ?? 0}%</td>
         <td>${ag.bookings_count || 0}</td>
         <td>${fmt(ag.commission_earned)}</td>
@@ -65,7 +65,7 @@ function renderAgents() {
         </td>
       </tr>`;
       }).join('')
-    : '<tr><td colspan="9" style="text-align:center;color:var(--g400);padding:20px">No agents found</td></tr>';
+    : '<tr><td colspan="11" style="text-align:center;color:var(--g400);padding:20px">No agents found</td></tr>';
 
   tbody.querySelectorAll('[data-ag-view]').forEach((b) => {
     b.addEventListener('click', () => openAgentDetail(parseInt(b.dataset.agView, 10)));
@@ -124,16 +124,17 @@ export async function openAgentDetail(id) {
     <div class="g2" style="margin-bottom:14px">
       <div>
         <div class="sum-row"><span class="sum-lbl">Contact</span><span class="sum-val">${esc(ag.contact || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Category</span><span class="sum-val">${esc(ag.category || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Rate</span><span class="sum-val">${ag.rate ?? ag.default_rate_pct ?? 0}%</span></div>
         <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${cls}">${esc(label)}</span></span></div>
       </div>
       <div>
-        <div class="sum-row"><span class="sum-lbl">Earned</span><span class="sum-val">${fmt(ag.commission_earned)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Payable</span><span class="sum-val">${fmt(ag.commission_earned)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(ag.commission_paid)}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Unpaid</span><span class="sum-val">${fmt(ag.commission_unpaid)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Balance</span><span class="sum-val">${fmt(ag.commission_unpaid)}</span></div>
       </div>
     </div>
-    ${ag.description ? `<div class="detail-block" style="margin-bottom:14px"><div class="detail-block-lbl">Notes</div><div class="detail-block-txt">${esc(ag.description)}</div></div>` : ''}
+    <div class="detail-block" style="margin-bottom:14px"><div class="detail-block-lbl">Description</div><div class="detail-block-txt">${esc(ag.description || '—')}</div></div>
     <div class="detail-section-title">Commissions</div>
     <div class="tbl-wrap" style="margin-bottom:14px"><table>
       <thead><tr><th>Booking</th><th>Customer</th><th>Unit</th><th>Rate</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
@@ -153,12 +154,13 @@ export async function openAgentDetail(id) {
 }
 
 function resetAgentForm() {
-  ['na-id', 'na-name', 'na-contact', 'na-description'].forEach((id) => {
+  ['na-id', 'na-name', 'na-contact', 'na-category', 'na-description'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
   if ($('na-rate')) $('na-rate').value = '2';
   if ($('na-status')) $('na-status').value = 'active';
   if ($('agent-modal-title')) $('agent-modal-title').textContent = 'Add Agent';
+  if ($('na-computed')) { $('na-computed').hidden = true; $('na-computed').innerHTML = ''; }
 }
 
 export async function openAgentForm(id = null) {
@@ -172,9 +174,18 @@ export async function openAgentForm(id = null) {
     $('na-id').value = String(ag.id);
     $('na-name').value = ag.name || '';
     $('na-contact').value = ag.contact || '';
+    if ($('na-category')) $('na-category').value = ag.category || '';
     $('na-description').value = ag.description || '';
     $('na-rate').value = String(ag.default_rate_pct ?? ag.rate ?? 2);
     $('na-status').value = (ag.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+    if ($('na-computed')) {
+      $('na-computed').hidden = false;
+      $('na-computed').innerHTML = `
+        <h4>Computed</h4>
+        <div class="sum-row"><span class="sum-lbl">Total payable</span><span class="sum-val">${fmt(ag.commission_earned || 0)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(ag.commission_paid || 0)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Balance</span><span class="sum-val">${fmt(ag.commission_unpaid || 0)}</span></div>`;
+    }
   } catch {
     closeModal('agent-modal');
   }
@@ -184,6 +195,7 @@ async function submitAgent() {
   const payload = {
     name: $('na-name').value.trim(),
     contact: $('na-contact').value.trim(),
+    category: ($('na-category')?.value || '').trim(),
     description: $('na-description').value.trim(),
     default_rate_pct: parseFloat($('na-rate').value) || 0,
     status: $('na-status').value,
@@ -209,7 +221,9 @@ async function submitAgent() {
 async function deleteAgent(id) {
   const ag = allAgents.find((x) => x.id === id);
   const name = ag?.name || 'this agent';
-  if (!confirm(`Delete agent "${name}"?\n\nAgents with commissions cannot be deleted.`)) return;
+  if (!await askConfirm(`Delete agent "${name}"?\n\nAgents with commissions cannot be deleted.`, {
+    title: 'Delete agent', confirmLabel: 'Delete', danger: true,
+  })) return;
   try {
     await api(`/api/agents/${id}`, { method: 'DELETE' });
     toast(`Agent "${name}" deleted`);
@@ -249,7 +263,9 @@ async function submitAgentPay() {
     toast('Amount cannot exceed unpaid commission.', 'error');
     return;
   }
-  if (!confirm(`Record agent commission payment of ${fmt(amount)}?`)) return;
+  if (!await askConfirm(`Record agent commission payment of ${fmt(amount)}?`, {
+    title: 'Record payment', confirmLabel: 'Record payment',
+  })) return;
   try {
     await api(`/api/agents/${agentId}/pay`, {
       method: 'POST',

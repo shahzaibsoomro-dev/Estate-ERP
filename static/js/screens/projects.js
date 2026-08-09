@@ -1,5 +1,7 @@
 import { $, esc } from '../dom.js';
 import { api, toast } from '../api.js';
+import { fmtShort } from '../format.js';
+import { askConfirm } from '../dialog.js';
 import { openModal, closeModal } from '../modal.js';
 import { state } from '../state.js';
 import { goScreen } from '../nav.js';
@@ -17,7 +19,9 @@ export async function refreshProjectSelects() {
   loadProjectFilterOptions(projects);
   const opts = projects.map((p) =>
     `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-  if ($('sl-proj')) $('sl-proj').innerHTML = opts;
+  if ($('sl-proj')) $('sl-proj').innerHTML = `<option value="">Select…</option>${opts}`;
+  if ($('site-f-proj')) $('site-f-proj').innerHTML = `<option value="">All (top filter)</option>${opts}`;
+  if ($('ni-proj')) $('ni-proj').innerHTML = `<option value="">Company (no project)</option>${opts}`;
 }
 
 export async function loadProjects() {
@@ -49,6 +53,7 @@ export async function loadProjects() {
         <span style="font-weight:900;color:${p.progress >= 80 ? 'var(--success)' : p.progress >= 50 ? 'var(--blue)' : 'var(--accent)'}">${p.progress}%</span>
       </div>
       <div class="prog"><div class="prog-fill ${p.progress === 100 ? 'g' : p.progress < 50 ? 'a' : ''}" style="width:${p.progress}%"></div></div>
+      <div style="font-size:11.5px;color:var(--g500);margin-top:8px">Vendor spend ${fmtShort(p.po_total || 0)} · paid ${fmtShort(p.vendor_paid || 0)} · due ${fmtShort(p.vendor_outstanding || 0)}</div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button type="button" class="btn sm" data-proj-detail="${p.id}">Details</button>
         <button type="button" class="btn sm" data-proj-edit="${p.id}">Edit</button>
@@ -116,7 +121,7 @@ async function deleteProject(id) {
     msg += '.\nRemove all units from Unit Inventory before deleting the project.';
   }
 
-  if (!confirm(msg)) return;
+  if (!await askConfirm(msg, { title: 'Delete project', confirmLabel: 'Delete', danger: true })) return;
 
   try {
     await api(`/api/projects/${id}`, { method: 'DELETE' });

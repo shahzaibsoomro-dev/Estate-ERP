@@ -3,11 +3,18 @@ import { api, toast } from '../api.js';
 import { fmt, fmtShort, overdueBadge } from '../format.js';
 import { projectFilterQuery } from '../project-filter.js';
 import { openModal, closeModal } from '../modal.js';
+import { getCurrentScreen, reloadCurrentScreen } from '../nav.js';
 import { openCustomerDetail } from './customers.js';
 import { loadDashboard } from './dashboard.js';
+import { askConfirm } from '../dialog.js';
 
 let recoveryOverdue = [];
 let ageFilter = null;
+let payContext = null;
+let calYear = null;
+let calMonth = null;
+let calDays = [];
+let calSelected = null;
 
 function todayISO() {
   const d = new Date();
@@ -55,6 +62,101 @@ export async function loadRecovery() {
   if ($('r-cases')) $('r-cases').textContent = recoveryOverdue.length;
   paintAgeing(d.ageing && d.ageing.d30 ? d.ageing : ageingFromRows());
   renderRecoveryTable();
+  await loadCalendar();
+}
+
+function ensureCalMonth() {
+  if (calYear && calMonth) return;
+  const n = new Date();
+  calYear = n.getFullYear();
+  calMonth = n.getMonth() + 1;
+}
+
+async function loadCalendar() {
+  if (!$('rec-calendar')) return;
+  ensureCalMonth();
+  const extra = projectFilterQuery();
+  const url = `/api/recovery/calendar?year=${calYear}&month=${calMonth}${extra ? `&${extra.slice(1)}` : ''}`;
+  try {
+    const d = await api(url);
+    calDays = d.days || [];
+  } catch {
+    calDays = [];
+  }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const grid = $('rec-calendar');
+  if (!grid) return;
+  const label = $('cal-label');
+  if (label) {
+    label.textContent = new Date(calYear, calMonth - 1, 1).toLocaleString('en-GB', {
+      month: 'long', year: 'numeric',
+    });
+  }
+  const byDate = {};
+  calDays.forEach((d) => { byDate[d.date] = d; });
+  const first = new Date(calYear, calMonth - 1, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+  const today = todayISO();
+  const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  let html = dow.map((n) => `<div class="cal-dow">${n}</div>`).join('');
+  for (let i = 0; i < startDow; i += 1) html += '<div class="cal-cell empty"></div>';
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const iso = `${calYear}-${String(calMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const bucket = byDate[iso];
+    const cls = [
+      'cal-cell',
+      bucket ? 'has-due' : '',
+      iso === today ? 'today' : '',
+      calSelected === iso ? 'today' : '',
+    ].filter(Boolean).join(' ');
+    html += `<button type="button" class="${cls}" data-cal-day="${iso}">
+      <div class="cal-day">${day}</div>
+      ${bucket ? `<div class="cal-meta">${bucket.count} · ${fmtShort(bucket.amount)}</div>` : ''}
+    </button>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('[data-cal-day]').forEach((btn) => {
+    btn.addEventListener('click', () => showCalDay(btn.dataset.calDay));
+  });
+  if (calSelected) showCalDay(calSelected);
+  else if ($('cal-day-list')) $('cal-day-list').hidden = true;
+}
+
+function showCalDay(iso) {
+  calSelected = iso;
+  const box = $('cal-day-list');
+  if (!box) return;
+  const bucket = calDays.find((d) => d.date === iso);
+  if (!bucket || !bucket.items?.length) {
+    box.hidden = true;
+    box.innerHTML = '';
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = `
+    <div style="font-weight:800;font-size:13px;margin-bottom:8px">Due ${esc(iso)}</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Customer</th><th>Unit</th><th>Type</th><th>Due</th><th></th></tr></thead>
+      <tbody>${bucket.items.map((i) => `
+        <tr>
+          <td class="td-b">${esc(i.customer_name)}</td>
+          <td>${esc(i.unit_no)}</td>
+          <td>${esc(i.type || '—')}</td>
+          <td class="td-red">${fmt(i.amount)}</td>
+          <td><button type="button" class="btn sm primary" data-cal-pay="${i.id}">Pay</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  box.querySelectorAll('[data-cal-pay]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const row = bucket.items.find((x) => x.id === parseInt(btn.dataset.calPay, 10));
+      if (row) openPayForInstallment(row);
+    });
+  });
 }
 
 function paintAgeing(ageing) {
@@ -107,6 +209,7 @@ function renderRecoveryTable() {
 }
 
 function resetPayForm() {
+  payContext = null;
   ['pay-inst-id', 'pay-bk-id', 'pay-cust-id', 'pay-amount', 'pay-ref', 'pay-notes'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
@@ -129,14 +232,22 @@ function fillPayFromRow(row) {
   $('pay-summary').innerHTML = `
     <div class="bk-dname">${esc(row.customer_name)}</div>
     <div class="sum-row"><span class="sum-lbl">Unit</span><span class="sum-val">${esc(row.unit_no)} · ${esc(row.project_name)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Due</span><span class="sum-val">${esc(row.due_date)} · ${row.days_overdue || 0}d overdue</span></div>
+    <div class="sum-row"><span class="sum-lbl">Due</span><span class="sum-val">${esc(row.due_date || '—')}${(row.days_overdue || 0) > 0 ? ` · ${row.days_overdue}d overdue` : ''}</span></div>
     <div class="sum-row"><span class="sum-lbl">Remaining</span><span class="sum-val td-red">${fmt(row.amount)}</span></div>`;
+}
+
+export function openPayForInstallment(row) {
+  resetPayForm();
+  payContext = row;
+  fillPayFromRow(row);
+  openModal('pay-modal');
 }
 
 function openPayModal(row = null) {
   resetPayForm();
   openModal('pay-modal');
   if (row) {
+    payContext = row;
     fillPayFromRow(row);
     return;
   }
@@ -153,7 +264,10 @@ function openPayModal(row = null) {
 function onPayPickChange() {
   const id = parseInt($('pay-pick')?.value, 10);
   const row = recoveryOverdue.find((x) => x.id === id);
-  if (row) fillPayFromRow(row);
+  if (row) {
+    payContext = row;
+    fillPayFromRow(row);
+  }
   else {
     $('pay-summary').hidden = true;
     ['pay-inst-id', 'pay-bk-id', 'pay-cust-id', 'pay-amount'].forEach((i) => { if ($(i)) $(i).value = ''; });
@@ -165,8 +279,9 @@ async function submitPayment() {
   const bkId = parseInt($('pay-bk-id').value, 10);
   const custId = parseInt($('pay-cust-id').value, 10);
   const amount = parseInt($('pay-amount').value, 10);
-  const row = recoveryOverdue.find((x) => x.id === instId);
-  const due = row?.amount || 0;
+  const row = recoveryOverdue.find((x) => x.id === instId)
+    || (payContext && payContext.id === instId ? payContext : null);
+  const due = row?.amount || row?.remaining_amount || 0;
   if (!instId || !bkId || !custId) {
     toast('Select an installment.', 'error');
     return;
@@ -180,7 +295,10 @@ async function submitPayment() {
     return;
   }
   const who = row ? `${row.customer_name} / ${row.unit_no}` : 'this installment';
-  if (!confirm(`Record payment of ${fmt(amount)} for ${who}?`)) return;
+  if (!await askConfirm(`Record payment of ${fmt(amount)} for ${who}?`, {
+    title: 'Record payment',
+    confirmLabel: 'Record payment',
+  })) return;
   try {
     const r = await api('/api/payments', {
       method: 'POST',
@@ -199,6 +317,7 @@ async function submitPayment() {
     toast(`Payment recorded · ${r.receipt}`);
     await loadRecovery();
     try { await loadDashboard(); } catch { /* badge refresh is best-effort */ }
+    if (getCurrentScreen() === 'portal') reloadCurrentScreen();
   } catch {
     /* api() already toasts */
   }
@@ -209,6 +328,20 @@ export function initRecoveryEvents() {
   $('btn-rec-pay')?.addEventListener('click', () => openPayModal(null));
   $('pay-pick')?.addEventListener('change', onPayPickChange);
   $('btn-save-payment')?.addEventListener('click', submitPayment);
+  $('cal-prev')?.addEventListener('click', () => {
+    ensureCalMonth();
+    calMonth -= 1;
+    if (calMonth < 1) { calMonth = 12; calYear -= 1; }
+    calSelected = null;
+    loadCalendar();
+  });
+  $('cal-next')?.addEventListener('click', () => {
+    ensureCalMonth();
+    calMonth += 1;
+    if (calMonth > 12) { calMonth = 1; calYear += 1; }
+    calSelected = null;
+    loadCalendar();
+  });
   document.querySelectorAll('.age-card').forEach((el) => {
     el.addEventListener('click', () => {
       const key = el.dataset.age;

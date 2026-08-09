@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS agents (
     name TEXT NOT NULL,
     description TEXT,
     contact TEXT,
+    category TEXT,
     default_rate_pct REAL DEFAULT 2.0,
     status TEXT DEFAULT 'active'
 );
@@ -294,6 +295,18 @@ CREATE INDEX IF NOT EXISTS idx_installments_booking ON installments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_installments_due ON installments(due_date);
 CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_unit ON bookings(unit_id);
+CREATE TABLE IF NOT EXISTS booking_transfers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_id INTEGER NOT NULL,
+    from_customer_id INTEGER NOT NULL,
+    to_customer_id INTEGER NOT NULL,
+    transfer_date TEXT NOT NULL,
+    notes TEXT,
+    FOREIGN KEY (booking_id) REFERENCES bookings(id),
+    FOREIGN KEY (from_customer_id) REFERENCES customers(id),
+    FOREIGN KEY (to_customer_id) REFERENCES customers(id)
+);
+
 CREATE TABLE IF NOT EXISTS ledger_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     entry_date TEXT NOT NULL,

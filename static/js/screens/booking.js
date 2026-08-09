@@ -3,6 +3,7 @@ import { api, toast } from '../api.js';
 import { fmt } from '../format.js';
 import { state } from '../state.js';
 import { parseAttrList } from '../detail.js';
+import { askConfirm } from '../dialog.js';
 
 let bookingUnits = [];
 let customerItems = [];
@@ -102,10 +103,17 @@ function paintCustomers() {
     'bk-customer',
     filterItems(customerItems, query),
     'No match',
-    (it) => `<button type="button" class="bk-opt${selectedCustomer?.id === it.id ? ' active' : ''}" data-id="${it.id}">
+    (it) => {
+      const c = it.data || {};
+      const sub = [c.cnic, c.phone || c.contact_number].filter(Boolean).join(' · ');
+      return `<button type="button" class="bk-opt${selectedCustomer?.id === it.id ? ' active' : ''}" data-id="${it.id}">
       <span class="bk-av">${esc(initials(it.label))}</span>
-      <span class="bk-opt-title">${esc(it.label)}</span>
-    </button>`,
+      <span class="bk-opt-text">
+        <span class="bk-opt-title">${esc(it.label)}</span>
+        ${sub ? `<span class="bk-opt-sub">${esc(sub)}</span>` : ''}
+      </span>
+    </button>`;
+    },
   );
 }
 
@@ -218,7 +226,7 @@ async function loadBookingUnits() {
   unitItems = bookingUnits.map((u) => ({
     id: u.id,
     label: u.unit_no,
-    search: `${u.unit_no} ${u.type || ''} ${u.unit_type || ''} ${u.block_tower || ''} ${u.floor || ''}`,
+    search: `${u.unit_no} ${u.type || ''} ${u.unit_type || ''} ${u.block_tower || ''} ${u.floor || ''} ${u.residential_type || ''} ${parseAttrList(u.unit_attributes).join(' ')} ${u.facing || ''}`,
     data: u,
   }));
 }
@@ -618,7 +626,10 @@ export async function submitBooking() {
     return;
   }
   if (remaining > 0 && planned !== remaining) {
-    if (!confirm(`Installments (${fmt(planned)}) do not match remaining (${fmt(remaining)}). Save anyway?`)) return;
+    if (!await askConfirm(`Installments (${fmt(planned)}) do not match remaining (${fmt(remaining)}). Save anyway?`, {
+      title: 'Plan does not match',
+      confirmLabel: 'Save anyway',
+    })) return;
   }
 
   const payload = {

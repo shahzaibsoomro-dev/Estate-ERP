@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
-from backend.database import get_db, fetch_one
+from backend.database import get_db, fetch_all, fetch_one
 from backend.services import dashboard as dash_svc
-from backend.services.project_filter import parse_project_ids
+from backend.services.project_filter import parse_project_ids, sql_in
 
 router = APIRouter(prefix="/api", tags=["recovery"])
 
@@ -76,6 +76,45 @@ def recovery(
     ids = parse_project_ids(project_ids, project_id)
     with get_db() as conn:
         return _recovery(conn, ids)
+
+
+@router.get("/recovery/calendar")
+def recovery_calendar(
+    year: int = Query(...),
+    month: int = Query(...),
+    project_id: int | None = Query(None),
+    project_ids: str | None = Query(None),
+):
+    ids = parse_project_ids(project_ids, project_id)
+    start = f"{year:04d}-{month:02d}-01"
+    if month == 12:
+        end = f"{year + 1:04d}-01-01"
+    else:
+        end = f"{year:04d}-{month + 1:02d}-01"
+    clause, params = sql_in("u.project_id", ids)
+    q = f"""SELECT i.id, i.booking_id, i.customer_id, i.due_date, i.amount,
+                   i.remaining_amount AS amount_due, i.status, i.type,
+                   c.name AS customer_name, u.unit_no, p.name AS project_name,
+                   c.contact_number AS phone
+            FROM installments i
+            JOIN customers c ON c.id=i.customer_id
+            JOIN units u ON u.id=i.unit_id
+            JOIN projects p ON p.id=u.project_id
+            WHERE i.status IN ('pending','partial','overdue')
+              AND i.due_date>=? AND i.due_date<?{clause}
+            ORDER BY i.due_date, c.name"""
+    with get_db() as conn:
+        rows = fetch_all(conn, q, (start, end) + params)
+    days: dict = {}
+    for r in rows:
+        day = (r.get("due_date") or "")[:10]
+        bucket = days.setdefault(day, {"date": day, "count": 0, "amount": 0, "items": []})
+        due = r.get("amount_due") or r.get("amount") or 0
+        bucket["count"] += 1
+        bucket["amount"] += due
+        r["amount"] = due
+        bucket["items"].append(r)
+    return {"year": year, "month": month, "days": list(days.values())}
 
 
 @router.get("/demand-notices")

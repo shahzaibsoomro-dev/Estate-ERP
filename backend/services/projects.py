@@ -16,6 +16,30 @@ def inventory_counts(conn, project_id: int) -> dict:
     return row or {"total_units": 0, "sold": 0, "available": 0, "hold": 0}
 
 
+def _project_spend(conn, project_id: int) -> dict:
+    po = fetch_one(
+        conn,
+        """SELECT COALESCE(SUM(total),0) AS v FROM purchase_orders
+           WHERE project_id=? AND status!='cancelled'""",
+        (project_id,),
+    )
+    paid = fetch_one(
+        conn,
+        """SELECT COALESCE(SUM(vp.amount),0) AS v
+           FROM vendor_payments vp
+           JOIN purchase_orders po ON po.id=vp.purchase_order_id
+           WHERE po.project_id=? AND po.status!='cancelled'""",
+        (project_id,),
+    )
+    total = po["v"] if po else 0
+    vendor_paid = paid["v"] if paid else 0
+    return {
+        "po_total": total,
+        "vendor_paid": vendor_paid,
+        "vendor_outstanding": max(total - vendor_paid, 0),
+    }
+
+
 def enrich_project(conn, project: dict) -> dict:
     raw_status = project.get("status", "")
     project["raw_status"] = raw_status
@@ -25,6 +49,7 @@ def enrich_project(conn, project: dict) -> dict:
     project["sold"] = counts["sold"] or 0
     project["available"] = counts["available"] or 0
     project["hold"] = counts["hold"] or 0
+    project.update(_project_spend(conn, project["id"]))
     project["progress"] = project.get("current_progress", 0)
     project["end_date"] = project.get("expected_end_date")
     status = project.get("status", "")

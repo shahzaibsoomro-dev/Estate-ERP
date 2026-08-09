@@ -1,6 +1,7 @@
 from datetime import date
 
 from backend.database import fetch_all, fetch_one
+from backend.services import audit as audit_svc
 from backend.services.project_filter import sql_in
 
 
@@ -38,7 +39,7 @@ def _attach_balances(conn, vendor: dict) -> dict:
     pos = fetch_one(
         conn,
         """SELECT COALESCE(SUM(total),0) AS total_payable
-           FROM purchase_orders WHERE vendor_id=?""",
+           FROM purchase_orders WHERE vendor_id=? AND status!='cancelled'""",
         (vendor["id"],),
     )
     paid = fetch_one(
@@ -62,11 +63,14 @@ def _po_paid(conn, po_id: int) -> int:
 
 
 def _map_po_status(po: dict, paid: int = 0) -> dict:
-    """Map internal status to UI values: draft | approved | payment_pending | completed."""
+    """Map internal status to UI: draft | approved | payment_pending | completed | cancelled."""
     status = po.get("status", "ordered")
     grn = po.get("grn_status", "pending")
     po["paid"] = paid
     po["remaining"] = max((po.get("total") or 0) - paid, 0)
+    if status == "cancelled":
+        po["status"] = "cancelled"
+        return po
     if status == "closed":
         po["status"] = "completed"
         po["grn_status"] = "done"
@@ -252,6 +256,14 @@ def update_po_status(conn, po_id: int, status: str) -> dict | None:
             "UPDATE purchase_orders SET status='closed', grn_status='done' WHERE id=?",
             (po_id,),
         )
+    elif key == "cancelled":
+        mapped = _map_po_status(dict(po), _po_paid(conn, po_id))
+        if mapped["status"] not in ("draft", "approved"):
+            raise ValueError("Only draft or approved POs can be cancelled")
+        if _po_paid(conn, po_id) > 0:
+            raise ValueError("Cannot cancel a PO with payments")
+        conn.execute("UPDATE purchase_orders SET status='cancelled' WHERE id=?", (po_id,))
+        audit_svc.log(conn, "purchase_order", po_id, "cancelled", {"po_no": po.get("po_no")})
     else:
         raise ValueError("Invalid PO status")
     return get_purchase_order(conn, po_id)
@@ -293,4 +305,7 @@ def record_vendor_payment(conn, data: dict) -> dict:
                 "UPDATE purchase_orders SET status='closed', grn_status='done' WHERE id=?",
                 (po_id,),
             )
+    audit_svc.log(conn, "vendor_payment", cur.lastrowid, "recorded", {
+        "vendor_id": vendor_id, "amount": amount, "purchase_order_id": po_id,
+    })
     return {"ok": True, "id": cur.lastrowid}

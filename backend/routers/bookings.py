@@ -42,6 +42,11 @@ class CancelBody(BaseModel):
     reason: str | None = None
 
 
+class TransferBody(BaseModel):
+    customer_id: int
+    notes: str | None = None
+
+
 @router.get("")
 def list_bookings(project_id: int | None = None):
     with get_db() as conn:
@@ -60,10 +65,28 @@ def create_booking(body: BookingCreate):
             raise HTTPException(400, str(e)) from e
 
 
+@router.get("/{booking_id}/cancel-preview")
+def cancel_preview(booking_id: int):
+    with get_db() as conn:
+        try:
+            return svc.preview_cancel(conn, booking_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+
 @router.post("/{booking_id}/cancel")
 def cancel_booking(booking_id: int, body: CancelBody | None = None):
     with get_db() as conn:
         try:
             return svc.cancel_booking(conn, booking_id, body.reason if body else None)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+
+@router.post("/{booking_id}/transfer")
+def transfer_booking(booking_id: int, body: TransferBody):
+    with get_db() as conn:
+        try:
+            return svc.transfer_booking(conn, booking_id, body.customer_id, body.notes)
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

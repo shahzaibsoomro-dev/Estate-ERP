@@ -2,6 +2,7 @@ import { $, esc } from '../dom.js';
 import { api, toast } from '../api.js';
 import { fmt, fmtShort } from '../format.js';
 import { closeModal, openModal } from '../modal.js';
+import { askConfirm } from '../dialog.js';
 
 export async function loadAccounts() {
   const d = await api('/api/ledger');
@@ -29,7 +30,7 @@ export async function loadAccounts() {
 }
 
 async function deleteLedgerEntry(id) {
-  if (!confirm('Delete this manual entry?')) return;
+  if (!await askConfirm('Delete this manual entry?', { title: 'Delete entry', confirmLabel: 'Delete', danger: true })) return;
   try {
     await api(`/api/ledger/${id}`, { method: 'DELETE' });
     toast('Entry deleted');

@@ -1,6 +1,7 @@
 from datetime import date
 
 from backend.database import fetch_all, fetch_one
+from backend.services import audit as audit_svc
 
 
 def _clean(value):
@@ -27,6 +28,7 @@ def normalize_agent(data: dict) -> dict:
         "name": name,
         "description": _clean(data.get("description")),
         "contact": _clean(data.get("contact")),
+        "category": _clean(data.get("category")),
         "default_rate_pct": rate,
         "status": status,
     }
@@ -110,10 +112,10 @@ def get_agent(conn, agent_id: int) -> dict | None:
 def create_agent(conn, data: dict) -> dict:
     payload = normalize_agent(data)
     cur = conn.execute(
-        """INSERT INTO agents(name, description, contact, default_rate_pct, status)
-           VALUES(?,?,?,?,?)""",
+        """INSERT INTO agents(name, description, contact, category, default_rate_pct, status)
+           VALUES(?,?,?,?,?,?)""",
         (
-            payload["name"], payload["description"], payload["contact"],
+            payload["name"], payload["description"], payload["contact"], payload["category"],
             payload["default_rate_pct"], payload["status"],
         ),
     )
@@ -125,10 +127,10 @@ def update_agent(conn, agent_id: int, data: dict) -> dict | None:
         return None
     payload = normalize_agent(data)
     conn.execute(
-        """UPDATE agents SET name=?, description=?, contact=?, default_rate_pct=?, status=?
+        """UPDATE agents SET name=?, description=?, contact=?, category=?, default_rate_pct=?, status=?
            WHERE id=?""",
         (
-            payload["name"], payload["description"], payload["contact"],
+            payload["name"], payload["description"], payload["contact"], payload["category"],
             payload["default_rate_pct"], payload["status"], agent_id,
         ),
     )
@@ -185,4 +187,5 @@ def pay_commission(
             (new_paid, status, c["id"]),
         )
         remaining -= pay
+    audit_svc.log(conn, "agent", agent_id, "payment", {"amount": amount})
     return get_agent(conn, agent_id)

@@ -1,6 +1,9 @@
 import json
 
+from datetime import date
+
 from backend.database import fetch_all, fetch_one
+from backend.services import audit as audit_svc
 from backend.services import installments as inst_svc
 from backend.services.project_filter import sql_in
 
@@ -15,12 +18,22 @@ def _parse_unit_attributes(attrs) -> list:
     return attrs if isinstance(attrs, list) else []
 
 
+def display_unit_status(raw_status: str | None) -> str:
+    raw = (raw_status or "available").lower()
+    if raw == "possession_delivered":
+        return "delivered"
+    if raw in ("sold", "booked"):
+        return "booked"
+    if raw == "hold":
+        return "hold"
+    return "available"
+
+
 def _map_unit(row: dict) -> dict:
     u = dict(row)
     raw_status = u.get("status", "available")
     u["raw_status"] = raw_status
-    if raw_status in ("booked", "sold", "possession_delivered"):
-        u["status"] = "sold"
+    u["status"] = display_unit_status(raw_status)
     u["floor"] = u.get("floor_number")
     u["type"] = u.get("unit_type")
     ghaz = u.get("area_ghaz")
@@ -42,8 +55,13 @@ def list_units(conn, project_id: int | None = None, project_ids: list[int] | Non
     q += filt
     params.extend(filt_params)
     if status:
-        q += " AND u.status=?"
-        params.append(status)
+        if status == "delivered":
+            q += " AND u.status='possession_delivered'"
+        elif status == "booked":
+            q += " AND u.status IN ('booked','sold')"
+        else:
+            q += " AND u.status=?"
+            params.append(status)
     if floor is not None:
         q += " AND u.floor_number=?"
         params.append(floor)
@@ -155,7 +173,31 @@ def update_status(conn, unit_id: int, status: str, hold_customer_id: int | None 
            WHERE id=?""",
         (status, hold_customer_id, hold_until, hold_notes, unit_id),
     )
+    audit_svc.log(conn, "unit", unit_id, "status", {"status": status})
     return get_unit(conn, unit_id)
+
+
+def mark_possession(conn, unit_id: int, possession_date: str | None = None) -> dict:
+    unit = fetch_one(conn, "SELECT * FROM units WHERE id=?", (unit_id,))
+    if not unit:
+        raise ValueError("Unit not found")
+    booking = fetch_one(
+        conn,
+        "SELECT * FROM bookings WHERE unit_id=? AND status='active' ORDER BY id DESC LIMIT 1",
+        (unit_id,),
+    )
+    if not booking:
+        raise ValueError("Active booking required for possession")
+    when = (possession_date or "").strip() or date.today().isoformat()
+    conn.execute(
+        """UPDATE units SET status='possession_delivered', possession_date=? WHERE id=?""",
+        (when, unit_id),
+    )
+    conn.execute("UPDATE bookings SET possession_date=? WHERE id=?", (when, booking["id"]))
+    audit_svc.log(conn, "unit", unit_id, "possession", {
+        "booking_id": booking["id"], "possession_date": when,
+    })
+    return get_unit_detail(conn, unit_id)
 
 
 def update_unit(conn, unit_id: int, data: dict) -> dict:

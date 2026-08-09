@@ -18,6 +18,7 @@
     <div class="ni active" data-s="dashboard"><span class="ni-ico">📊</span>Dashboard</div>
     <div class="ni" data-s="projects"><span class="ni-ico">🏙️</span>Projects</div>
     <div class="ni" data-s="units"><span class="ni-ico">🏠</span>Unit Inventory</div>
+    <div class="ni" data-s="activity"><span class="ni-ico">📜</span>Activity</div>
   </nav>
   <div class="sb-sec">Sales</div>
   <nav class="nav">
@@ -36,6 +37,7 @@
   <nav class="nav">
     <div class="ni" data-s="accounts"><span class="ni-ico">📒</span>Accounts</div>
     <div class="ni" data-s="agents"><span class="ni-ico">🤝</span>Agents</div>
+    <div class="ni" data-s="investors"><span class="ni-ico">💼</span>Investors</div>
     <div class="ni" data-s="reports"><span class="ni-ico">📈</span>Reports</div>
   </nav>
   <div class="sb-sec">Portal</div>
@@ -134,21 +136,32 @@
         <option value="">All Status</option>
         <option value="available">Available</option>
         <option value="hold">Hold</option>
-        <option value="sold">Sold</option>
+        <option value="booked">Booked</option>
+        <option value="delivered">Delivered</option>
       </select>
+      <div class="bk-combo" id="u-tag-combo" style="min-width:200px">
+        <div class="bk-combo-field">
+          <span class="bk-search-ico" aria-hidden="true"></span>
+          <input id="u-search" type="search" placeholder="Unit or tag…" autocomplete="off" style="font-size:11.5px;padding:6px 10px 6px 34px;border-radius:7px;border:1.5px solid var(--g200);width:200px">
+          <span class="bk-chevron" aria-hidden="true"></span>
+        </div>
+        <div id="u-search-menu" class="bk-menu" hidden></div>
+      </div>
       <button type="button" class="btn sm primary" id="btn-add-unit">+ Add Unit</button>
       <button type="button" class="btn sm" id="btn-bulk-units" title="Coming soon">📤 Bulk CSV Upload</button>
       <div style="display:flex;gap:6px;font-size:11px;align-items:center">
         <span style="color:var(--success);font-weight:700">●</span>Available
         <span style="color:var(--accent);font-weight:700">●</span>Hold
-        <span style="color:var(--danger);font-weight:700">●</span>Sold
+        <span style="color:var(--blue);font-weight:700">●</span>Booked
+        <span style="color:#475569;font-weight:700">●</span>Delivered
       </div>
     </div>
   </div>
-  <div class="g3" style="margin-bottom:14px">
-    <div class="sm"><div class="sm-v" style="color:var(--success)" id="u-sold-cnt">—</div><div class="sm-l">Sold</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="u-avail-cnt">—</div><div class="sm-l">Available</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--accent)" id="u-hold-cnt">—</div><div class="sm-l">On Hold</div></div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" style="color:var(--success)" id="u-avail-cnt">—</div><div class="sm-l">Available</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--accent)" id="u-hold-cnt">—</div><div class="sm-l">Hold</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="u-booked-cnt">—</div><div class="sm-l">Booked</div></div>
+    <div class="sm"><div class="sm-v" style="color:#475569" id="u-deliv-cnt">—</div><div class="sm-l">Delivered</div></div>
   </div>
   <div id="unit-floors"><div class="loading"><span class="spinner"></span>Loading units…</div></div>
 </div>
@@ -328,6 +341,20 @@
     <div class="kpi green"><div class="kpi-lbl">Collected (30d)</div><div class="kpi-val" id="r-coll">—</div><div class="kpi-ico">✅</div></div>
     <div class="kpi blue"><div class="kpi-lbl">Overdue Cases</div><div class="kpi-val" id="r-cases">—</div><div class="kpi-ico">📈</div></div>
   </div>
+  <div class="card cal-wrap">
+    <div class="card-hd">
+      <span class="card-title">Payment calendar</span>
+      <div class="cal-nav">
+        <button type="button" class="btn sm" id="cal-prev">‹</button>
+        <strong id="cal-label">—</strong>
+        <button type="button" class="btn sm" id="cal-next">›</button>
+      </div>
+    </div>
+    <div class="card-bd">
+      <div class="cal-grid" id="rec-calendar"></div>
+      <div id="cal-day-list" class="cal-day-list" hidden></div>
+    </div>
+  </div>
   <div class="age-grid" id="rec-ageing">
     <button type="button" class="age-card d30" data-age="d30">
       <div class="age-lbl">1–30 days</div>
@@ -404,9 +431,14 @@
 </div>
 
 <div class="screen" id="s-site">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div><div style="font-size:16px;font-weight:900">Site Management</div></div>
-    <button type="button" class="btn primary" id="btn-site-log">+ Daily Entry</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="site-f-proj" style="min-width:160px"><option value="">All (top filter)</option></select>
+      <input type="date" id="site-from" title="From">
+      <input type="date" id="site-to" title="To">
+      <button type="button" class="btn primary" id="btn-site-log">+ Daily Entry</button>
+    </div>
   </div>
   <div class="g3" style="margin-bottom:14px">
     <div class="sm"><div class="sm-v" style="color:var(--blue)" id="site-progress">—</div><div class="sm-l">Project Progress</div><div class="prog" style="margin-top:6px"><div class="prog-fill" id="site-progress-bar" style="width:0%"></div></div></div>
@@ -420,7 +452,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div>
       <div style="font-size:16px;font-weight:900">Accounts</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Cash movement — collections in, vendor & agent payments out</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Cash movement — collections, vendors, agents, investors</div>
     </div>
     <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
   </div>
@@ -451,8 +483,49 @@
   <div class="card">
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Agent</th><th>Contact</th><th>Rate</th><th>Bookings</th><th>Earned</th><th>Paid</th><th>Unpaid</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="agent-tbody"><tr><td colspan="9" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        <thead><tr><th>Agent</th><th>Category</th><th>Contact</th><th>Description</th><th>Rate</th><th>Bookings</th><th>Payable</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="agent-tbody"><tr><td colspan="11" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-investors">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Investors</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="inv-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-add-investor">+ Add Investor</button>
+    </div>
+  </div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="inv-total">—</div><div class="sm-l">Investors</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--success)" id="inv-kpi-in">—</div><div class="sm-l">Contributed</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="inv-kpi-dist">—</div><div class="sm-l">Distributed</div></div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Investor</th><th>CNIC</th><th>Mobile</th><th>Type</th><th>Project</th>
+          <th>Agreed</th><th>Date</th><th>Monthly %</th><th>Profit %</th>
+          <th>Contributed</th><th>Distributed</th><th>Outstanding</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="inv-tbody"><tr><td colspan="14" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-activity">
+  <div style="margin-bottom:16px"><div style="font-size:16px;font-weight:900">Activity</div>
+    <div style="font-size:12px;color:var(--g400);margin-top:2px">Recent changes across bookings, units, payments and more</div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Entity</th><th>Action</th><th>Details</th></tr></thead>
+        <tbody id="audit-tbody"><tr><td colspan="4" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -469,49 +542,49 @@
 </div>
 
 <div class="screen" id="s-portal">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div><div style="font-size:16px;font-weight:900">Customer Portal Preview</div></div>
-    <button class="btn" onclick="toast('Link copied!')">📋 Copy Portal Link</button>
-  </div>
-  <div class="portal-hero">
-    <div style="font-size:9.5px;font-weight:800;letter-spacing:2px;opacity:.5;text-transform:uppercase;margin-bottom:7px">Haven Builders — Customer Self-Service Portal</div>
-    <div style="font-size:21px;font-weight:900;margin-bottom:3px">Welcome, Ahmed Raza</div>
-    <div style="font-size:12px;opacity:.65;margin-bottom:16px">Unit A-001 · Haven Heights Block A · Bahria Town, Lahore</div>
-    <div style="display:flex;gap:22px">
-      <div><div style="font-size:19px;font-weight:900">PKR 8,500,000</div><div style="font-size:10px;opacity:.5;font-weight:700;text-transform:uppercase;letter-spacing:1px">Total Value</div></div>
-      <div style="width:1px;background:rgba(255,255,255,.2)"></div>
-      <div><div style="font-size:19px;font-weight:900">PKR 3,000,000</div><div style="font-size:10px;opacity:.5;font-weight:700;text-transform:uppercase;letter-spacing:1px">Paid to Date</div></div>
-      <div style="width:1px;background:rgba(255,255,255,.2)"></div>
-      <div><div style="font-size:19px;font-weight:900;color:#FDE68A">PKR 5,500,000</div><div style="font-size:10px;opacity:.5;font-weight:700;text-transform:uppercase;letter-spacing:1px">Outstanding</div></div>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-    <div class="card">
-      <div class="card-hd"><span class="card-title">My Payment Schedule</span></div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Due Date</th><th>Type</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
-          <tbody id="portal-sched"><tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr></tbody>
-        </table>
-      </div>
-    </div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;gap:10px">
     <div>
+      <div style="font-size:16px;font-weight:900">Customer Portal</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Preview what a booked customer sees — schedule, unit, receipts</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="bk-combo" id="portal-combo-cust" style="min-width:280px">
+        <div class="bk-combo-field">
+          <span class="bk-search-ico" aria-hidden="true"></span>
+          <input id="portal-cust-q" type="search" placeholder="Search customer…" autocomplete="off">
+          <span class="bk-chevron" aria-hidden="true"></span>
+        </div>
+        <div id="portal-cust-menu" class="bk-menu" hidden></div>
+      </div>
+      <select id="portal-booking" hidden style="min-width:200px"></select>
+    </div>
+  </div>
+  <div id="portal-empty" class="loading" style="padding:28px">Select a customer with an active booking</div>
+  <div id="portal-body" hidden>
+    <div class="portal-hero" id="portal-hero"></div>
+    <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:14px">
       <div class="card">
-        <div class="card-hd"><span class="card-title">Unit Details</span></div>
-        <div class="card-bd">
-          <div class="sum-row"><span class="sum-lbl">Unit No</span><span class="sum-val">A-001</span></div>
-          <div class="sum-row"><span class="sum-lbl">Type</span><span class="sum-val">2 Bedroom Apartment</span></div>
-          <div class="sum-row"><span class="sum-lbl">Floor</span><span class="sum-val">1st Floor</span></div>
-          <div class="sum-row"><span class="sum-lbl">Size</span><span class="sum-val">1,200 sq.ft</span></div>
-          <div class="sum-row"><span class="sum-lbl">Facing</span><span class="sum-val">East</span></div>
+        <div class="card-hd"><span class="card-title">Payment schedule</span></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Due</th><th>Type</th><th>Amount</th><th>Paid</th><th>Remaining</th><th>Status</th><th></th></tr></thead>
+            <tbody id="portal-sched"></tbody>
+          </table>
         </div>
       </div>
-      <div class="card" style="margin-top:14px">
-        <div class="card-hd"><span class="card-title">📥 Downloads</span></div>
-        <div class="card-bd" style="display:grid;gap:8px">
-          <button class="btn" style="text-align:left;display:flex;align-items:center;gap:9px;padding:9px 12px" onclick="toast('Agreement downloaded!')">📄 <div><div style="font-weight:700;font-size:12px">Booking Agreement</div><div style="font-size:10px;color:var(--g400)">Signed PDF</div></div></button>
-          <button class="btn" style="text-align:left;display:flex;align-items:center;gap:9px;padding:9px 12px" onclick="toast('Receipts downloaded!')">🧾 <div><div style="font-weight:700;font-size:12px">Payment Receipts</div><div style="font-size:10px;color:var(--g400)">All transactions</div></div></button>
-          <button class="btn" style="text-align:left;display:flex;align-items:center;gap:9px;padding:9px 12px" onclick="toast('Statement downloaded!')">📊 <div><div style="font-weight:700;font-size:12px">Account Statement</div><div style="font-size:10px;color:var(--g400)">Full history</div></div></button>
+      <div>
+        <div class="card">
+          <div class="card-hd"><span class="card-title">Unit details</span></div>
+          <div class="card-bd" id="portal-unit"></div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="card-hd"><span class="card-title">Payment history</span></div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Receipt</th><th>Amount</th><th></th></tr></thead>
+              <tbody id="portal-pays"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -622,19 +695,21 @@
     <div class="modal-title"><span id="cust-modal-title">Add Customer</span><button type="button" class="modal-close" data-close-modal="cust-modal">✕</button></div>
     <input type="hidden" id="nc-id" value="">
     <div class="form-row">
-      <div class="fg"><label>Full Name *</label><input id="nc-name" type="text"></div>
-      <div class="fg"><label>Father Name</label><input id="nc-father" type="text"></div>
+      <div class="fg"><label>Customer name *</label><input id="nc-name" type="text"></div>
+      <div class="fg"><label>Father name</label><input id="nc-father" type="text"></div>
     </div>
     <div class="form-row">
       <div class="fg"><label>CNIC *</label><input id="nc-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
-      <div class="fg"><label>Phone</label><input id="nc-phone" type="text"></div>
+      <div class="fg"><label>Contact number</label><input id="nc-phone" type="text"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Emergency Contact</label><input id="nc-emergency" type="text"></div>
+      <div class="fg"><label>Emergency contact number</label><input id="nc-emergency" type="text"></div>
       <div class="fg"><label>Email</label><input id="nc-email" type="email"></div>
     </div>
-    <div class="fg"><label>Address</label><textarea id="nc-address"></textarea></div>
-    <div class="fg"><label>Notes</label><textarea id="nc-description"></textarea></div>
+    <div class="fg"><label>Residential address</label><textarea id="nc-address"></textarea></div>
+    <div class="fg"><label>Description</label><textarea id="nc-description"></textarea></div>
+    <div id="nc-computed" class="bk-dcard" style="margin-top:12px" hidden></div>
+    <div id="nc-preview" class="bk-dcard" style="margin-top:12px" hidden></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="cust-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-customer">Save Customer</button>
@@ -644,7 +719,7 @@
 
 <div class="modal-bg" id="site-modal">
   <div class="modal" style="max-width:520px">
-    <div class="modal-title"><span>Daily Site Entry</span><button type="button" class="modal-close" data-close-modal="site-modal">✕</button></div>
+    <div class="modal-title"><span id="site-modal-title">Daily Site Entry</span><button type="button" class="modal-close" data-close-modal="site-modal">✕</button></div>
     <div class="fg"><label>Project *</label><select id="sl-proj"><option value="">Select…</option></select></div>
     <div class="form-row">
       <div class="fg"><label>Date *</label><input id="sl-date" type="date"></div>
@@ -653,7 +728,9 @@
       <div class="fg"><label>Unskilled Workers</label><input id="sl-usk" type="number" min="0"></div>
     </div>
     <div class="fg"><label>Material Used</label><input id="sl-mat" type="text"></div>
+    <input type="hidden" id="sl-id" value="">
     <div class="fg"><label>Work Done *</label><textarea id="sl-work"></textarea></div>
+    <div class="fg"><label>Project progress % (optional)</label><input id="sl-progress" type="number" min="0" max="100" placeholder="Leave blank to keep"></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="site-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-site-log">Save Entry</button>
@@ -705,16 +782,28 @@
     <div class="modal-title"><span id="agent-modal-title">Add Agent</span><button type="button" class="modal-close" data-close-modal="agent-modal">✕</button></div>
     <input type="hidden" id="na-id" value="">
     <div class="form-row">
-      <div class="fg"><label>Name *</label><input id="na-name" type="text"></div>
+      <div class="fg"><label>Agent name *</label><input id="na-name" type="text"></div>
       <div class="fg"><label>Contact</label><input id="na-contact" type="text"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Default rate %</label><input id="na-rate" type="number" min="0" max="100" step="0.1" value="2"></div>
+      <div class="fg"><label>Category</label>
+        <input id="na-category" type="text" list="na-cat-list" placeholder="Broker, Dealer…">
+        <datalist id="na-cat-list">
+          <option value="Broker"></option>
+          <option value="Dealer"></option>
+          <option value="In-house"></option>
+          <option value="Referral"></option>
+        </datalist>
+      </div>
+      <div class="fg"><label>Commission rate %</label><input id="na-rate" type="number" min="0" max="100" step="0.1" value="2"></div>
+    </div>
+    <div class="form-row">
       <div class="fg"><label>Status</label>
         <select id="na-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
     </div>
-    <div class="fg"><label>Notes</label><textarea id="na-description"></textarea></div>
+    <div class="fg"><label>Description</label><textarea id="na-description"></textarea></div>
+    <div id="na-computed" class="bk-dcard" style="margin-top:12px" hidden></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="agent-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-agent">Save Agent</button>
@@ -786,8 +875,19 @@
     <div class="modal-title"><span id="vendor-modal-title">Add Vendor</span><button type="button" class="modal-close" data-close-modal="vendor-modal">✕</button></div>
     <input type="hidden" id="nv-id" value="">
     <div class="form-row">
-      <div class="fg"><label>Name *</label><input id="nv-name" type="text"></div>
-      <div class="fg"><label>Category</label><input id="nv-category" type="text"></div>
+      <div class="fg"><label>Vendor name *</label><input id="nv-name" type="text"></div>
+      <div class="fg"><label>Category</label>
+        <input id="nv-category" type="text" list="nv-cat-list" placeholder="Electrical, Paint, Plumbing…">
+        <datalist id="nv-cat-list">
+          <option value="Electrical"></option>
+          <option value="Paint"></option>
+          <option value="Plumbing"></option>
+          <option value="Cement"></option>
+          <option value="Steel"></option>
+          <option value="Civil"></option>
+          <option value="Misc"></option>
+        </datalist>
+      </div>
     </div>
     <div class="form-row">
       <div class="fg"><label>Contact</label><input id="nv-contact" type="text"></div>
@@ -795,7 +895,8 @@
         <select id="nv-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
     </div>
-    <div class="fg"><label>Notes</label><textarea id="nv-description"></textarea></div>
+    <div class="fg"><label>Description</label><textarea id="nv-description"></textarea></div>
+    <div id="nv-computed" class="bk-dcard" style="margin-top:12px" hidden></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="vendor-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-vendor">Save Vendor</button>
@@ -818,18 +919,35 @@
       <div class="fg"><label>Project *</label><select id="npo-project"><option value="">Select…</option></select></div>
     </div>
     <div class="form-row">
+      <div class="fg"><label>Category</label>
+        <select id="npo-pocat">
+          <option value="">Select…</option>
+          <option>Electrical</option>
+          <option>Paint</option>
+          <option>Plumbing</option>
+          <option>Cement</option>
+          <option>Steel</option>
+          <option>Civil</option>
+          <option>Misc</option>
+        </select>
+      </div>
       <div class="fg"><label>Material *</label><input id="npo-material" type="text"></div>
-      <div class="fg"><label>Budget category</label><select id="npo-cat"><option value="">None</option></select></div>
     </div>
     <div class="form-row">
       <div class="fg"><label>Quantity</label><input id="npo-qty" type="text"></div>
       <div class="fg"><label>Unit cost (PKR)</label><input id="npo-unit" type="number" min="0"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Total (PKR) *</label><input id="npo-total" type="number" min="1"></div>
-      <div class="fg"><label>Site / Block</label><input id="npo-site" type="text"></div>
+      <div class="fg"><label>Total cost (PKR) *</label><input id="npo-total" type="number" min="1"></div>
+      <div class="fg"><label>Order date</label><input id="npo-date" type="date"></div>
     </div>
+    <div class="form-row">
+      <div class="fg"><label>Expected delivery</label><input id="npo-edd" type="date"></div>
+      <div class="fg"><label>Budget line</label><select id="npo-cat"><option value="">None</option></select></div>
+    </div>
+    <div class="fg"><label>Site / Block</label><input id="npo-site" type="text"></div>
     <div class="fg"><label>Notes</label><textarea id="npo-notes"></textarea></div>
+    <div class="bk-dsub" style="margin-top:8px">PO number is assigned automatically. New POs start as Ordered.</div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="po-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-po">Create PO</button>
@@ -866,8 +984,127 @@
   </div>
 </div>
 
+<div class="modal-bg" id="receipt-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title"><span>Receipt</span><button type="button" class="modal-close" data-close-modal="receipt-modal">✕</button></div>
+    <div id="receipt-body"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="receipt-modal">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="inv-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="id-title">Investor</span><button type="button" class="modal-close" data-close-modal="inv-detail-modal">✕</button></div>
+    <div id="id-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="inv-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title"><span id="inv-modal-title">Add Investor</span><button type="button" class="modal-close" data-close-modal="inv-modal">✕</button></div>
+    <input type="hidden" id="ni-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Investor name *</label><input id="ni-name" type="text"></div>
+      <div class="fg"><label>CNIC</label><input id="ni-cnic" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Mobile number</label><input id="ni-contact" type="text"></div>
+      <div class="fg"><label>Email</label><input id="ni-email" type="email"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Investor type</label>
+        <select id="ni-type">
+          <option value="Profit Sharing">Profit Sharing</option>
+          <option value="Monthly Return">Monthly Return</option>
+        </select>
+      </div>
+      <div class="fg"><label>Project</label>
+        <select id="ni-proj"><option value="">Company (no project)</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Investment amount (PKR)</label><input id="ni-agreed" type="number" min="0" placeholder="0"></div>
+      <div class="fg"><label>Investment date</label><input id="ni-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Monthly return %</label><input id="ni-monthly" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
+      <div class="fg"><label>Profit share %</label><input id="ni-profit" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Status</label>
+        <select id="ni-status">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="withdrawn">Withdrawn</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label>Description</label><textarea id="ni-description"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="inv-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-investor">Save Investor</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="imoney-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span id="imoney-title">Record in</span><button type="button" class="modal-close" data-close-modal="imoney-modal">✕</button></div>
+    <input type="hidden" id="imoney-id" value="">
+    <input type="hidden" id="imoney-kind" value="in">
+    <div id="imoney-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="imoney-amount" type="number" min="1"></div>
+      <div class="fg"><label>Date</label><input id="imoney-date" type="date"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="imoney-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="imoney-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-imoney">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="xfer-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Transfer ownership</span><button type="button" class="modal-close" data-close-modal="xfer-modal">✕</button></div>
+    <input type="hidden" id="xfer-bk-id" value="">
+    <input type="hidden" id="xfer-unit-id" value="">
+    <div id="xfer-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="fg"><label>New owner *</label>
+      <div class="bk-combo" id="xfer-combo">
+        <div class="bk-combo-field">
+          <span class="bk-search-ico" aria-hidden="true"></span>
+          <input id="xfer-q" type="search" placeholder="Search name or CNIC…" autocomplete="off">
+          <span class="bk-chevron" aria-hidden="true"></span>
+        </div>
+        <div id="xfer-menu" class="bk-menu" hidden></div>
+      </div>
+      <input type="hidden" id="xfer-cust" value="">
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="xfer-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="xfer-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-xfer">Transfer</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="app-dialog">
+  <div class="modal">
+    <div class="modal-title"><span id="app-dialog-title">Please confirm</span></div>
+    <div id="app-dialog-body" class="app-dialog-body"></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:16px">
+      <button type="button" class="btn" id="app-dialog-cancel">Cancel</button>
+      <button type="button" class="btn primary" id="app-dialog-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=fin1"></script>
+<script type="module" src="/static/js/app.js?v=sweep7"></script>
 </body>
 </html>

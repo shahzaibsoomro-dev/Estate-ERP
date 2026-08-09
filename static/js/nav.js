@@ -2,6 +2,7 @@ const meta = {
   dashboard: ['Dashboard', 'Home / Overview'],
   projects: ['Projects', 'Home / Projects'],
   units: ['Unit Inventory', 'Projects / Units'],
+  activity: ['Activity', 'Home / Activity'],
   booking: ['New Booking', 'Sales / New Booking'],
   demand: ['Demand Notices', 'Sales / Notices'],
   customers: ['Customers', 'Sales / Customers'],
@@ -11,8 +12,9 @@ const meta = {
   site: ['Site Management', 'Operations / Site'],
   accounts: ['Accounts', 'Finance / Cashbook'],
   agents: ['Agents', 'Finance / Commissions'],
+  investors: ['Investors', 'Finance / Investors'],
   reports: ['Reports', 'Finance / Reports'],
-  portal: ['Customer Portal', 'Portal / Preview'],
+  portal: ['Customer Portal', 'Portal / Customer view'],
 };
 
 const loaders = {};

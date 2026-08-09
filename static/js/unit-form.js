@@ -8,7 +8,8 @@ export const RESIDENTIAL_TYPES = [
 ];
 export const FURNISHING = ['Builder Condition', 'Semi Furnished', 'Fully Furnished'];
 export const UNIT_ATTRS = [
-  'Corner', 'Road Facing', 'Park Facing', 'Penthouse', 'Near Lift', 'Near Staircase', 'Roof Access',
+  'Corner', 'Road Facing', 'Park Facing', 'West Open', 'East Open', 'North Open', 'South Open',
+  'Penthouse', 'Near Lift', 'Near Staircase', 'Roof Access',
 ];
 
 function opts(values, selected) {

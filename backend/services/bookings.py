@@ -149,6 +149,51 @@ def cancel_booking(conn, booking_id: int, reason: str | None = None) -> dict:
     }
 
 
+def preview_cancel(conn, booking_id: int) -> dict:
+    booking = fetch_one(conn, "SELECT * FROM bookings WHERE id=? AND status='active'", (booking_id,))
+    if not booking:
+        raise ValueError("Active booking not found")
+    paid_row = fetch_one(
+        conn, "SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE booking_id=?",
+        (booking_id,),
+    )
+    total_paid = paid_row["total"] if paid_row else 0
+    forfeit_pct = settings_svc.get_float(conn, "cancellation_forfeit_pct", 30.0)
+    forfeit = int(booking["booking_amount"] * forfeit_pct / 100)
+    return {
+        "booking_id": booking_id,
+        "booking_no": booking["booking_no"],
+        "unit_id": booking["unit_id"],
+        "total_paid": total_paid,
+        "forfeit_pct": forfeit_pct,
+        "forfeit_amount": forfeit,
+        "refund_amount": max(total_paid - forfeit, 0),
+    }
+
+
+def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | None = None) -> dict:
+    booking = fetch_one(conn, "SELECT * FROM bookings WHERE id=? AND status='active'", (booking_id,))
+    if not booking:
+        raise ValueError("Active booking not found")
+    if int(new_customer_id) == int(booking["customer_id"]):
+        raise ValueError("Choose a different customer")
+    new_c = fetch_one(conn, "SELECT id, name FROM customers WHERE id=?", (new_customer_id,))
+    if not new_c:
+        raise ValueError("Customer not found")
+    from_id = booking["customer_id"]
+    conn.execute("UPDATE bookings SET customer_id=? WHERE id=?", (new_customer_id, booking_id))
+    conn.execute("UPDATE installments SET customer_id=? WHERE booking_id=?", (new_customer_id, booking_id))
+    conn.execute(
+        """INSERT INTO booking_transfers(booking_id, from_customer_id, to_customer_id, transfer_date, notes)
+           VALUES(?,?,?,?,?)""",
+        (booking_id, from_id, new_customer_id, date.today().isoformat(), (notes or "").strip() or None),
+    )
+    audit_svc.log(conn, "booking", booking_id, "transferred", {
+        "from_customer_id": from_id, "to_customer_id": new_customer_id,
+    })
+    return fetch_one(conn, "SELECT * FROM bookings WHERE id=?", (booking_id,))
+
+
 def list_bookings(conn, project_id: int | None = None) -> list[dict]:
     q = """SELECT b.*, c.name AS customer_name, u.unit_no, p.name AS project_name
            FROM bookings b

@@ -29,9 +29,11 @@ function badgeList(items) {
 }
 
 export function statusBadgeClass(displayStatus) {
-  if (['sold', 'booked', 'possession_delivered'].includes(displayStatus)) return 'bg-red';
-  if (displayStatus === 'available') return 'bg-green';
-  if (displayStatus === 'hold') return 'bg-yellow';
+  const s = (displayStatus || '').toLowerCase();
+  if (s === 'available') return 'bg-green';
+  if (s === 'hold') return 'bg-yellow';
+  if (s === 'booked' || s === 'sold') return 'bg-blue';
+  if (s === 'delivered' || s === 'possession_delivered') return 'bg-grey';
   return 'bg-grey';
 }
 
@@ -98,8 +100,9 @@ export function customerDetailsHtml(c) {
           <td>${fmt(b.final_sale_price || b.sale_price || 0)}</td>
           <td>${fmt(b.booking_amount || 0)}</td>
           <td><span class="badge ${b.status === 'active' ? 'bg-green' : 'bg-grey'}">${esc(b.status || '—')}</span></td>
+          <td>${b.status === 'active' ? `<button type="button" class="btn sm danger" data-cancel-booking="${b.id}">Cancel</button>` : '—'}</td>
         </tr>`).join('')
-    : '<tr><td colspan="7" style="text-align:center;color:var(--g400)">No bookings</td></tr>';
+    : '<tr><td colspan="8" style="text-align:center;color:var(--g400)">No bookings</td></tr>';
 
   const payRows = payments.length
     ? payments.map((p) => `
@@ -138,7 +141,7 @@ export function customerDetailsHtml(c) {
     <div class="detail-section">
       <div class="detail-section-title">Bookings</div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Booking</th><th>Unit</th><th>Project</th><th>Date</th><th>Sale Price</th><th>Down Payment</th><th>Status</th></tr></thead>
+        <thead><tr><th>Booking</th><th>Unit</th><th>Project</th><th>Date</th><th>Sale Price</th><th>Down Payment</th><th>Status</th><th></th></tr></thead>
         <tbody>${bookingRows}</tbody>
       </table></div>
     </div>
@@ -190,6 +193,9 @@ export function projectDetailsHtml(p, units = []) {
           ${row('Estimated Cost', p.estimated_cost ? fmt(p.estimated_cost) : null)}
           ${row('Construction Progress', `${p.progress ?? p.current_progress ?? 0}%`)}
           ${row('Live Inventory', `${p.total_units} total · ${p.sold} sold · ${p.available} avail · ${p.hold} hold`)}
+          ${row('PO total', p.po_total != null ? fmt(p.po_total) : null)}
+          ${row('Vendor paid', p.vendor_paid != null ? fmt(p.vendor_paid) : null)}
+          ${row('Vendor outstanding', p.vendor_outstanding != null ? fmt(p.vendor_outstanding) : null)}
         </div>
       </div>
       ${p.description ? `<div class="detail-block"><div class="detail-block-lbl">Description</div><div class="detail-block-txt">${esc(p.description)}</div></div>` : ''}

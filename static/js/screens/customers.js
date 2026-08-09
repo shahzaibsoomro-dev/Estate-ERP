@@ -5,6 +5,8 @@ import { state } from '../state.js';
 import { closeModal, openModal } from '../modal.js';
 import { projectFilterQuery } from '../project-filter.js';
 import { customerDetailsHtml, customerStatusBadgeClass } from '../detail.js';
+import { confirmCancelBooking } from '../booking-actions.js';
+import { askConfirm } from '../dialog.js';
 
 export async function loadDemand() {
   state.demandData = await api(`/api/demand-notices${projectFilterQuery()}`);
@@ -126,6 +128,14 @@ export async function openCustomerDetail(id) {
   $('cd-body').innerHTML = customerDetailsHtml(c);
   $('cd-body').scrollTop = 0;
   bindCustomerRowActions($('cd-body'));
+  $('cd-body').querySelectorAll('[data-cancel-booking]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (await confirmCancelBooking(parseInt(btn.dataset.cancelBooking, 10))) {
+        await loadCustomers();
+        openCustomerDetail(id);
+      }
+    });
+  });
 }
 
 function resetCustomerForm() {
@@ -133,6 +143,7 @@ function resetCustomerForm() {
     .forEach((id) => { if ($(id)) $(id).value = ''; });
   if ($('cust-modal-title')) $('cust-modal-title').textContent = 'Add Customer';
   if ($('btn-save-customer')) $('btn-save-customer').textContent = 'Save Customer';
+  if ($('nc-computed')) { $('nc-computed').hidden = true; $('nc-computed').innerHTML = ''; }
 }
 
 function fillCustomerForm(c) {
@@ -145,10 +156,46 @@ function fillCustomerForm(c) {
   $('nc-email').value = c.email || '';
   $('nc-address').value = c.address || c.residential_address || '';
   $('nc-description').value = c.description || '';
+  const box = $('nc-computed');
+  if (box) {
+    box.hidden = false;
+    box.innerHTML = `
+      <h4>Computed (from bookings)</h4>
+      <div class="sum-row"><span class="sum-lbl">Units</span><span class="sum-val">${esc(c.units || '—')}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Total value</span><span class="sum-val">${c.total_value ? fmt(c.total_value) : '—'}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(c.total_paid || 0)}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Outstanding</span><span class="sum-val">${fmt(c.outstanding || 0)}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Last payment</span><span class="sum-val">${esc(c.last_payment || '—')}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val">${esc(c.cust_status || 'New')}</span></div>`;
+  }
+  paintCustomerPreview();
+}
+
+function paintCustomerPreview() {
+  const box = $('nc-preview');
+  if (!box) return;
+  const p = readCustomerForm();
+  if (!p.name && !p.cnic && !p.phone && !p.father_name && !p.address) {
+    box.hidden = true;
+    box.innerHTML = '';
+    return;
+  }
+  box.hidden = false;
+  const bits = [
+    p.father_name ? `S/O ${p.father_name}` : '',
+    p.cnic, p.phone, p.emergency_contact_number, p.email,
+  ].filter(Boolean);
+  box.innerHTML = `
+    <h4>Details preview</h4>
+    <div class="bk-dname">${esc(p.name || 'New customer')}</div>
+    ${bits.length ? `<div class="bk-dsub">${esc(bits.join(' · '))}</div>` : ''}
+    ${p.address ? `<div class="bk-dsub" style="margin-top:6px">${esc(p.address)}</div>` : ''}
+    ${p.description ? `<div class="bk-dsub" style="margin-top:4px">${esc(p.description)}</div>` : ''}`;
 }
 
 export function openAddCustomer() {
   resetCustomerForm();
+  paintCustomerPreview();
   openModal('cust-modal');
 }
 
@@ -208,7 +255,7 @@ async function deleteCustomer(id) {
   if (listed?.units || listed?.total_paid) {
     msg += '\n\nThis customer has bookings or payments and cannot be deleted.';
   }
-  if (!confirm(msg)) return;
+  if (!await askConfirm(msg, { title: 'Delete customer', confirmLabel: 'Delete', danger: true })) return;
   try {
     await api(`/api/customers/${id}`, { method: 'DELETE' });
     toast(`Customer "${name}" deleted`);
@@ -239,4 +286,6 @@ export function initCustomerEvents() {
   $('cust-search')?.addEventListener('input', filterCustomers);
   $('btn-add-customer')?.addEventListener('click', openAddCustomer);
   $('btn-save-customer')?.addEventListener('click', submitCustomer);
+  ['nc-name', 'nc-cnic', 'nc-father', 'nc-phone', 'nc-emergency', 'nc-email', 'nc-address', 'nc-description']
+    .forEach((id) => $(id)?.addEventListener('input', paintCustomerPreview));
 }

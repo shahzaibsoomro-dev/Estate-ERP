@@ -4,6 +4,7 @@ import { fmt, fmtShort } from '../format.js';
 import { state } from '../state.js';
 import { openModal, closeModal } from '../modal.js';
 import { projectFilterQuery } from '../project-filter.js';
+import { askConfirm } from '../dialog.js';
 
 let allVendors = [];
 let allPOs = [];
@@ -25,6 +26,7 @@ function poStatusBadge(status) {
   if (status === 'completed') return 'bg-green';
   if (status === 'payment_pending') return 'bg-red';
   if (status === 'approved') return 'bg-blue';
+  if (status === 'cancelled') return 'bg-grey';
   return 'bg-grey';
 }
 
@@ -163,6 +165,7 @@ function resetVendorForm() {
   });
   if ($('nv-status')) $('nv-status').value = 'active';
   if ($('vendor-modal-title')) $('vendor-modal-title').textContent = 'Add Vendor';
+  if ($('nv-computed')) { $('nv-computed').hidden = true; $('nv-computed').innerHTML = ''; }
 }
 
 export async function openVendorForm(id = null) {
@@ -179,6 +182,14 @@ export async function openVendorForm(id = null) {
     $('nv-contact').value = v.contact || '';
     $('nv-description').value = v.description || '';
     $('nv-status').value = (v.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+    if ($('nv-computed')) {
+      $('nv-computed').hidden = false;
+      $('nv-computed').innerHTML = `
+        <h4>Computed</h4>
+        <div class="sum-row"><span class="sum-lbl">Total payable</span><span class="sum-val">${fmt(v.total_payable || 0)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(v.total_paid || 0)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Balance</span><span class="sum-val">${fmt(v.balance || 0)}</span></div>`;
+    }
   } catch {
     closeModal('vendor-modal');
   }
@@ -215,7 +226,7 @@ async function deleteVendor(id) {
   const name = v?.name || 'this vendor';
   let msg = `Delete vendor "${name}"?\n\nThis cannot be undone.`;
   if (v?.total_payable) msg += '\n\nVendors with purchase orders cannot be deleted.';
-  if (!confirm(msg)) return;
+  if (!await askConfirm(msg, { title: 'Delete vendor', confirmLabel: 'Delete', danger: true })) return;
   try {
     await api(`/api/vendors/${id}`, { method: 'DELETE' });
     toast(`Vendor "${name}" deleted`);
@@ -265,7 +276,9 @@ async function submitVendorPay() {
     toast('Amount cannot exceed remaining due.', 'error');
     return;
   }
-  if (!confirm(`Record vendor payment of ${fmt(amount)}?`)) return;
+  if (!await askConfirm(`Record vendor payment of ${fmt(amount)}?`, {
+    title: 'Record payment', confirmLabel: 'Record payment',
+  })) return;
   try {
     await api('/api/vendor-payments', {
       method: 'POST',
@@ -306,16 +319,19 @@ function filteredPOs() {
 }
 
 function poNextAction(p) {
+  if (p.status === 'cancelled') return '';
+  const cancel = (p.status === 'draft' || p.status === 'approved')
+    ? `<button type="button" class="btn sm danger" data-cancel-po="${p.id}">Cancel</button>` : '';
   if (p.status === 'draft') {
-    return `<button type="button" class="btn sm primary" data-approve-po="${p.id}">Approve</button>`;
+    return `<button type="button" class="btn sm primary" data-approve-po="${p.id}">Approve</button> ${cancel}`;
   }
   if (p.status === 'approved') {
-    return `<button type="button" class="btn sm" data-grn-po="${p.id}">GRN</button>`;
+    return `<button type="button" class="btn sm" data-grn-po="${p.id}">GRN</button> ${cancel}`;
   }
   if (p.status === 'payment_pending') {
     return `<button type="button" class="btn sm primary" data-pay-po="${p.id}">Pay</button>`;
   }
-  return '';
+  return cancel;
 }
 
 function renderPOs() {
@@ -356,17 +372,23 @@ function renderPOs() {
       if (po) openVendorPay({ po });
     });
   });
+  tbody.querySelectorAll('[data-cancel-po]').forEach((b) => {
+    b.addEventListener('click', () => setPOStatus(parseInt(b.dataset.cancelPo, 10), 'cancelled', 'Cancel this purchase order?'));
+  });
 }
 
 async function setPOStatus(id, status, msg) {
-  if (!confirm(msg)) return;
+  const danger = status === 'cancelled';
+  const title = status === 'cancelled' ? 'Cancel PO' : status === 'grn' ? 'Record GRN' : 'Approve PO';
+  const confirmLabel = status === 'cancelled' ? 'Cancel PO' : status === 'grn' ? 'Record GRN' : 'Approve';
+  if (!await askConfirm(msg, { title, confirmLabel, danger })) return;
   try {
     await api(`/api/purchase-orders/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
     });
     closeModal('po-detail-modal');
-    toast(status === 'grn' ? 'GRN recorded' : 'PO approved');
+    toast(status === 'grn' ? 'GRN recorded' : status === 'cancelled' ? 'PO cancelled' : 'PO approved');
     await loadProcurement();
     await loadVendors();
   } catch { /* toasted */ }
@@ -406,6 +428,7 @@ export async function openPODetail(id) {
       ${p.status === 'draft' ? `<button type="button" class="btn primary" data-approve-po="${p.id}">Approve</button>` : ''}
       ${p.status === 'approved' ? `<button type="button" class="btn" data-grn-po="${p.id}">GRN</button>` : ''}
       ${p.status === 'payment_pending' ? `<button type="button" class="btn primary" data-pay-po="${p.id}">Pay</button>` : ''}
+      ${p.status === 'draft' || p.status === 'approved' ? `<button type="button" class="btn danger" data-cancel-po="${p.id}">Cancel</button>` : ''}
     </div>`;
   $('pod-body').querySelector('[data-approve-po]')?.addEventListener('click', () => {
     setPOStatus(p.id, 'approved', 'Approve this PO?');
@@ -414,6 +437,9 @@ export async function openPODetail(id) {
     setPOStatus(p.id, 'grn', 'Record GRN for this PO?');
   });
   $('pod-body').querySelector('[data-pay-po]')?.addEventListener('click', () => openVendorPay({ po: p }));
+  $('pod-body').querySelector('[data-cancel-po]')?.addEventListener('click', () => {
+    setPOStatus(p.id, 'cancelled', 'Cancel this purchase order?');
+  });
 }
 
 function calcPOTotal() {
@@ -427,9 +453,11 @@ function calcPOTotal() {
 
 async function openNewPO(prefillVendorId) {
   openModal('po-modal');
-  ['npo-material', 'npo-qty', 'npo-unit', 'npo-total', 'npo-site', 'npo-notes'].forEach((id) => {
+  ['npo-material', 'npo-qty', 'npo-unit', 'npo-total', 'npo-site', 'npo-notes', 'npo-pocat'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
+  if ($('npo-date')) $('npo-date').value = todayISO();
+  if ($('npo-edd')) $('npo-edd').value = '';
   try {
     const [vendors, categories] = await Promise.all([
       allVendors.length ? allVendors : api('/api/vendors'),
@@ -470,8 +498,9 @@ async function submitPO() {
         site: $('npo-site').value.trim() || null,
         notes: $('npo-notes').value.trim() || null,
         budget_category_id: catId || null,
-        category: $('npo-cat').selectedOptions[0]?.text !== 'None'
-          ? $('npo-cat').selectedOptions[0]?.text : null,
+        category: ($('npo-pocat')?.value || '').trim() || null,
+        order_date: $('npo-date')?.value || todayISO(),
+        expected_delivery_date: $('npo-edd')?.value || null,
       }),
     });
     closeModal('po-modal');

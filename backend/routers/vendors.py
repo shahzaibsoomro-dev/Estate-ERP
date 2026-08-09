@@ -28,6 +28,7 @@ class POCreate(BaseModel):
     category: str | None = None
     site: str | None = None
     order_date: str | None = None
+    expected_delivery_date: str | None = None
     notes: str | None = None
 
 

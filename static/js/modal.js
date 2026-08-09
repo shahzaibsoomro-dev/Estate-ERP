@@ -12,6 +12,7 @@ export function closeModal(id) {
 
 export function initModals() {
   document.querySelectorAll('.modal-bg').forEach((bg) => {
+    if (bg.id === 'app-dialog') return;
     bg.addEventListener('click', (e) => {
       if (e.target === bg) {
         bg.classList.remove('open');

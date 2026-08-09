@@ -364,6 +364,17 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_site_logs_project ON site_logs(project_id);
         CREATE INDEX IF NOT EXISTS idx_site_logs_date ON site_logs(log_date);
+        CREATE TABLE IF NOT EXISTS booking_transfers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id INTEGER NOT NULL,
+            from_customer_id INTEGER NOT NULL,
+            to_customer_id INTEGER NOT NULL,
+            transfer_date TEXT NOT NULL,
+            notes TEXT,
+            FOREIGN KEY (booking_id) REFERENCES bookings(id),
+            FOREIGN KEY (from_customer_id) REFERENCES customers(id),
+            FOREIGN KEY (to_customer_id) REFERENCES customers(id)
+        );
         CREATE TABLE IF NOT EXISTS ledger_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             entry_date TEXT NOT NULL,
@@ -376,6 +387,13 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    _ensure_column(conn, "agents", "category", "TEXT")
+
+
+def _ensure_column(conn, table: str, column: str, decl: str) -> None:
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 def init_db(force: bool = False) -> None:

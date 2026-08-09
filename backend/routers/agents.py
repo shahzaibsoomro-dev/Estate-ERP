@@ -10,6 +10,7 @@ class AgentWrite(BaseModel):
     name: str
     description: str | None = None
     contact: str | None = None
+    category: str | None = None
     default_rate_pct: float = 2.0
     status: str | None = "active"
 

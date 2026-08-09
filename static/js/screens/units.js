@@ -4,9 +4,11 @@ import { fmt, instStatusBadge } from '../format.js';
 import { openModal, closeModal } from '../modal.js';
 import { state } from '../state.js';
 import { loadDashboard } from './dashboard.js';
-import { openUnitFormModal } from '../unit-form.js';
+import { openUnitFormModal, UNIT_ATTRS } from '../unit-form.js';
 import { loadProjects } from './projects.js';
 import { unitDetailsHtml, parseAttrList } from '../detail.js';
+import { confirmCancelBooking, confirmPossession, openTransferModal, initTransferEvents } from '../booking-actions.js';
+import { askConfirm } from '../dialog.js';
 
 let unitsLoadSeq = 0;
 
@@ -71,13 +73,95 @@ function updateUnitsScopeLabel() {
   el.textContent = unitsScopeLabel();
 }
 
+function unitSearchBlob(u) {
+  const tags = parseAttrList(u.unit_attributes);
+  return [
+    u.unit_no, u.type, u.unit_type, u.block_tower, u.floor, u.floor_number,
+    u.residential_type, u.furnishing_status, u.facing, u.description,
+    u.project_name, u.additional_requirements, tags.join(' '),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function knownTags() {
+  const set = new Set(UNIT_ATTRS);
+  (state.allUnits || []).forEach((u) => {
+    parseAttrList(u.unit_attributes).forEach((t) => { if (t) set.add(t); });
+  });
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
 function applyLocalFilters(units) {
   const floorFilter = $('u-floor')?.value;
   const statusFilter = $('u-status')?.value;
+  const q = ($('u-search')?.value || '').trim().toLowerCase();
   let filtered = units;
   if (floorFilter) filtered = filtered.filter((u) => String(u.floor) === floorFilter);
   if (statusFilter) filtered = filtered.filter((u) => u.status === statusFilter);
+  if (q) {
+    const exactTag = knownTags().find((t) => t.toLowerCase() === q);
+    if (exactTag) {
+      filtered = filtered.filter((u) => parseAttrList(u.unit_attributes)
+        .some((t) => t.toLowerCase() === exactTag.toLowerCase()));
+    } else {
+      filtered = filtered.filter((u) => unitSearchBlob(u).includes(q));
+    }
+  }
   return filtered;
+}
+
+function hideUnitSearchMenu() {
+  const menu = $('u-search-menu');
+  if (menu) menu.hidden = true;
+  $('u-tag-combo')?.classList.remove('open');
+}
+
+function showUnitSearchMenu() {
+  const menu = $('u-search-menu');
+  if (!menu) return;
+  menu.hidden = false;
+  $('u-tag-combo')?.classList.add('open');
+}
+
+function paintUnitSearchMenu() {
+  const menu = $('u-search-menu');
+  if (!menu) return;
+  const q = ($('u-search')?.value || '').trim().toLowerCase();
+  const tags = knownTags().filter((t) => !q || t.toLowerCase().includes(q));
+  const units = (state.allUnits || []).filter((u) => {
+    if (!q) return false;
+    return String(u.unit_no || '').toLowerCase().includes(q);
+  }).slice(0, 8);
+
+  const parts = [];
+  if (tags.length) {
+    parts.push('<div class="bk-opt-empty" style="text-align:left;font-weight:800;padding:6px 10px 4px">Tags</div>');
+    tags.forEach((t) => {
+      parts.push(`<button type="button" class="bk-opt" data-u-tag="${esc(t)}">
+        <span class="bk-opt-text"><span class="bk-opt-title">${esc(t)}</span>
+        <span class="bk-opt-sub">Unit tag</span></span>
+      </button>`);
+    });
+  }
+  if (units.length) {
+    parts.push('<div class="bk-opt-empty" style="text-align:left;font-weight:800;padding:8px 10px 4px">Units</div>');
+    units.forEach((u) => {
+      parts.push(`<button type="button" class="bk-opt" data-u-no="${esc(u.unit_no)}">
+        <span class="bk-opt-text"><span class="bk-opt-title">${esc(u.unit_no)}</span>
+        <span class="bk-opt-sub">${esc([u.project_name, u.type, u.status].filter(Boolean).join(' · '))}</span></span>
+      </button>`);
+    });
+  }
+  if (!parts.length) {
+    menu.innerHTML = '<div class="bk-opt-empty">No matching tags or units</div>';
+    return;
+  }
+  menu.innerHTML = parts.join('');
+}
+
+function applyUnitSearchPick(value) {
+  if ($('u-search')) $('u-search').value = value || '';
+  hideUnitSearchMenu();
+  renderUnits(state.allUnits);
 }
 
 function groupByProject(units) {
@@ -110,20 +194,24 @@ function floorCardsHtml(units) {
 }
 
 function unitTileHtml(u) {
+  const tags = parseAttrList(u.unit_attributes);
+  const tip = [u.unit_no, u.type, u.status, tags.join(', ')].filter(Boolean).join(' · ');
   return `
-    <div class="utile ${u.status}" data-unit-id="${u.id}" title="${esc(u.unit_no)} · ${esc(u.type)} · ${u.status.toUpperCase()}">
+    <div class="utile ${u.status}" data-unit-id="${u.id}" title="${esc(tip)}">
       <div class="utile-no">${esc(u.unit_no)}</div>
       <div class="utile-type">${esc(u.type)}</div>
       <div style="font-size:9px;opacity:.6;margin-top:1px">${u.size_sqft || '—'} sqft</div>
+      ${tags.length ? `<div style="font-size:8.5px;opacity:.75;margin-top:3px;font-weight:700">${esc(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ''}</div>` : ''}
     </div>`;
 }
 
 export function renderUnits(units) {
   const filtered = applyLocalFilters(units);
 
-  $('u-sold-cnt').textContent = filtered.filter((u) => u.status === 'sold').length;
-  $('u-avail-cnt').textContent = filtered.filter((u) => u.status === 'available').length;
-  $('u-hold-cnt').textContent = filtered.filter((u) => u.status === 'hold').length;
+  if ($('u-avail-cnt')) $('u-avail-cnt').textContent = filtered.filter((u) => u.status === 'available').length;
+  if ($('u-hold-cnt')) $('u-hold-cnt').textContent = filtered.filter((u) => u.status === 'hold').length;
+  if ($('u-booked-cnt')) $('u-booked-cnt').textContent = filtered.filter((u) => u.status === 'booked').length;
+  if ($('u-deliv-cnt')) $('u-deliv-cnt').textContent = filtered.filter((u) => u.status === 'delivered').length;
 
   if (!filtered.length) {
     $('unit-floors').innerHTML = `<div class="loading">No units match the filter for ${esc(unitsScopeLabel())}</div>`;
@@ -217,6 +305,33 @@ export async function openUnit(uid) {
         onSaved: async () => { await loadUnits(); loadProjects(); openUnit(uid); },
       });
     });
+
+    $('um-body').querySelector('[data-cancel-bk]')?.addEventListener('click', async () => {
+      if (await confirmCancelBooking(b.id)) {
+        await loadUnits();
+        loadProjects();
+        loadDashboard();
+        openUnit(uid);
+      }
+    });
+
+    $('um-body').querySelector('[data-xfer-bk]')?.addEventListener('click', () => {
+      openTransferModal({
+        bookingId: b.id,
+        unitId: uid,
+        currentCustomerId: b.customer_id,
+        currentName: b.customer_name,
+        unitNo: u.unit_no,
+      });
+    });
+
+    $('um-body').querySelector('[data-poss-unit]')?.addEventListener('click', async () => {
+      if (await confirmPossession(uid, s.outstanding)) {
+        await loadUnits();
+        loadProjects();
+        openUnit(uid);
+      }
+    });
   } catch (e) {
     console.error('openUnit render error', e);
     $('um-body').innerHTML = `<div class="error-box">Could not display unit: ${esc(e.message)}</div>`;
@@ -224,7 +339,9 @@ export async function openUnit(uid) {
 }
 
 async function deleteUnit(uid, unitNo) {
-  if (!confirm(`Delete unit ${unitNo}?\n\nOnly available units with no booking history can be deleted.`)) return;
+  if (!await askConfirm(`Delete unit ${unitNo}?\n\nOnly available units with no booking history can be deleted.`, {
+    title: 'Delete unit', confirmLabel: 'Delete', danger: true,
+  })) return;
   await api(`/api/units/${uid}`, { method: 'DELETE' });
   closeModal('unit-modal');
   toast(`Unit ${unitNo} deleted`);
@@ -261,7 +378,12 @@ function soldUnitHtml(u, b, s, instRows, payRows, displayStatus) {
     <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">📅 Installment Schedule</div>
     <div class="tbl-wrap" style="margin-bottom:14px"><table><thead><tr><th>Due Date</th><th>Type</th><th>Amount</th><th>Notes</th><th>Status</th><th>Action</th></tr></thead><tbody>${instRows}</tbody></table></div>
     <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">💳 Payment History</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Paid Date</th><th>Type</th><th>Amount</th><th>Method</th><th>Receipt</th></tr></thead><tbody>${payRows}</tbody></table></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>Paid Date</th><th>Type</th><th>Amount</th><th>Method</th><th>Receipt</th></tr></thead><tbody>${payRows}</tbody></table></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">
+      <button type="button" class="btn danger" data-cancel-bk>Cancel booking</button>
+      <button type="button" class="btn" data-xfer-bk>Transfer owner</button>
+      ${String(displayStatus).includes('possession') || u.status === 'delivered' ? '' : '<button type="button" class="btn primary" data-poss-unit>Mark possession</button>'}
+    </div>`;
 }
 
 function availableUnitHtml(u, displayStatus) {
@@ -280,7 +402,9 @@ function availableUnitHtml(u, displayStatus) {
 }
 
 async function payInstallment({ instId, bkId, custId, amount, uid }) {
-  if (!confirm(`Record payment of ${fmt(amount)}?`)) return;
+  if (!await askConfirm(`Record payment of ${fmt(amount)}?`, {
+    title: 'Record payment', confirmLabel: 'Record payment',
+  })) return;
   const r = await api('/api/payments', {
     method: 'POST',
     body: JSON.stringify({
@@ -313,6 +437,29 @@ export function initUnitsFilters() {
   });
   $('u-floor')?.addEventListener('change', () => renderUnits(state.allUnits));
   $('u-status')?.addEventListener('change', () => renderUnits(state.allUnits));
+  $('u-search')?.addEventListener('focus', () => {
+    paintUnitSearchMenu();
+    showUnitSearchMenu();
+  });
+  $('u-search')?.addEventListener('input', () => {
+    paintUnitSearchMenu();
+    showUnitSearchMenu();
+    renderUnits(state.allUnits);
+  });
+  $('u-search-menu')?.addEventListener('mousedown', (e) => {
+    const tagBtn = e.target.closest('[data-u-tag]');
+    const noBtn = e.target.closest('[data-u-no]');
+    if (tagBtn) {
+      e.preventDefault();
+      applyUnitSearchPick(tagBtn.dataset.uTag);
+    } else if (noBtn) {
+      e.preventDefault();
+      applyUnitSearchPick(noBtn.dataset.uNo);
+    }
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('#u-tag-combo')) hideUnitSearchMenu();
+  });
   $('btn-bulk-units')?.addEventListener('click', () => {
     toast('Bulk CSV upload — coming soon');
   });
@@ -327,5 +474,10 @@ export function initUnitsFilters() {
       projectId,
       onSaved: async () => { await loadUnits(); loadProjects(); },
     });
+  });
+  initTransferEvents(async (unitId) => {
+    await loadUnits();
+    loadProjects();
+    if (unitId) openUnit(unitId);
   });
 }

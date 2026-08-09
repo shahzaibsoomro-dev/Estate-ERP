@@ -34,6 +34,10 @@ class StatusUpdate(BaseModel):
     hold_notes: str | None = None
 
 
+class PossessionBody(BaseModel):
+    possession_date: str | None = None
+
+
 class UnitUpdate(BaseModel):
     unit_no: str
     description: str | None = None
@@ -102,6 +106,15 @@ def update_status(unit_id: int, body: StatusUpdate):
         if not u:
             raise HTTPException(404, "Unit not found")
         return {"ok": True, "unit": u}
+
+
+@router.post("/{unit_id}/possession")
+def mark_possession(unit_id: int, body: PossessionBody | None = None):
+    with get_db() as conn:
+        try:
+            return svc.mark_possession(conn, unit_id, body.possession_date if body else None)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
 
 
 @router.delete("/{unit_id}")

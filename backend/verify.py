@@ -1,12 +1,13 @@
 """Step-by-step verification of FastAPI backend against plan checklist."""
 import json
+import os
 import sqlite3
 import time
 import urllib.error
 import urllib.request
 from datetime import date, timedelta
 
-BASE = "http://127.0.0.1:5050"
+BASE = os.environ.get("VERIFY_BASE", "http://127.0.0.1:5050")
 DB = "db/haven.db"
 SUFFIX = str(int(time.time()))[-7:]
 passed = []
@@ -71,7 +72,7 @@ required = {
     "purchase_orders", "vendor_payments", "budget_categories", "project_budget_lines",
     "investors", "investor_agreements", "investor_contributions", "investor_distributions",
     "agent_commissions", "agent_commission_payments", "audit_log", "schema_meta",
-    "site_logs", "ledger_entries",
+    "site_logs", "ledger_entries", "booking_transfers",
 }
 missing = required - tables
 if not missing:
@@ -740,6 +741,192 @@ try:
         fail("DELETE ledger", "still listed")
 except Exception as e:
     fail("agents/cashbook", str(e))
+
+print("\n=== Step 19: Customer portal ===")
+try:
+    listed = get("/api/portal")
+    if isinstance(listed, list) and listed and listed[0].get("id"):
+        ok("GET /api/portal customer list")
+        cid = listed[0]["id"]
+        p = get(f"/api/portal?customer_id={cid}")
+        bks = p.get("bookings") or []
+        if p.get("customer", {}).get("id") == cid and bks:
+            bk = bks[0]
+            if all(k in bk for k in ("installments", "payments", "summary", "unit")):
+                ok("GET portal customer detail shape")
+            else:
+                fail("portal detail keys", str(list(bk.keys())))
+        else:
+            fail("portal detail", "missing customer bookings")
+    else:
+        fail("GET /api/portal", "expected booked customers")
+    gone_ok, _ = expect_http_error("/api/portal?customer_id=99999999", "GET", None, 404)
+    if gone_ok:
+        ok("portal unknown customer 404")
+    else:
+        fail("portal 404", "should return 404")
+except Exception as e:
+    fail("portal", str(e))
+
+print("\n=== Step 20: Investors, transfer, possession, calendar ===")
+try:
+    inv = post("/api/investors", {
+        "name": f"Inv {SUFFIX}",
+        "mobile_number": "03001112222",
+        "status": "active",
+    })
+    iid = inv["id"]
+    ok("POST investor")
+    det = get(f"/api/investors/{iid}")
+    if isinstance(det.get("contributions"), list) and isinstance(det.get("distributions"), list):
+        ok("GET investor detail shape")
+    else:
+        fail("GET investor", str(det)[:160])
+    u = put(f"/api/investors/{iid}", {
+        "name": f"Inv {SUFFIX} Edit", "mobile_number": "03003334444", "status": "active",
+    })
+    if str(u.get("name", "")).endswith("Edit"):
+        ok("PUT investor")
+    else:
+        fail("PUT investor", str(u)[:160])
+    tmp = post("/api/investors", {"name": f"InvTmp {SUFFIX}"})
+    delete(f"/api/investors/{tmp['id']}")
+    gone, _ = expect_http_error(f"/api/investors/{tmp['id']}", "GET", None, 404)
+    if gone:
+        ok("DELETE empty investor")
+    else:
+        fail("DELETE investor", "should 404")
+    post(f"/api/investors/{iid}/contribute", {
+        "amount": 500000, "contribution_date": date.today().isoformat(),
+    })
+    mid = get(f"/api/investors/{iid}")
+    if int(mid.get("investment_amount") or 0) == 500000:
+        ok("investor contribution")
+    else:
+        fail("contribution", str(mid.get("investment_amount")))
+    blocked, _ = expect_http_error(f"/api/investors/{iid}", "DELETE", None, 400)
+    if blocked:
+        ok("block delete investor with money")
+    else:
+        fail("delete investor with money", "should 400")
+    post(f"/api/investors/{iid}/distribute", {
+        "amount": 50000, "distribution_date": date.today().isoformat(),
+    })
+    after = get(f"/api/investors/{iid}")
+    if int(after.get("total_return_received") or 0) == 50000:
+        ok("investor distribution")
+    else:
+        fail("distribution", str(after.get("total_return_received")))
+
+    proj = post("/api/projects", {
+        "name": f"Sweep {SUFFIX}", "location": "Test", "status": "planning", "current_progress": 10,
+    })
+    pid = proj["id"]
+    if "po_total" in proj and "vendor_paid" in proj:
+        ok("project spend fields on create/get")
+    else:
+        pget = get(f"/api/projects/{pid}")
+        if "po_total" in pget:
+            ok("project spend fields on GET")
+        else:
+            fail("project spend", str(pget)[:120])
+
+    unit = post("/api/units", {
+        "project_id": pid, "unit_no": f"SW-{SUFFIX}",
+        "unit_type": "Flat", "floor_number": 1, "base_sale_price": 2000000,
+    })
+    if unit.get("status") == "available":
+        ok("unit display status available")
+    else:
+        fail("unit available status", str(unit.get("status")))
+    cust_a = post("/api/customers", {"name": f"OwnA {SUFFIX}", "cnic": f"2{SUFFIX}-1111111-1"})
+    cust_b = post("/api/customers", {"name": f"OwnB {SUFFIX}", "cnic": f"2{SUFFIX}-2222222-2"})
+    bk = post("/api/bookings", {
+        "unit_id": unit["id"], "project_id": pid, "customer_id": cust_a["id"],
+        "sale_price": 2000000, "down_payment": 400000, "booking_date": date.today().isoformat(),
+        "installments": [{"amount": 1600000, "due_date": date.today().isoformat(), "type": "Monthly"}],
+    })
+    bid = bk["booking_id"]
+    ud = get(f"/api/units/{unit['id']}")
+    if (ud.get("unit") or {}).get("status") == "booked":
+        ok("booked unit display status")
+    else:
+        fail("booked status", str((ud.get("unit") or {}).get("status")))
+
+    prev = get(f"/api/bookings/{bid}/cancel-preview")
+    if prev.get("booking_id") == bid and "refund_amount" in prev:
+        ok("cancel preview")
+    else:
+        fail("cancel preview", str(prev)[:160])
+
+    xfer = post(f"/api/bookings/{bid}/transfer", {"customer_id": cust_b["id"], "notes": "family"})
+    if xfer.get("customer_id") == cust_b["id"]:
+        ok("transfer booking owner")
+    else:
+        fail("transfer", str(xfer.get("customer_id")))
+
+    poss = post(f"/api/units/{unit['id']}/possession", {"possession_date": date.today().isoformat()})
+    st = (poss.get("unit") or poss).get("status") if isinstance(poss, dict) else None
+    if st == "delivered" or (poss.get("unit") or {}).get("raw_status") == "possession_delivered":
+        ok("mark possession")
+    else:
+        fail("possession", str(poss)[:160])
+
+    ven = post("/api/vendors", {"name": f"SweepV {SUFFIX}", "category": "Misc"})
+    po = post("/api/purchase-orders", {
+        "vendor_id": ven["id"], "project_id": pid, "material": "Sand",
+        "qty": "5", "unit_cost": 1000,
+    })
+    put(f"/api/purchase-orders/{po['id']}/status", {"status": "cancelled"})
+    po2 = get(f"/api/purchase-orders/{po['id']}")
+    if po2.get("status") == "cancelled":
+        ok("cancel draft PO")
+    else:
+        fail("cancel PO", str(po2.get("status")))
+
+    slog = post("/api/site-logs", {
+        "project_id": pid, "log_date": date.today().isoformat(),
+        "engineer": "Eng S", "workers_skilled": 2, "workers_unskilled": 1,
+        "work_done": "Foundation", "current_progress": 22,
+    })
+    put(f"/api/site-logs/{slog['id']}", {"work_done": "Foundation + columns", "current_progress": 30})
+    slog2 = get(f"/api/site-logs?project_ids={pid}")
+    hit = next((x for x in slog2 if x.get("id") == slog["id"]), None)
+    if hit and "columns" in (hit.get("work_done") or ""):
+        ok("PUT site-log")
+    else:
+        fail("PUT site-log", str(hit)[:160])
+    p3 = get(f"/api/projects/{pid}")
+    if int(p3.get("current_progress") or p3.get("progress") or 0) == 30:
+        ok("site log updates project progress")
+    else:
+        fail("site progress", str(p3.get("current_progress") or p3.get("progress")))
+
+    cal = get(f"/api/recovery/calendar?year={date.today().year}&month={date.today().month}&project_ids={pid}")
+    if isinstance(cal, dict) and isinstance(cal.get("days"), list):
+        today = date.today().isoformat()
+        day = next((d for d in cal["days"] if d.get("date") == today), None)
+        if day and day.get("count") >= 1:
+            ok("recovery calendar")
+        else:
+            fail("calendar day", str(day)[:160] if day else "no dues today")
+    else:
+        fail("calendar", str(cal)[:120])
+
+    led = get("/api/ledger")
+    inv_rows = [e for e in (led.get("entries") or []) if e.get("source") == "investor"]
+    if inv_rows:
+        ok("cashbook includes investor money")
+    else:
+        fail("investor cashbook", "no investor ledger rows")
+
+    aud = get("/api/audit?limit=20")
+    if isinstance(aud, list) and aud:
+        ok("GET /api/audit")
+    else:
+        fail("GET audit", str(type(aud)))
+except Exception as e:
+    fail("sweep features", str(e))
 
 print("\n=== Step 15: Project-Unit lifecycle ===")
 try:

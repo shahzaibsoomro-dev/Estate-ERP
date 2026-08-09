@@ -1,6 +1,7 @@
 import { $ } from './dom.js';
 import { api, toast } from './api.js';
 import { initModals, closeModal } from './modal.js';
+import { initAppDialog } from './dialog.js';
 import { initUnitFormEvents } from './unit-form.js';
 import { goScreen, registerScreen } from './nav.js';
 import { initProjectFilter, loadProjectFilterOptions, syncTopbar } from './project-filter.js';
@@ -14,11 +15,15 @@ import { loadProcurement, loadVendors, initOperationsEvents } from './screens/op
 import { loadSite, initSiteEvents } from './screens/site.js';
 import { loadAccounts, initAccountsEvents } from './screens/finance.js';
 import { loadAgents, initAgentEvents } from './screens/agents.js';
-import { loadPortal, initReportsEvents } from './screens/finance-extra.js';
+import { initReportsEvents } from './screens/finance-extra.js';
+import { loadPortal, initPortalEvents } from './screens/portal.js';
+import { loadInvestors, initInvestorEvents } from './screens/investors.js';
+import { loadActivity } from './screens/activity.js';
 
 registerScreen('dashboard', loadDashboard);
 registerScreen('projects', loadProjects);
 registerScreen('units', loadUnits);
+registerScreen('activity', loadActivity);
 registerScreen('booking', () => initBooking());
 registerScreen('demand', loadDemand);
 registerScreen('customers', loadCustomers);
@@ -28,6 +33,7 @@ registerScreen('vendors', loadVendors);
 registerScreen('site', loadSite);
 registerScreen('accounts', loadAccounts);
 registerScreen('agents', loadAgents);
+registerScreen('investors', loadInvestors);
 registerScreen('reports', () => {});
 registerScreen('portal', loadPortal);
 
@@ -49,6 +55,7 @@ async function init() {
     try { fn(); } catch (e) { console.error(label, e); }
   };
   safe('modals', initModals);
+  safe('dialogs', initAppDialog);
   safe('nav', initNavigation);
   safe('global', initGlobalHandlers);
   safe('projectFilter', initProjectFilter);
@@ -63,6 +70,8 @@ async function init() {
   safe('accounts', initAccountsEvents);
   safe('agents', initAgentEvents);
   safe('reports', initReportsEvents);
+  safe('portal', initPortalEvents);
+  safe('investors', initInvestorEvents);
   try {
     await refreshProjectSelects();
   } catch (e) {

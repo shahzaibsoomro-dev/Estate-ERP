@@ -11,6 +11,7 @@ from backend.db.seed import init_db
 from backend.routers import (
     accounts,
     agents,
+    audit,
     bookings,
     budget,
     customers,
@@ -18,6 +19,7 @@ from backend.routers import (
     health,
     investors,
     payments,
+    portal,
     projects,
     recovery,
     settings,
@@ -45,7 +47,7 @@ app.add_middleware(
 
 for mod in (
     health, dashboard, projects, units, customers, bookings, payments,
-    recovery, vendors, budget, site_logs, accounts, agents, investors, settings, stubs,
+    recovery, vendors, budget, site_logs, accounts, agents, investors, settings, portal, audit, stubs,
 ):
     app.include_router(mod.router)
 
