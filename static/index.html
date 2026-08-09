@@ -315,11 +315,11 @@
 </div>
 
 <div class="screen" id="s-recovery">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Recovery & Receivables</div></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn" onclick="toast('Batch WA sent to all overdue!')">💬 Bulk WA Reminder</button>
-      <button class="btn primary" onclick="toast('Open a unit from Unit Inventory and click Pay on an installment')">+ Record Payment</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Recovery</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="rec-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-rec-pay">+ Record Payment</button>
     </div>
   </div>
   <div class="g4" style="margin-bottom:14px">
@@ -328,11 +328,28 @@
     <div class="kpi green"><div class="kpi-lbl">Collected (30d)</div><div class="kpi-val" id="r-coll">—</div><div class="kpi-ico">✅</div></div>
     <div class="kpi blue"><div class="kpi-lbl">Overdue Cases</div><div class="kpi-val" id="r-cases">—</div><div class="kpi-ico">📈</div></div>
   </div>
+  <div class="age-grid" id="rec-ageing">
+    <button type="button" class="age-card d30" data-age="d30">
+      <div class="age-lbl">1–30 days</div>
+      <div class="age-amt" id="age-d30-amt">—</div>
+      <div class="age-cnt" id="age-d30-cnt">0 cases</div>
+    </button>
+    <button type="button" class="age-card d60" data-age="d60">
+      <div class="age-lbl">31–60 days</div>
+      <div class="age-amt" id="age-d60-amt">—</div>
+      <div class="age-cnt" id="age-d60-cnt">0 cases</div>
+    </button>
+    <button type="button" class="age-card d90" data-age="d90">
+      <div class="age-lbl">60+ days</div>
+      <div class="age-amt" id="age-d90-amt">—</div>
+      <div class="age-cnt" id="age-d90-cnt">0 cases</div>
+    </button>
+  </div>
   <div class="card">
-    <div class="card-hd"><span class="card-title">Ageing Report</span></div>
+    <div class="card-hd"><span class="card-title">Overdue Installments</span></div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Customer</th><th>Unit</th><th>Project</th><th>Amount</th><th>Due Date</th><th>Days Overdue</th><th>Phone</th><th>Action</th></tr></thead>
+        <thead><tr><th>Customer</th><th>Unit</th><th>Project</th><th>Amount</th><th>Due Date</th><th>Days Overdue</th><th>Phone</th><th>Actions</th></tr></thead>
         <tbody id="recovery-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
@@ -340,9 +357,12 @@
 </div>
 
 <div class="screen" id="s-procurement">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div><div style="font-size:16px;font-weight:900">Procurement</div></div>
-    <button class="btn primary">+ Purchase Request</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="po-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-new-po">+ New PO</button>
+    </div>
   </div>
   <div class="g4" style="margin-bottom:14px">
     <div class="kpi blue"><div class="kpi-lbl">Total POs</div><div class="kpi-val" id="po-total">—</div><div class="kpi-ico">📋</div></div>
@@ -353,17 +373,20 @@
   <div class="card">
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>PO #</th><th>Vendor</th><th>Material</th><th>Qty</th><th>Total (PKR)</th><th>Site</th><th>GRN</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody id="po-tbody"><tr><td colspan="9" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        <thead><tr><th>PO #</th><th>Date</th><th>Vendor</th><th>Material</th><th>Qty</th><th>Total</th><th>Project</th><th>GRN</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="po-tbody"><tr><td colspan="10" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
 <div class="screen" id="s-vendors">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Vendor Management</div></div>
-    <button class="btn primary">+ Add Vendor</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Vendors</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="vendor-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-add-vendor">+ Add Vendor</button>
+    </div>
   </div>
   <div class="g3" style="margin-bottom:14px">
     <div class="sm"><div class="sm-v" id="v-payable">—</div><div class="sm-l">Total Payable</div></div>
@@ -373,8 +396,8 @@
   <div class="card">
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Vendor</th><th>Category</th><th>Total Payable</th><th>Paid</th><th>Balance</th><th>Rating</th><th>Status</th></tr></thead>
-        <tbody id="vendor-tbody"><tr><td colspan="7" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        <thead><tr><th>Vendor</th><th>Category</th><th>Contact</th><th>Payable</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="vendor-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -383,12 +406,12 @@
 <div class="screen" id="s-site">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div><div style="font-size:16px;font-weight:900">Site Management</div></div>
-    <button class="btn primary" id="btn-site-log">+ Daily Entry</button>
+    <button type="button" class="btn primary" id="btn-site-log">+ Daily Entry</button>
   </div>
   <div class="g3" style="margin-bottom:14px">
-    <div class="sm"><div class="sm-v" style="color:var(--blue)">72%</div><div class="sm-l">Block A Progress</div><div class="prog" style="margin-top:6px"><div class="prog-fill" style="width:72%"></div></div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--accent)">45%</div><div class="sm-l">Block B Progress</div><div class="prog" style="margin-top:6px"><div class="prog-fill a" style="width:45%"></div></div></div>
-    <div class="sm"><div class="sm-v" id="site-workers">—</div><div class="sm-l">Total Workers Today</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="site-progress">—</div><div class="sm-l">Project Progress</div><div class="prog" style="margin-top:6px"><div class="prog-fill" id="site-progress-bar" style="width:0%"></div></div></div>
+    <div class="sm"><div class="sm-v" id="site-workers">—</div><div class="sm-l">Workers Today</div></div>
+    <div class="sm"><div class="sm-v" id="site-log-count">—</div><div class="sm-l">Log Entries</div></div>
   </div>
   <div id="site-logs-list"><div class="loading"><span class="spinner"></span>Loading logs…</div></div>
 </div>
@@ -615,19 +638,19 @@
 
 <div class="modal-bg" id="site-modal">
   <div class="modal" style="max-width:520px">
-    <div class="modal-title"><span>Daily Site Entry</span><button class="modal-close" data-close-modal="site-modal">✕</button></div>
-    <div class="fg"><label>Project</label><select id="sl-proj"><option value="1">Haven Heights A</option><option value="2">Haven Residencia</option></select></div>
+    <div class="modal-title"><span>Daily Site Entry</span><button type="button" class="modal-close" data-close-modal="site-modal">✕</button></div>
+    <div class="fg"><label>Project *</label><select id="sl-proj"><option value="">Select…</option></select></div>
     <div class="form-row">
-      <div class="fg"><label>Date</label><input id="sl-date" type="date"></div>
-      <div class="fg"><label>Engineer</label><input id="sl-eng" type="text" placeholder="Engineer name"></div>
-      <div class="fg"><label>Skilled Workers</label><input id="sl-sk" type="number" placeholder="0"></div>
-      <div class="fg"><label>Unskilled Workers</label><input id="sl-usk" type="number" placeholder="0"></div>
+      <div class="fg"><label>Date *</label><input id="sl-date" type="date"></div>
+      <div class="fg"><label>Engineer *</label><input id="sl-eng" type="text"></div>
+      <div class="fg"><label>Skilled Workers</label><input id="sl-sk" type="number" min="0"></div>
+      <div class="fg"><label>Unskilled Workers</label><input id="sl-usk" type="number" min="0"></div>
     </div>
-    <div class="fg"><label>Material Used</label><input id="sl-mat" type="text" placeholder="e.g. Cement:120 bags, Steel:2T"></div>
-    <div class="fg"><label>Work Done</label><textarea id="sl-work" placeholder="Describe work completed today"></textarea></div>
+    <div class="fg"><label>Material Used</label><input id="sl-mat" type="text"></div>
+    <div class="fg"><label>Work Done *</label><textarea id="sl-work"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
-      <button class="btn" data-close-modal="site-modal">Cancel</button>
-      <button class="btn primary" id="btn-save-site-log">Save Entry</button>
+      <button type="button" class="btn" data-close-modal="site-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-site-log">Save Entry</button>
     </div>
   </div>
 </div>
@@ -651,8 +674,134 @@
   </div>
 </div>
 
+<div class="modal-bg" id="pay-modal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title"><span id="pay-modal-title">Record Payment</span><button type="button" class="modal-close" data-close-modal="pay-modal">✕</button></div>
+    <input type="hidden" id="pay-inst-id" value="">
+    <input type="hidden" id="pay-bk-id" value="">
+    <input type="hidden" id="pay-cust-id" value="">
+    <div class="fg" id="pay-pick-wrap" hidden>
+      <label>Overdue installment</label>
+      <select id="pay-pick"><option value="">Select…</option></select>
+    </div>
+    <div id="pay-summary" class="bk-dcard" style="margin-bottom:12px" hidden></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="pay-amount" type="number" min="1" placeholder="0"></div>
+      <div class="fg"><label>Date</label><input id="pay-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Method</label>
+        <select id="pay-method">
+          <option>Cash</option>
+          <option>Cheque</option>
+          <option>Bank Transfer</option>
+          <option>Online</option>
+        </select>
+      </div>
+      <div class="fg"><label>Reference</label><input id="pay-ref" type="text"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="pay-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="pay-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-payment">Record Payment</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="vendor-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="vd-title">Vendor</span><button type="button" class="modal-close" data-close-modal="vendor-detail-modal">✕</button></div>
+    <div id="vd-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="vendor-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title"><span id="vendor-modal-title">Add Vendor</span><button type="button" class="modal-close" data-close-modal="vendor-modal">✕</button></div>
+    <input type="hidden" id="nv-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Name *</label><input id="nv-name" type="text"></div>
+      <div class="fg"><label>Category</label><input id="nv-category" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Contact</label><input id="nv-contact" type="text"></div>
+      <div class="fg"><label>Status</label>
+        <select id="nv-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="nv-description"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="vendor-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-vendor">Save Vendor</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="po-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="pod-title">Purchase Order</span><button type="button" class="modal-close" data-close-modal="po-detail-modal">✕</button></div>
+    <div id="pod-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="po-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title"><span>New Purchase Order</span><button type="button" class="modal-close" data-close-modal="po-modal">✕</button></div>
+    <div class="form-row">
+      <div class="fg"><label>Vendor *</label><select id="npo-vendor"><option value="">Select…</option></select></div>
+      <div class="fg"><label>Project *</label><select id="npo-project"><option value="">Select…</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Material *</label><input id="npo-material" type="text"></div>
+      <div class="fg"><label>Budget category</label><select id="npo-cat"><option value="">None</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Quantity</label><input id="npo-qty" type="text"></div>
+      <div class="fg"><label>Unit cost (PKR)</label><input id="npo-unit" type="number" min="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Total (PKR) *</label><input id="npo-total" type="number" min="1"></div>
+      <div class="fg"><label>Site / Block</label><input id="npo-site" type="text"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="npo-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="po-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-po">Create PO</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="vpay-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Record Vendor Payment</span><button type="button" class="modal-close" data-close-modal="vpay-modal">✕</button></div>
+    <input type="hidden" id="vpay-vendor-id" value="">
+    <input type="hidden" id="vpay-po-id" value="">
+    <div id="vpay-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="vpay-amount" type="number" min="1"></div>
+      <div class="fg"><label>Date</label><input id="vpay-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Method</label>
+        <select id="vpay-method">
+          <option>Bank Transfer</option>
+          <option>Cash</option>
+          <option>Cheque</option>
+          <option>Online</option>
+        </select>
+      </div>
+      <div class="fg"><label>Reference</label><input id="vpay-ref" type="text"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="vpay-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="vpay-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-vpay">Record Payment</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=fix2"></script>
+<script type="module" src="/static/js/app.js?v=ops2"></script>
 </body>
 </html>

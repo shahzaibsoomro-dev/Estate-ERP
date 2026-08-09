@@ -20,6 +20,7 @@ from backend.routers import (
     projects,
     recovery,
     settings,
+    site_logs,
     stubs,
     units,
     vendors,
@@ -43,7 +44,7 @@ app.add_middleware(
 
 for mod in (
     health, dashboard, projects, units, customers, bookings, payments,
-    recovery, vendors, budget, agents, investors, settings, stubs,
+    recovery, vendors, budget, site_logs, agents, investors, settings, stubs,
 ):
     app.include_router(mod.router)
 

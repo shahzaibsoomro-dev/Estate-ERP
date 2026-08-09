@@ -4,16 +4,6 @@ from backend.database import fetch_all, get_db
 router = APIRouter(prefix="/api", tags=["stubs"])
 
 
-@router.get("/site-logs")
-def site_logs():
-    return []
-
-
-@router.post("/site-logs")
-def add_site_log(body: dict):
-    return {"ok": True}
-
-
 @router.get("/ledger")
 def ledger():
     with get_db() as conn:

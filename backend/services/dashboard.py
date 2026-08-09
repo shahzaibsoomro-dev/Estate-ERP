@@ -4,7 +4,8 @@ from backend.services.project_filter import sql_in
 
 
 OVERDUE_SQL = """
-    SELECT i.id, i.amount, i.remaining_amount, i.due_date, i.type,
+    SELECT i.id, i.booking_id, i.customer_id, i.unit_id, i.amount, i.remaining_amount,
+           i.due_date, i.type,
            c.name AS customer_name, c.contact_number AS phone, c.cnic,
            u.unit_no, p.name AS project_name, u.project_id,
            CAST(julianday('now') - julianday(i.due_date) AS INT) AS days_overdue

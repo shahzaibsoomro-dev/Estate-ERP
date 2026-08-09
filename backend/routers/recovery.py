@@ -6,6 +6,26 @@ from backend.services.project_filter import parse_project_ids
 router = APIRouter(prefix="/api", tags=["recovery"])
 
 
+def _ageing(overdue: list[dict]) -> dict:
+    buckets = {
+        "d30": {"count": 0, "amount": 0},
+        "d60": {"count": 0, "amount": 0},
+        "d90": {"count": 0, "amount": 0},
+    }
+    for row in overdue:
+        days = row.get("days_overdue") or 0
+        amt = row.get("amount") or 0
+        if days <= 30:
+            key = "d30"
+        elif days <= 60:
+            key = "d60"
+        else:
+            key = "d90"
+        buckets[key]["count"] += 1
+        buckets[key]["amount"] += amt
+    return buckets
+
+
 def _recovery(conn, project_ids: list[int] | None):
     overdue = dash_svc.get_overdue_list(conn, project_ids)
     if project_ids:
@@ -44,6 +64,7 @@ def _recovery(conn, project_ids: list[int] | None):
         "receivable": totals["receivable"] if totals else 0,
         "overdue_amt": totals["overdue_amt"] if totals else 0,
         "collected_month": collected["v"] if collected else 0,
+        "ageing": _ageing(overdue),
     }
 
 

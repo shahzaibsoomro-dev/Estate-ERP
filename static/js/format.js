@@ -18,5 +18,7 @@ export function instStatusBadge(status) {
 }
 
 export function overdueBadge(days) {
-  return days >= 45 ? 'bg-red' : 'bg-yellow';
+  if (days >= 61) return 'bg-red';
+  if (days >= 31) return 'bg-orange';
+  return 'bg-yellow';
 }

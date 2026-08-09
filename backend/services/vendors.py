@@ -1,4 +1,30 @@
+from datetime import date
+
 from backend.database import fetch_all, fetch_one
+from backend.services.project_filter import sql_in
+
+
+def _clean(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def normalize_vendor(data: dict) -> dict:
+    name = _clean(data.get("name"))
+    if not name:
+        raise ValueError("Vendor name is required")
+    status = (_clean(data.get("status")) or "active").lower()
+    if status not in ("active", "inactive"):
+        status = "active"
+    return {
+        "name": name,
+        "description": _clean(data.get("description")),
+        "contact": _clean(data.get("contact")),
+        "category": _clean(data.get("category")),
+        "status": status,
+    }
 
 
 def list_vendors(conn) -> list[dict]:
@@ -11,8 +37,7 @@ def list_vendors(conn) -> list[dict]:
 def _attach_balances(conn, vendor: dict) -> dict:
     pos = fetch_one(
         conn,
-        """SELECT COALESCE(SUM(total),0) AS total_payable,
-                  COALESCE(SUM(CASE WHEN status='closed' THEN total ELSE 0 END),0) AS closed_total
+        """SELECT COALESCE(SUM(total),0) AS total_payable
            FROM purchase_orders WHERE vendor_id=?""",
         (vendor["id"],),
     )
@@ -27,46 +52,27 @@ def _attach_balances(conn, vendor: dict) -> dict:
     return vendor
 
 
-def create_vendor(conn, data: dict) -> dict:
-    cur = conn.execute(
-        "INSERT INTO vendors(name, description, contact, category, status) VALUES(?,?,?,?,?)",
-        (
-            data["name"], data.get("description"), data.get("contact"),
-            data.get("category"), data.get("status", "active"),
-        ),
-    )
-    v = fetch_one(conn, "SELECT * FROM vendors WHERE id=?", (cur.lastrowid,))
-    return _attach_balances(conn, v)
-
-
-def list_purchase_orders(conn) -> list[dict]:
-    rows = fetch_all(
+def _po_paid(conn, po_id: int) -> int:
+    row = fetch_one(
         conn,
-        """SELECT po.*, v.name AS vendor_name, p.name AS project_name
-           FROM purchase_orders po
-           JOIN vendors v ON v.id=po.vendor_id
-           JOIN projects p ON p.id=po.project_id
-           ORDER BY po.order_date DESC""",
+        "SELECT COALESCE(SUM(amount),0) AS v FROM vendor_payments WHERE purchase_order_id=?",
+        (po_id,),
     )
-    for r in rows:
-        paid = fetch_one(
-            conn,
-            "SELECT COALESCE(SUM(amount),0) AS v FROM vendor_payments WHERE purchase_order_id=?",
-            (r["id"],),
-        )
-        _map_po_status(r, paid["v"] if paid else 0)
-    return rows
+    return row["v"] if row else 0
 
 
 def _map_po_status(po: dict, paid: int = 0) -> dict:
-    """Map internal status to legacy frontend values."""
+    """Map internal status to UI values: draft | approved | payment_pending | completed."""
     status = po.get("status", "ordered")
     grn = po.get("grn_status", "pending")
+    po["paid"] = paid
+    po["remaining"] = max((po.get("total") or 0) - paid, 0)
     if status == "closed":
         po["status"] = "completed"
-    elif status == "delivered" or grn == "done":
-        po["status"] = "completed" if paid >= po["total"] else "payment_pending"
         po["grn_status"] = "done"
+    elif status == "delivered" or grn == "done":
+        po["grn_status"] = "done"
+        po["status"] = "completed" if paid >= (po.get("total") or 0) else "payment_pending"
     elif grn == "na":
         po["status"] = "draft"
     else:
@@ -74,68 +80,217 @@ def _map_po_status(po: dict, paid: int = 0) -> dict:
     return po
 
 
+def _mapped_po(conn, po: dict) -> dict:
+    return _map_po_status(dict(po), _po_paid(conn, po["id"]))
+
+
+def create_vendor(conn, data: dict) -> dict:
+    payload = normalize_vendor(data)
+    cur = conn.execute(
+        "INSERT INTO vendors(name, description, contact, category, status) VALUES(?,?,?,?,?)",
+        (
+            payload["name"], payload["description"], payload["contact"],
+            payload["category"], payload["status"],
+        ),
+    )
+    return get_vendor(conn, cur.lastrowid)
+
+
+def get_vendor(conn, vendor_id: int) -> dict | None:
+    v = fetch_one(conn, "SELECT * FROM vendors WHERE id=?", (vendor_id,))
+    if not v:
+        return None
+    _attach_balances(conn, v)
+    pos = fetch_all(
+        conn,
+        """SELECT po.*, p.name AS project_name
+           FROM purchase_orders po
+           JOIN projects p ON p.id=po.project_id
+           WHERE po.vendor_id=?
+           ORDER BY po.order_date DESC""",
+        (vendor_id,),
+    )
+    v["purchase_orders"] = [_mapped_po(conn, po) for po in pos]
+    v["payments"] = fetch_all(
+        conn,
+        """SELECT vp.*, po.po_no
+           FROM vendor_payments vp
+           LEFT JOIN purchase_orders po ON po.id=vp.purchase_order_id
+           WHERE vp.vendor_id=?
+           ORDER BY vp.payment_date DESC""",
+        (vendor_id,),
+    )
+    return v
+
+
+def update_vendor(conn, vendor_id: int, data: dict) -> dict | None:
+    if not fetch_one(conn, "SELECT id FROM vendors WHERE id=?", (vendor_id,)):
+        return None
+    payload = normalize_vendor(data)
+    conn.execute(
+        """UPDATE vendors SET name=?, description=?, contact=?, category=?, status=?
+           WHERE id=?""",
+        (
+            payload["name"], payload["description"], payload["contact"],
+            payload["category"], payload["status"], vendor_id,
+        ),
+    )
+    return get_vendor(conn, vendor_id)
+
+
+def delete_vendor(conn, vendor_id: int) -> None:
+    if not fetch_one(conn, "SELECT id FROM vendors WHERE id=?", (vendor_id,)):
+        raise ValueError("Vendor not found")
+    if fetch_one(conn, "SELECT id FROM purchase_orders WHERE vendor_id=? LIMIT 1", (vendor_id,)):
+        raise ValueError("Cannot delete a vendor with purchase orders")
+    if fetch_one(conn, "SELECT id FROM vendor_payments WHERE vendor_id=? LIMIT 1", (vendor_id,)):
+        raise ValueError("Cannot delete a vendor with payment history")
+    conn.execute("DELETE FROM vendors WHERE id=?", (vendor_id,))
+
+
+def list_purchase_orders(conn, project_ids: list[int] | None = None) -> list[dict]:
+    q = """SELECT po.*, v.name AS vendor_name, p.name AS project_name
+           FROM purchase_orders po
+           JOIN vendors v ON v.id=po.vendor_id
+           JOIN projects p ON p.id=po.project_id
+           WHERE 1=1"""
+    clause, params = sql_in("po.project_id", project_ids)
+    q += clause + " ORDER BY po.order_date DESC, po.id DESC"
+    return [_mapped_po(conn, r) for r in fetch_all(conn, q, params)]
+
+
+def get_purchase_order(conn, po_id: int) -> dict | None:
+    po = fetch_one(
+        conn,
+        """SELECT po.*, v.name AS vendor_name, p.name AS project_name
+           FROM purchase_orders po
+           JOIN vendors v ON v.id=po.vendor_id
+           JOIN projects p ON p.id=po.project_id
+           WHERE po.id=?""",
+        (po_id,),
+    )
+    return _mapped_po(conn, po) if po else None
+
+
+def next_po_no(conn) -> str:
+    year = date.today().year
+    prefix = f"PO-{year}-"
+    row = fetch_one(
+        conn,
+        "SELECT po_no FROM purchase_orders WHERE po_no LIKE ? ORDER BY po_no DESC LIMIT 1",
+        (prefix + "%",),
+    )
+    n = 1
+    if row and row["po_no"]:
+        try:
+            n = int(str(row["po_no"]).split("-")[-1]) + 1
+        except ValueError:
+            n = 1
+    return f"{prefix}{n:04d}"
+
+
 def create_purchase_order(conn, data: dict) -> dict:
+    vendor_id = data.get("vendor_id")
+    project_id = data.get("project_id")
+    material = _clean(data.get("material"))
+    if not vendor_id or not project_id or not material:
+        raise ValueError("Vendor, project and material are required")
+    if not fetch_one(conn, "SELECT id FROM vendors WHERE id=?", (vendor_id,)):
+        raise ValueError("Vendor not found")
+    if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
+        raise ValueError("Project not found")
+    total = data.get("total")
+    unit_cost = data.get("unit_cost")
+    qty_raw = data.get("qty") or data.get("quantity")
+    if total in (None, ""):
+        try:
+            qty_n = float(str(qty_raw).split()[0]) if qty_raw else 0
+            total = int(round((unit_cost or 0) * qty_n))
+        except (TypeError, ValueError):
+            total = 0
+    total = int(total or 0)
+    if total <= 0:
+        raise ValueError("Total must be greater than 0")
+    po_no = _clean(data.get("po_no")) or next_po_no(conn)
+    if fetch_one(conn, "SELECT id FROM purchase_orders WHERE po_no=?", (po_no,)):
+        raise ValueError("PO number already exists")
+    order_date = _clean(data.get("order_date")) or date.today().isoformat()
     cur = conn.execute(
         """INSERT INTO purchase_orders(po_no, vendor_id, project_id, budget_category_id,
            category, material, quantity, unit_cost, total, order_date,
            expected_delivery_date, status, grn_status, site, notes)
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            data["po_no"], data["vendor_id"], data["project_id"],
-            data.get("budget_category_id"), data.get("category"), data["material"],
-            data.get("qty") or data.get("quantity"), data.get("unit_cost"), data["total"],
-            data.get("order_date"), data.get("expected_delivery_date"),
-            data.get("status", "ordered"), data.get("grn_status", "pending"),
-            data.get("site"), data.get("notes"),
+            po_no, vendor_id, project_id,
+            data.get("budget_category_id"), data.get("category"), material,
+            _clean(qty_raw), unit_cost, total, order_date,
+            _clean(data.get("expected_delivery_date")),
+            "ordered", "na",
+            _clean(data.get("site")), _clean(data.get("notes")),
         ),
     )
-    return fetch_one(conn, "SELECT * FROM purchase_orders WHERE id=?", (cur.lastrowid,))
+    return get_purchase_order(conn, cur.lastrowid)
 
 
 def update_po_status(conn, po_id: int, status: str) -> dict | None:
     po = fetch_one(conn, "SELECT * FROM purchase_orders WHERE id=?", (po_id,))
     if not po:
         return None
-    legacy = status
-    grn = po["grn_status"]
-    if status == "approved":
-        conn.execute("UPDATE purchase_orders SET status='ordered' WHERE id=?", (po_id,))
-    elif status == "completed":
+    key = (status or "").lower()
+    if key == "approved":
         conn.execute(
-            "UPDATE purchase_orders SET status='closed', grn_status='done' WHERE id=?",
+            "UPDATE purchase_orders SET status='ordered', grn_status='pending' WHERE id=?",
             (po_id,),
         )
-    elif status == "payment_pending":
+    elif key in ("grn", "payment_pending"):
         conn.execute(
             "UPDATE purchase_orders SET status='delivered', grn_status='done' WHERE id=?",
             (po_id,),
         )
+    elif key == "completed":
+        conn.execute(
+            "UPDATE purchase_orders SET status='closed', grn_status='done' WHERE id=?",
+            (po_id,),
+        )
     else:
-        conn.execute("UPDATE purchase_orders SET status=? WHERE id=?", (legacy, po_id))
-    return fetch_one(conn, "SELECT * FROM purchase_orders WHERE id=?", (po_id,))
+        raise ValueError("Invalid PO status")
+    return get_purchase_order(conn, po_id)
 
 
 def record_vendor_payment(conn, data: dict) -> dict:
+    vendor_id = data.get("vendor_id")
+    amount = int(data.get("amount") or 0)
+    pay_date = _clean(data.get("payment_date")) or date.today().isoformat()
+    if not vendor_id:
+        raise ValueError("Vendor is required")
+    if amount <= 0:
+        raise ValueError("Amount must be greater than 0")
+    if not fetch_one(conn, "SELECT id FROM vendors WHERE id=?", (vendor_id,)):
+        raise ValueError("Vendor not found")
+    po_id = data.get("purchase_order_id")
+    if po_id:
+        po = get_purchase_order(conn, po_id)
+        if not po:
+            raise ValueError("Purchase order not found")
+        if po["vendor_id"] != vendor_id:
+            raise ValueError("PO does not belong to this vendor")
+        if amount > (po.get("remaining") or 0):
+            raise ValueError("Payment exceeds remaining PO amount")
     cur = conn.execute(
         """INSERT INTO vendor_payments(vendor_id, purchase_order_id, amount,
            payment_date, payment_method, reference_number, notes)
            VALUES(?,?,?,?,?,?,?)""",
         (
-            data["vendor_id"], data.get("purchase_order_id"), data["amount"],
-            data["payment_date"], data.get("payment_method", "Bank Transfer"),
-            data.get("reference_number"), data.get("notes"),
+            vendor_id, po_id, amount, pay_date,
+            _clean(data.get("payment_method")) or "Bank Transfer",
+            _clean(data.get("reference_number")), _clean(data.get("notes")),
         ),
     )
-    po_id = data.get("purchase_order_id")
     if po_id:
-        po = fetch_one(conn, "SELECT total FROM purchase_orders WHERE id=?", (po_id,))
-        paid = fetch_one(
-            conn,
-            "SELECT COALESCE(SUM(amount),0) AS v FROM vendor_payments WHERE purchase_order_id=?",
-            (po_id,),
-        )
-        if po and paid and paid["v"] >= po["total"]:
+        po = get_purchase_order(conn, po_id)
+        if po and (po.get("remaining") or 0) <= 0:
             conn.execute(
-                "UPDATE purchase_orders SET status='closed' WHERE id=?", (po_id,),
+                "UPDATE purchase_orders SET status='closed', grn_status='done' WHERE id=?",
+                (po_id,),
             )
     return {"ok": True, "id": cur.lastrowid}

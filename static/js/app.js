@@ -9,9 +9,10 @@ import { loadProjects, initProjectEvents, refreshProjectSelects } from './screen
 import { loadUnits, initUnitsFilters } from './screens/units.js';
 import { initBooking, initBookingEvents } from './screens/booking.js';
 import { loadDemand, loadCustomers, initCustomerEvents } from './screens/customers.js';
-import { loadRecovery } from './screens/recovery.js';
-import { loadProcurement, loadVendors } from './screens/operations.js';
-import { loadSite, loadAccounts, initAccountsEvents } from './screens/finance.js';
+import { loadRecovery, initRecoveryEvents } from './screens/recovery.js';
+import { loadProcurement, loadVendors, initOperationsEvents } from './screens/operations.js';
+import { loadSite, initSiteEvents } from './screens/site.js';
+import { loadAccounts, initAccountsEvents } from './screens/finance.js';
 import { loadAgents, loadPortal, initReportsEvents } from './screens/finance-extra.js';
 
 registerScreen('dashboard', loadDashboard);
@@ -53,8 +54,11 @@ async function init() {
   safe('unitsFilters', initUnitsFilters);
   safe('bookingEvents', initBookingEvents);
   safe('customerEvents', initCustomerEvents);
+  safe('recoveryEvents', initRecoveryEvents);
   safe('projectEvents', initProjectEvents);
   safe('unitForm', initUnitFormEvents);
+  safe('operations', initOperationsEvents);
+  safe('site', initSiteEvents);
   safe('accounts', initAccountsEvents);
   safe('reports', initReportsEvents);
   try {

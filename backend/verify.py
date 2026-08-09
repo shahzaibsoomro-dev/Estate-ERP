@@ -71,6 +71,7 @@ required = {
     "purchase_orders", "vendor_payments", "budget_categories", "project_budget_lines",
     "investors", "investor_agreements", "investor_contributions", "investor_distributions",
     "agent_commissions", "agent_commission_payments", "audit_log", "schema_meta",
+    "site_logs",
 }
 missing = required - tables
 if not missing:
@@ -301,8 +302,21 @@ try:
         else:
             ok("dashboard KPI shape compatible with UI")
     rec = get("/api/recovery")
-    if "overdue" in rec and "receivable" in rec:
+    if "overdue" in rec and "receivable" in rec and "ageing" in rec:
         ok("GET /api/recovery")
+        ageing = rec["ageing"]
+        if all(k in ageing for k in ("d30", "d60", "d90")):
+            ok("recovery ageing buckets")
+        else:
+            fail("recovery ageing", str(ageing)[:120])
+        if rec["overdue"]:
+            row = rec["overdue"][0]
+            if all(k in row for k in ("id", "booking_id", "customer_id", "amount")):
+                ok("recovery overdue row ids")
+            else:
+                fail("recovery overdue ids", str(row)[:160])
+    else:
+        fail("GET /api/recovery", "missing overdue/receivable/ageing")
     dn = get("/api/demand-notices")
     if isinstance(dn, list):
         ok("GET /api/demand-notices")
@@ -311,7 +325,6 @@ except Exception as e:
 
 print("\n=== Step 13: Stubs ===")
 for path, expect in [
-    ("/api/site-logs", list),
     ("/api/ledger", dict),
     ("/api/reports/ageing", dict),
     ("/api/reports/sales", list),
@@ -458,6 +471,164 @@ try:
         fail("delete booked customer", "should return 400")
 except Exception as e:
     fail("customer CRUD", str(e))
+
+print("\n=== Step 17: Vendors, PO lifecycle, site logs ===")
+try:
+    v = post("/api/vendors", {
+        "name": f"Ops Vendor {SUFFIX}",
+        "category": "Cement",
+        "contact": "03001112222",
+        "description": "Verify vendor",
+        "status": "active",
+    })
+    vid = v["id"]
+    ok("POST vendor")
+
+    detail = get(f"/api/vendors/{vid}")
+    if (
+        isinstance(detail.get("purchase_orders"), list)
+        and isinstance(detail.get("payments"), list)
+        and detail.get("name")
+    ):
+        ok("GET /api/vendors/{id} detail shape")
+    else:
+        fail("GET vendor detail", str({k: detail.get(k) for k in ("name", "purchase_orders", "payments")}))
+
+    u = put(f"/api/vendors/{vid}", {
+        "name": f"Ops Vendor {SUFFIX} Edit",
+        "category": "Steel",
+        "contact": "03003334444",
+        "status": "active",
+    })
+    if str(u.get("name", "")).endswith("Edit") and u.get("category") == "Steel":
+        ok("PUT vendor updates profile")
+    else:
+        fail("PUT vendor", str(u)[:160])
+
+    vtmp = post("/api/vendors", {"name": f"Ops Temp {SUFFIX}", "category": "Misc"})
+    delete(f"/api/vendors/{vtmp['id']}")
+    gone_ok, _ = expect_http_error(f"/api/vendors/{vtmp['id']}", "GET", None, 404)
+    if gone_ok:
+        ok("DELETE vendor without POs")
+    else:
+        fail("DELETE vendor", "should 404 after delete")
+
+    blank_ok, _ = expect_http_error(f"/api/vendors/{vid}", "PUT", {"name": "  ", "status": "active"})
+    if blank_ok:
+        ok("PUT vendor rejects blank name")
+    else:
+        fail("PUT vendor blank name", "should return 400")
+
+    proj = post("/api/projects", {
+        "name": f"Ops Proj {SUFFIX}",
+        "location": "Test",
+        "status": "planning",
+        "current_progress": 40,
+    })
+    pid = proj["id"]
+
+    po = post("/api/purchase-orders", {
+        "vendor_id": vid,
+        "project_id": pid,
+        "material": "Cement bags",
+        "qty": "10",
+        "unit_cost": 1000,
+        "site": "Block A",
+    })
+    if str(po.get("po_no", "")).startswith(f"PO-{date.today().year}-"):
+        ok("create PO with auto PO#")
+    else:
+        fail("auto PO number", str(po.get("po_no")))
+    if po.get("status") == "draft" and po.get("grn_status") == "na":
+        ok("new PO starts as draft")
+    else:
+        fail("PO draft status", f"{po.get('status')} / {po.get('grn_status')}")
+    if po.get("total") == 10000:
+        ok("PO total auto-calc from qty x unit cost")
+    else:
+        fail("PO total calc", str(po.get("total")))
+
+    blocked, _ = expect_http_error(f"/api/vendors/{vid}", "DELETE", None, 400)
+    if blocked:
+        ok("block delete vendor with POs")
+    else:
+        fail("delete vendor with POs", "should return 400")
+
+    po_id = po["id"]
+    put(f"/api/purchase-orders/{po_id}/status", {"status": "approved"})
+    po_a = get(f"/api/purchase-orders/{po_id}")
+    if po_a.get("status") == "approved":
+        ok("approve PO")
+    else:
+        fail("approve PO", str(po_a.get("status")))
+
+    put(f"/api/purchase-orders/{po_id}/status", {"status": "grn"})
+    po_g = get(f"/api/purchase-orders/{po_id}")
+    if po_g.get("status") == "payment_pending" and po_g.get("grn_status") == "done":
+        ok("GRN to payment_pending")
+    else:
+        fail("GRN", f"{po_g.get('status')} / {po_g.get('grn_status')}")
+
+    post("/api/vendor-payments", {
+        "vendor_id": vid,
+        "purchase_order_id": po_id,
+        "amount": 4000,
+        "payment_date": date.today().isoformat(),
+        "payment_method": "Cash",
+    })
+    po_p = get(f"/api/purchase-orders/{po_id}")
+    if po_p.get("status") == "payment_pending" and int(po_p.get("paid") or 0) == 4000:
+        ok("partial pay stays payment_pending")
+    else:
+        fail("partial pay", f"status={po_p.get('status')} paid={po_p.get('paid')}")
+
+    post("/api/vendor-payments", {
+        "vendor_id": vid,
+        "purchase_order_id": po_id,
+        "amount": 6000,
+        "payment_date": date.today().isoformat(),
+        "payment_method": "Bank Transfer",
+    })
+    po_c = get(f"/api/purchase-orders/{po_id}")
+    if po_c.get("status") == "completed":
+        ok("full pay to completed")
+    else:
+        fail("full pay", str(po_c.get("status")))
+
+    slog = post("/api/site-logs", {
+        "project_id": pid,
+        "log_date": date.today().isoformat(),
+        "engineer": "Eng Test",
+        "workers_skilled": 4,
+        "workers_unskilled": 8,
+        "material_used": "Cement 20 bags",
+        "work_done": "Column casting Block A",
+    })
+    if slog.get("id") and slog.get("engineer") == "Eng Test":
+        ok("POST site-log")
+    else:
+        fail("POST site-log", str(slog)[:160])
+
+    logs = get("/api/site-logs")
+    if isinstance(logs, list) and any(l.get("id") == slog.get("id") for l in logs):
+        ok("GET site-logs contains new entry")
+    else:
+        fail("GET site-logs", "created log missing")
+
+    filtered = get(f"/api/site-logs?project_ids={pid}")
+    if any(l.get("id") == slog.get("id") for l in filtered):
+        ok("GET site-logs honors project_ids")
+    else:
+        fail("site-logs filter", "missing filtered log")
+
+    delete(f"/api/site-logs/{slog['id']}")
+    after = get(f"/api/site-logs?project_ids={pid}")
+    if not any(l.get("id") == slog.get("id") for l in after):
+        ok("DELETE site-log")
+    else:
+        fail("DELETE site-log", "log still listed")
+except Exception as e:
+    fail("ops vendor/PO/site", str(e))
 
 print("\n=== Step 15: Project-Unit lifecycle ===")
 try:

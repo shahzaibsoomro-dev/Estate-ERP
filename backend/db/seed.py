@@ -346,16 +346,44 @@ def run_seed(conn: sqlite3.Connection) -> None:
     )
 
 
+def ensure_additive_schema(conn: sqlite3.Connection) -> None:
+    """Tables added after SCHEMA_VERSION freeze — never wipe haven.db."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS site_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            log_date TEXT NOT NULL,
+            engineer TEXT NOT NULL,
+            workers_skilled INTEGER DEFAULT 0,
+            workers_unskilled INTEGER DEFAULT 0,
+            material_used TEXT,
+            work_done TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_site_logs_project ON site_logs(project_id);
+        CREATE INDEX IF NOT EXISTS idx_site_logs_date ON site_logs(log_date);
+        """
+    )
+
+
 def init_db(force: bool = False) -> None:
     if force or needs_init():
         if os.path.exists(DB_PATH):
             os.remove(DB_PATH)
         conn = _connect()
         init_schema(conn)
+        ensure_additive_schema(conn)
         run_seed(conn)
         conn.commit()
         conn.close()
         print(f"Database initialized: {DB_PATH}")
+        return
+    conn = _connect()
+    ensure_additive_schema(conn)
+    conn.commit()
+    conn.close()
 
 
 if __name__ == "__main__":

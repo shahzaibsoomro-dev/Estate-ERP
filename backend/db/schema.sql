@@ -294,5 +294,20 @@ CREATE INDEX IF NOT EXISTS idx_installments_booking ON installments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_installments_due ON installments(due_date);
 CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_unit ON bookings(unit_id);
+CREATE TABLE IF NOT EXISTS site_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    log_date TEXT NOT NULL,
+    engineer TEXT NOT NULL,
+    workers_skilled INTEGER DEFAULT 0,
+    workers_unskilled INTEGER DEFAULT 0,
+    material_used TEXT,
+    work_done TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_po_vendor ON purchase_orders(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_po_project ON purchase_orders(project_id);
+CREATE INDEX IF NOT EXISTS idx_site_logs_project ON site_logs(project_id);
+CREATE INDEX IF NOT EXISTS idx_site_logs_date ON site_logs(log_date);
