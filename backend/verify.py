@@ -71,7 +71,7 @@ required = {
     "purchase_orders", "vendor_payments", "budget_categories", "project_budget_lines",
     "investors", "investor_agreements", "investor_contributions", "investor_distributions",
     "agent_commissions", "agent_commission_payments", "audit_log", "schema_meta",
-    "site_logs",
+    "site_logs", "ledger_entries",
 }
 missing = required - tables
 if not missing:
@@ -325,7 +325,6 @@ except Exception as e:
 
 print("\n=== Step 13: Stubs ===")
 for path, expect in [
-    ("/api/ledger", dict),
     ("/api/reports/ageing", dict),
     ("/api/reports/sales", list),
 ]:
@@ -337,6 +336,14 @@ for path, expect in [
             fail(f"stub {path}", f"expected {expect}, got {type(d)}")
     except Exception as e:
         fail(f"stub {path}", str(e))
+try:
+    led = get("/api/ledger")
+    if isinstance(led, dict) and "entries" in led and "inflow" in led and "outflow" in led:
+        ok("GET /api/ledger cashbook shape")
+    else:
+        fail("GET /api/ledger", str(list(led)[:12]) if isinstance(led, dict) else type(led))
+except Exception as e:
+    fail("GET /api/ledger", str(e))
 
 def delete(path):
     req = urllib.request.Request(BASE + path, method="DELETE")
@@ -629,6 +636,110 @@ try:
         fail("DELETE site-log", "log still listed")
 except Exception as e:
     fail("ops vendor/PO/site", str(e))
+
+print("\n=== Step 18: Agents + cashbook ===")
+try:
+    ag = post("/api/agents", {
+        "name": f"Fin Ag {SUFFIX}",
+        "contact": "03001110000",
+        "default_rate_pct": 2.5,
+        "status": "active",
+    })
+    aid = ag["id"]
+    ok("POST agent")
+
+    detail = get(f"/api/agents/{aid}")
+    if isinstance(detail.get("commissions"), list) and isinstance(detail.get("payments"), list):
+        ok("GET agent detail shape")
+    else:
+        fail("GET agent detail", str(detail)[:160])
+
+    u = put(f"/api/agents/{aid}", {
+        "name": f"Fin Ag {SUFFIX} Edit",
+        "contact": "03002220000",
+        "default_rate_pct": 3,
+        "status": "active",
+    })
+    if str(u.get("name", "")).endswith("Edit") and float(u.get("default_rate_pct") or 0) == 3:
+        ok("PUT agent")
+    else:
+        fail("PUT agent", str(u)[:160])
+
+    tmp = post("/api/agents", {"name": f"Fin Tmp {SUFFIX}", "default_rate_pct": 2})
+    delete(f"/api/agents/{tmp['id']}")
+    gone, _ = expect_http_error(f"/api/agents/{tmp['id']}", "GET", None, 404)
+    if gone:
+        ok("DELETE agent without commissions")
+    else:
+        fail("DELETE agent", "should 404 after delete")
+
+    proj = post("/api/projects", {"name": f"Fin Proj {SUFFIX}", "location": "Test", "status": "planning"})
+    unit = post("/api/units", {
+        "project_id": proj["id"], "unit_no": f"FA-{SUFFIX}",
+        "unit_type": "Flat", "floor_number": 1, "base_sale_price": 1000000,
+    })
+    cust = post("/api/customers", {"name": f"Fin Cust {SUFFIX}", "cnic": f"9{SUFFIX}-1111111-1"})
+    post("/api/bookings", {
+        "unit_id": unit["id"], "project_id": proj["id"], "customer_id": cust["id"],
+        "sale_price": 1000000, "down_payment": 200000, "booking_date": date.today().isoformat(),
+        "agent_id": aid,
+        "installments": [{"amount": 800000, "due_date": "2026-12-15", "type": "Monthly"}],
+    })
+    after_bk = get(f"/api/agents/{aid}")
+    if after_bk.get("commission_unpaid", 0) == 30000:
+        ok("booking earns agent commission at agent rate")
+    else:
+        fail("agent commission on booking", str(after_bk.get("commission_unpaid")))
+
+    blocked, _ = expect_http_error(f"/api/agents/{aid}", "DELETE", None, 400)
+    if blocked:
+        ok("block delete agent with commissions")
+    else:
+        fail("delete agent with commissions", "should return 400")
+
+    post(f"/api/agents/{aid}/pay", {
+        "amount": 10000,
+        "payment_date": date.today().isoformat(),
+        "notes": "partial verify",
+    })
+    mid = get(f"/api/agents/{aid}")
+    if mid.get("commission_unpaid") == 20000 and mid.get("commission_paid") == 10000:
+        ok("partial agent pay")
+    else:
+        fail("partial agent pay", f"paid={mid.get('commission_paid')} unpaid={mid.get('commission_unpaid')}")
+
+    over_ok, _ = expect_http_error(f"/api/agents/{aid}/pay", "POST", {
+        "amount": 999999, "payment_date": date.today().isoformat(),
+    })
+    if over_ok:
+        ok("reject agent overpay")
+    else:
+        fail("agent overpay", "should return 400")
+
+    le = post("/api/ledger", {
+        "entry_date": date.today().isoformat(),
+        "narration": f"Misc expense {SUFFIX}",
+        "amount": 1500,
+        "direction": "out",
+        "category": "Expense",
+    })
+    if le.get("id"):
+        ok("POST ledger other entry")
+    else:
+        fail("POST ledger", str(le)[:160])
+    book = get("/api/ledger")
+    if any(e.get("id") == le.get("id") and e.get("source") == "manual" for e in book.get("entries") or []):
+        ok("cashbook includes manual entry")
+    else:
+        fail("cashbook manual", "entry missing")
+    delete(f"/api/ledger/{le['id']}")
+    book2 = get("/api/ledger")
+    if not any(e.get("id") == le.get("id") for e in book2.get("entries") or []):
+        ok("DELETE ledger entry")
+    else:
+        fail("DELETE ledger", "still listed")
+except Exception as e:
+    fail("agents/cashbook", str(e))
 
 print("\n=== Step 15: Project-Unit lifecycle ===")
 try:

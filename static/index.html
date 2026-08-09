@@ -34,8 +34,8 @@
   </nav>
   <div class="sb-sec">Finance</div>
   <nav class="nav">
-    <div class="ni" data-s="accounts"><span class="ni-ico">📒</span>Accounts / GL</div>
-    <div class="ni" data-s="agents"><span class="ni-ico">🤝</span>Agent Commission</div>
+    <div class="ni" data-s="accounts"><span class="ni-ico">📒</span>Accounts</div>
+    <div class="ni" data-s="agents"><span class="ni-ico">🤝</span>Agents</div>
     <div class="ni" data-s="reports"><span class="ni-ico">📈</span>Reports</div>
   </nav>
   <div class="sb-sec">Portal</div>
@@ -417,47 +417,53 @@
 </div>
 
 <div class="screen" id="s-accounts">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Accounts / General Ledger</div></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn" onclick="toast('Trial Balance generated!')">Trial Balance</button>
-      <button class="btn" onclick="toast('P&L generated!')">P&L</button>
-      <button class="btn primary" id="btn-ledger-entry">+ Journal Entry</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:16px;font-weight:900">Accounts</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Cash movement — collections in, vendor & agent payments out</div>
     </div>
+    <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
   </div>
   <div class="g3" style="margin-bottom:14px">
-    <div class="sm"><div class="sm-v" style="color:var(--success)" id="gl-rev">—</div><div class="sm-l">Total Revenue</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="gl-exp">—</div><div class="sm-l">Total Expenses</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="gl-profit">—</div><div class="sm-l">Net Profit</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--success)" id="gl-rev">—</div><div class="sm-l">Money in</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="gl-exp">—</div><div class="sm-l">Money out</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="gl-profit">—</div><div class="sm-l">Net cash</div></div>
   </div>
   <div class="card">
-    <div class="gl-hd"><span>Date</span><span>Narration</span><span>Debit (PKR)</span><span>Credit (PKR)</span><span>Balance</span></div>
+    <div class="gl-hd"><span>Date</span><span>Narration</span><span>In</span><span>Out</span><span>Balance</span></div>
     <div id="gl-entries"><div class="loading"><span class="spinner"></span>Loading…</div></div>
   </div>
 </div>
 
 <div class="screen" id="s-agents">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Agent Commission</div></div>
-    <button class="btn primary">+ Setup Commission</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Agents</div></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="agent-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-add-agent">+ Add Agent</button>
+    </div>
   </div>
   <div class="g3" style="margin-bottom:14px">
     <div class="sm"><div class="sm-v" id="ag-total">—</div><div class="sm-l">Total Agents</div></div>
     <div class="sm"><div class="sm-v" style="color:var(--navy)" id="ag-earned">—</div><div class="sm-l">Commission Earned</div></div>
     <div class="sm"><div class="sm-v" style="color:var(--danger)" id="ag-unpaid">—</div><div class="sm-l">Unpaid</div></div>
   </div>
-  <div class="card"><div class="card-bd" id="agents-list"><div class="loading"><span class="spinner"></span>Loading…</div></div></div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Agent</th><th>Contact</th><th>Rate</th><th>Bookings</th><th>Earned</th><th>Paid</th><th>Unpaid</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="agent-tbody"><tr><td colspan="9" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <div class="screen" id="s-reports">
-  <div style="margin-bottom:16px"><div style="font-size:16px;font-weight:900">Reports Module</div></div>
+  <div style="margin-bottom:16px"><div style="font-size:16px;font-weight:900">Reports</div></div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-    <div class="rep-tile" onclick="toast('Customer Statement generated!')"><div class="rep-ico">📋</div><div class="rep-name">Customer Statement</div><div class="rep-desc">Per-customer payment history</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" onclick="toast('Installment Schedule generated!')"><div class="rep-ico">📅</div><div class="rep-name">Installment Schedule</div><div class="rep-desc">Full repayment plan per unit</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" data-report="ageing"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">30 / 60 / 90 day buckets</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" data-report="sales"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise sales analysis</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" onclick="toast('Expense Report generated!')"><div class="rep-ico">💸</div><div class="rep-name">Expense Report</div><div class="rep-desc">Site & operational costs</div><button class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" onclick="toast('Trial Balance generated!')"><div class="rep-ico">⚖️</div><div class="rep-name">Trial Balance</div><div class="rep-desc">Full DR/CR summary</div><button class="btn primary" style="width:100%">Generate</button></div>
+    <div class="rep-tile" data-report="ageing"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">1–30 / 31–60 / 60+ overdue</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
+    <div class="rep-tile" data-report="sales"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise bookings & DP</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
+    <div class="rep-tile is-soon"><div class="rep-ico">📋</div><div class="rep-name">More reports</div><div class="rep-desc">Statements, schedules, trial balance — later</div></div>
   </div>
   <div id="report-output" style="margin-top:16px"></div>
 </div>
@@ -656,20 +662,80 @@
 </div>
 
 <div class="modal-bg" id="ledger-modal">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-title"><span>New Journal Entry</span><button class="modal-close" data-close-modal="ledger-modal">✕</button></div>
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Other cash entry</span><button type="button" class="modal-close" data-close-modal="ledger-modal">✕</button></div>
     <div class="form-row">
-      <div class="fg"><label>Date</label><input id="le-date" type="date"></div>
-      <div class="fg"><label>Account Type</label><select id="le-type"><option>Sales</option><option>Expense</option><option>Purchase</option><option>General</option></select></div>
+      <div class="fg"><label>Date *</label><input id="le-date" type="date"></div>
+      <div class="fg"><label>Direction *</label>
+        <select id="le-dir">
+          <option value="in">Money in</option>
+          <option value="out">Money out</option>
+        </select>
+      </div>
     </div>
-    <div class="fg"><label>Narration</label><input id="le-nar" type="text" placeholder="Description of transaction"></div>
     <div class="form-row">
-      <div class="fg"><label>Debit (PKR)</label><input id="le-dr" type="number" placeholder="0"></div>
-      <div class="fg"><label>Credit (PKR)</label><input id="le-cr" type="number" placeholder="0"></div>
+      <div class="fg"><label>Amount (PKR) *</label><input id="le-amount" type="number" min="1"></div>
+      <div class="fg"><label>Category</label>
+        <select id="le-type">
+          <option>General</option>
+          <option>Expense</option>
+          <option>Purchase</option>
+          <option>Sales</option>
+          <option>Refund</option>
+        </select>
+      </div>
     </div>
+    <div class="fg"><label>Narration *</label><input id="le-nar" type="text"></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
-      <button class="btn" data-close-modal="ledger-modal">Cancel</button>
-      <button class="btn primary" id="btn-save-ledger">Post Entry</button>
+      <button type="button" class="btn" data-close-modal="ledger-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-ledger">Save entry</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="agent-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="ad-title">Agent</span><button type="button" class="modal-close" data-close-modal="agent-detail-modal">✕</button></div>
+    <div id="ad-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="agent-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title"><span id="agent-modal-title">Add Agent</span><button type="button" class="modal-close" data-close-modal="agent-modal">✕</button></div>
+    <input type="hidden" id="na-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Name *</label><input id="na-name" type="text"></div>
+      <div class="fg"><label>Contact</label><input id="na-contact" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Default rate %</label><input id="na-rate" type="number" min="0" max="100" step="0.1" value="2"></div>
+      <div class="fg"><label>Status</label>
+        <select id="na-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="na-description"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="agent-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-agent">Save Agent</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="apay-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Pay Agent Commission</span><button type="button" class="modal-close" data-close-modal="apay-modal">✕</button></div>
+    <input type="hidden" id="apay-agent-id" value="">
+    <input type="hidden" id="apay-comm-id" value="">
+    <div id="apay-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="apay-amount" type="number" min="1"></div>
+      <div class="fg"><label>Date</label><input id="apay-date" type="date"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="apay-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="apay-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-apay">Record Payment</button>
     </div>
   </div>
 </div>
@@ -802,6 +868,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=ops2"></script>
+<script type="module" src="/static/js/app.js?v=fin1"></script>
 </body>
 </html>

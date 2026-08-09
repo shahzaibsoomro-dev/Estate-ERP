@@ -13,7 +13,8 @@ import { loadRecovery, initRecoveryEvents } from './screens/recovery.js';
 import { loadProcurement, loadVendors, initOperationsEvents } from './screens/operations.js';
 import { loadSite, initSiteEvents } from './screens/site.js';
 import { loadAccounts, initAccountsEvents } from './screens/finance.js';
-import { loadAgents, loadPortal, initReportsEvents } from './screens/finance-extra.js';
+import { loadAgents, initAgentEvents } from './screens/agents.js';
+import { loadPortal, initReportsEvents } from './screens/finance-extra.js';
 
 registerScreen('dashboard', loadDashboard);
 registerScreen('projects', loadProjects);
@@ -60,6 +61,7 @@ async function init() {
   safe('operations', initOperationsEvents);
   safe('site', initSiteEvents);
   safe('accounts', initAccountsEvents);
+  safe('agents', initAgentEvents);
   safe('reports', initReportsEvents);
   try {
     await refreshProjectSelects();

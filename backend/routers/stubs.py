@@ -1,34 +1,23 @@
 from fastapi import APIRouter
-from backend.database import fetch_all, get_db
+from backend.database import fetch_all, fetch_one, get_db
 
 router = APIRouter(prefix="/api", tags=["stubs"])
-
-
-@router.get("/ledger")
-def ledger():
-    with get_db() as conn:
-        return {"entries": [], "revenue": 0, "expenses": 0, "profit": 0}
-
-
-@router.post("/ledger")
-def add_ledger(body: dict):
-    return {"ok": True}
 
 
 @router.get("/reports/ageing")
 def report_ageing():
     with get_db() as conn:
-        from backend.database import fetch_one
         row = fetch_one(
             conn,
             """SELECT
-                 COALESCE(SUM(CASE WHEN julianday('now')-julianday(due_date)>=90
-                   THEN remaining_amount ELSE 0 END),0) AS d90,
-                 COALESCE(SUM(CASE WHEN julianday('now')-julianday(due_date)>=60
-                   AND julianday('now')-julianday(due_date)<90 THEN remaining_amount ELSE 0 END),0) AS d60,
-                 COALESCE(SUM(CASE WHEN julianday('now')-julianday(due_date)>=30
-                   AND julianday('now')-julianday(due_date)<60 THEN remaining_amount ELSE 0 END),0) AS d30
-               FROM installments WHERE status='overdue'""",
+                 COALESCE(SUM(CASE WHEN days BETWEEN 1 AND 30 THEN remaining_amount ELSE 0 END),0) AS d30,
+                 COALESCE(SUM(CASE WHEN days BETWEEN 31 AND 60 THEN remaining_amount ELSE 0 END),0) AS d60,
+                 COALESCE(SUM(CASE WHEN days > 60 THEN remaining_amount ELSE 0 END),0) AS d90
+               FROM (
+                 SELECT remaining_amount,
+                        CAST(julianday('now') - julianday(due_date) AS INTEGER) AS days
+                 FROM installments WHERE status='overdue' AND remaining_amount > 0
+               )""",
         )
         return row or {"d90": 0, "d60": 0, "d30": 0}
 

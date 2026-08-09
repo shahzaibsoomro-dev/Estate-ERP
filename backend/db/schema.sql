@@ -294,6 +294,17 @@ CREATE INDEX IF NOT EXISTS idx_installments_booking ON installments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_installments_due ON installments(due_date);
 CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_unit ON bookings(unit_id);
+CREATE TABLE IF NOT EXISTS ledger_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_date TEXT NOT NULL,
+    narration TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    direction TEXT NOT NULL,
+    category TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS site_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,

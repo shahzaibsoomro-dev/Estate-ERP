@@ -364,6 +364,16 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_site_logs_project ON site_logs(project_id);
         CREATE INDEX IF NOT EXISTS idx_site_logs_date ON site_logs(log_date);
+        CREATE TABLE IF NOT EXISTS ledger_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_date TEXT NOT NULL,
+            narration TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            direction TEXT NOT NULL,
+            category TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
         """
     )
 

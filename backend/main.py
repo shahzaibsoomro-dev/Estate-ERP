@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.config import STATIC_DIR
 from backend.db.seed import init_db
 from backend.routers import (
+    accounts,
     agents,
     bookings,
     budget,
@@ -44,7 +45,7 @@ app.add_middleware(
 
 for mod in (
     health, dashboard, projects, units, customers, bookings, payments,
-    recovery, vendors, budget, site_logs, agents, investors, settings, stubs,
+    recovery, vendors, budget, site_logs, accounts, agents, investors, settings, stubs,
 ):
     app.include_router(mod.router)
 

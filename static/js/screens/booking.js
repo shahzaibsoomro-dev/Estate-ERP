@@ -202,11 +202,11 @@ async function loadBookingProjects() {
 }
 
 async function loadBookingAgents() {
-  state.agents = await api('/api/agents');
+  state.agents = await api('/api/agents?active_only=true');
   if (!$('bk-agent')) return;
   $('bk-agent').innerHTML = '<option value="">None</option>' +
     (state.agents || []).map((a) =>
-      `<option value="${esc(a.name)}">${esc(a.name)}</option>`).join('');
+      `<option value="${a.id}">${esc(a.name)}</option>`).join('');
 }
 
 async function loadBookingUnits() {
@@ -630,7 +630,7 @@ export async function submitBooking() {
     base_sale_price: selectedUnit.base_sale_price || price,
     down_payment: dp,
     booking_amount: dp,
-    agent: $('bk-agent').value || 'None',
+    agent_id: parseInt($('bk-agent').value, 10) || null,
     payment_mode: 'Cheque',
     installments,
   };

@@ -9,8 +9,8 @@ const meta = {
   procurement: ['Procurement', 'Operations / Purchase'],
   vendors: ['Vendors', 'Operations / Vendors'],
   site: ['Site Management', 'Operations / Site'],
-  accounts: ['Accounts / GL', 'Finance / General Ledger'],
-  agents: ['Agent Commission', 'Finance / Commissions'],
+  accounts: ['Accounts', 'Finance / Cashbook'],
+  agents: ['Agents', 'Finance / Commissions'],
   reports: ['Reports', 'Finance / Reports'],
   portal: ['Customer Portal', 'Portal / Preview'],
 };
