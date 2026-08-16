@@ -53,7 +53,7 @@ function paintPortalCustomers() {
   const q = (selected && typed === (selected.name || '').toLowerCase()) ? '' : typed;
   const rows = portalCustomers.filter((c) => {
     if (!q) return true;
-    return [c.name, c.cnic, c.phone, c.father_name]
+    return [c.name, c.cnic, c.phone, c.father_name, c.nok_name, c.nok_phone, c.nok_cnic]
       .filter(Boolean).join(' ').toLowerCase().includes(q);
   });
   if (!rows.length) {
@@ -183,14 +183,20 @@ function renderPortal() {
   $('portal-sched').innerHTML = insts.length
     ? insts.map((i) => {
         const remaining = i.remaining_amount ?? Math.max((i.amount || 0) - (i.paid_amount || 0), 0);
-        const canPay = i.status !== 'paid' && i.status !== 'cancelled' && remaining > 0;
+        const canPay = !['paid', 'cancelled', 'scheduled'].includes(i.status) && remaining > 0;
+        const due = i.status === 'scheduled'
+          ? `Forecast ${esc(i.forecast_due_date || i.due_date || '—')}`
+          : esc(i.due_date || '—');
+        const type = i.trigger_kind === 'construction'
+          ? `${esc(i.trigger_label || i.type || 'Milestone')} @ ${i.trigger_progress ?? '—'}%`
+          : esc(i.type || '—');
         return `
       <tr>
-        <td>${esc(i.due_date || '—')}</td>
-        <td>${esc(i.type || '—')}</td>
+        <td>${due}</td>
+        <td>${type}</td>
         <td>${fmt(i.amount)}</td>
         <td class="td-green">${fmt(i.paid_amount || 0)}</td>
-        <td class="${remaining > 0 ? 'td-red' : 'td-green'}">${fmt(remaining)}</td>
+        <td class="${remaining > 0 && i.status !== 'scheduled' ? 'td-red' : 'td-green'}">${fmt(remaining)}</td>
         <td><span class="badge ${instStatusBadge(i.status)}">${esc(i.status)}</span></td>
         <td>${canPay ? `<button type="button" class="btn sm primary" data-portal-pay="${i.id}">Pay</button>` : ''}</td>
       </tr>`;

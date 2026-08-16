@@ -8,7 +8,7 @@ SCHEMA_VERSION = 2
 
 DEFAULT_SETTINGS = {
     "cancellation_forfeit_pct": "30",
-    "late_fee_pct": "5",
+    "late_fee_pct": "1",
     "default_agent_commission_pct": "2",
     "receipt_prefix": "RCP",
     "commission_on_booking": "true",

@@ -17,6 +17,7 @@ from backend.routers import (
     customers,
     dashboard,
     health,
+    holds,
     investors,
     payments,
     portal,
@@ -48,6 +49,7 @@ app.add_middleware(
 for mod in (
     health, dashboard, projects, units, customers, bookings, payments,
     recovery, vendors, budget, site_logs, accounts, agents, investors, settings, portal, audit, stubs,
+    holds,
 ):
     app.include_router(mod.router)
 

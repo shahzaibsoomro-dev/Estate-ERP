@@ -63,7 +63,8 @@ def record_payment(conn, data: dict) -> dict:
         insts = fetch_all(
             conn,
             """SELECT id, amount, paid_amount, remaining_amount FROM installments
-               WHERE booking_id=? AND status != 'cancelled' AND remaining_amount > 0
+               WHERE booking_id=? AND status NOT IN ('cancelled','scheduled')
+                 AND remaining_amount > 0
                ORDER BY due_date, installment_no""",
             (booking_id,),
         )

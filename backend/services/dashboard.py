@@ -28,6 +28,8 @@ def get_overdue_list(conn, project_ids: list[int] | None = None) -> list[dict]:
 
 
 def dashboard(conn, project_ids: list[int] | None = None) -> dict:
+    from backend.services import holds as holds_svc
+    holds_svc.expire_due_holds(conn)
     inst_svc.refresh_statuses(conn)
 
     unit_filt, unit_params = sql_in("project_id", project_ids)

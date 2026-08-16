@@ -13,6 +13,9 @@ let selectedCustomer = null;
 let selectedProject = null;
 let selectedUnit = null;
 let dpLast = 'amount';
+let planSource = 'custom';
+let activeTemplateMeta = null;
+let heldCustomerId = null;
 
 function todayISO() {
   const d = new Date();
@@ -193,7 +196,7 @@ async function loadBookingCustomers() {
   customerItems = state.allCustomers.map((c) => ({
     id: c.id,
     label: c.name,
-    search: `${c.name} ${c.cnic || ''} ${c.phone || ''} ${c.contact_number || ''}`,
+    search: `${c.name} ${c.cnic || ''} ${c.phone || ''} ${c.contact_number || ''} ${c.nok_name || ''} ${c.nok_phone || ''} ${c.nok_cnic || ''}`,
     data: c,
   }));
 }
@@ -246,6 +249,10 @@ function applyPendingUnit() {
 }
 
 function selectCustomer(id) {
+  if (heldCustomerId && id !== heldCustomerId) {
+    toast('This unit is on hold — only the held customer can book it', 'error');
+    return;
+  }
   const item = customerItems.find((c) => c.id === id);
   selectedCustomer = item?.data || null;
   if ($('bk-customer-q')) $('bk-customer-q').value = selectedCustomer?.name || '';
@@ -254,19 +261,110 @@ function selectCustomer(id) {
   updateBookingSummary();
 }
 
+async function maybeLoadProjectTemplate() {
+  if (!selectedProject?.id) return;
+  try {
+    const tmpl = await api(`/api/projects/${selectedProject.id}/installment-template`);
+    const hasRules = Array.isArray(tmpl?.rules) && tmpl.rules.length > 0 && tmpl.is_active !== 0;
+    if ($('bk-plan-source')) {
+      if (hasRules) {
+        $('bk-plan-source').value = 'template';
+        planSource = 'template';
+        activeTemplateMeta = tmpl;
+        await loadTemplatePlan();
+      } else {
+        $('bk-plan-source').value = 'custom';
+        planSource = 'custom';
+        activeTemplateMeta = null;
+        syncPlanSourceUi();
+      }
+    }
+  } catch {
+    planSource = 'custom';
+    syncPlanSourceUi();
+  }
+}
+
+function syncPlanSourceUi() {
+  planSource = $('bk-plan-source')?.value || 'custom';
+  const isTmpl = planSource === 'template';
+  if ($('bk-custom-tools')) $('bk-custom-tools').hidden = isTmpl;
+  if ($('btn-load-tmpl')) $('btn-load-tmpl').hidden = !isTmpl;
+  if ($('btn-add-inst')) $('btn-add-inst').hidden = isTmpl;
+  if ($('btn-add-inst-2')) $('btn-add-inst-2').hidden = isTmpl;
+  const hint = $('bk-tmpl-hint');
+  if (hint) {
+    if (isTmpl && activeTemplateMeta) {
+      hint.hidden = false;
+      hint.textContent = `Using template “${activeTemplateMeta.name || 'Construction plan'}” · rev ${activeTemplateMeta.revision || 1}. Manual edits switch to Custom.`;
+    } else if (isTmpl) {
+      hint.hidden = false;
+      hint.textContent = 'No active project template — save one on the project, or switch to Custom.';
+    } else {
+      hint.hidden = true;
+      hint.textContent = '';
+    }
+  }
+}
+
+async function loadTemplatePlan() {
+  if (!selectedProject?.id) {
+    toast('Select a project first', 'error');
+    return;
+  }
+  const price = salePrice();
+  const dp = dpAmount();
+  if (!price || dp >= price) {
+    toast('Enter sale price and booking amount below sale price to preview template', 'error');
+    return;
+  }
+  try {
+    const preview = await api(`/api/projects/${selectedProject.id}/installment-template/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ sale_price: price, booking_amount: dp }),
+    });
+    activeTemplateMeta = {
+      id: preview.template_id,
+      name: preview.template_name,
+      revision: preview.template_revision,
+    };
+    planSource = 'template';
+    if ($('bk-plan-source')) $('bk-plan-source').value = 'template';
+    $('instRows').innerHTML = '';
+    (preview.installments || []).forEach((inst) => {
+      addInstRow({
+        amount: inst.amount,
+        due_date: inst.forecast_due_date || inst.due_date || '',
+        type: inst.label || inst.type || 'Stage',
+        notes: inst.trigger_kind === 'construction'
+          ? `Milestone @ ${inst.trigger_progress}% · scheduled until progress`
+          : (inst.notes || ''),
+        trigger_kind: inst.trigger_kind,
+        trigger_progress: inst.trigger_progress,
+        forecast_due_date: inst.forecast_due_date,
+        due_days_after_trigger: inst.due_days_after_trigger,
+        template_rule_id: inst.template_rule_id,
+        trigger_label: inst.trigger_label || inst.label,
+      });
+    });
+    syncPlanSourceUi();
+    toast(`Loaded ${preview.installments?.length || 0} template installments`);
+  } catch { /* toasted */ }
+}
+
 function selectProject(id) {
   const item = projectItems.find((p) => p.id === id);
   selectedProject = item?.data || null;
   if ($('bk-project-q')) $('bk-project-q').value = selectedProject?.name || '';
   hideList('bk-project');
-  if (selectedUnit && selectedProject && selectedUnit.project_id !== selectedProject.id) {
-    selectedUnit = null;
-    if ($('bk-unit-q')) $('bk-unit-q').value = '';
-  }
+  selectedUnit = null;
+  heldCustomerId = null;
+  if ($('bk-unit-q')) $('bk-unit-q').value = '';
   setUnitEnabled(!!selectedProject);
   paintUnits();
   updateSelectionDetails();
   updateBookingSummary();
+  maybeLoadProjectTemplate();
 }
 
 function selectUnit(id) {
@@ -275,6 +373,21 @@ function selectUnit(id) {
   if (selectedUnit) {
     if ($('bk-unit-q')) $('bk-unit-q').value = selectedUnit.unit_no;
     fillPricingFromUnit(selectedUnit);
+    const st = selectedUnit.raw_status || selectedUnit.status;
+    heldCustomerId = st === 'hold' ? (selectedUnit.hold_customer_id || null) : null;
+    if (heldCustomerId) {
+      selectCustomer(heldCustomerId);
+      toast('Held unit — token will apply to this booking; customer locked to holder');
+    }
+    if (selectedProject?.id !== selectedUnit.project_id) {
+      selectedProject = state.projects.find((p) => p.id === selectedUnit.project_id) || selectedProject;
+      if ($('bk-project-q')) $('bk-project-q').value = selectedProject?.name || '';
+      maybeLoadProjectTemplate();
+    } else if (planSource === 'template') {
+      loadTemplatePlan();
+    }
+  } else {
+    heldCustomerId = null;
   }
   hideList('bk-unit');
   updateSelectionDetails();
@@ -510,27 +623,39 @@ export function updateBookingSummary() {
 
 export function addInstRow(prefill = {}) {
   if (!$('instRows')) return;
+  const typeOpts = ['Booking', 'Monthly', 'Quarterly', 'Stage', 'Possession'];
+  if (prefill.type && !typeOpts.includes(prefill.type)) typeOpts.push(prefill.type);
   const r = document.createElement('div');
   r.className = 'inst-row';
+  r.dataset.triggerKind = prefill.trigger_kind || 'time';
+  if (prefill.trigger_progress != null) r.dataset.triggerProgress = String(prefill.trigger_progress);
+  if (prefill.forecast_due_date) r.dataset.forecast = prefill.forecast_due_date;
+  if (prefill.due_days_after_trigger != null) r.dataset.dueDays = String(prefill.due_days_after_trigger);
+  if (prefill.template_rule_id != null) r.dataset.ruleId = String(prefill.template_rule_id);
+  if (prefill.trigger_label) r.dataset.triggerLabel = prefill.trigger_label;
   r.innerHTML = `
     <input data-inst="amt" type="number" min="0" placeholder="Amount" value="${prefill.amount || ''}">
-    <input data-inst="date" type="date" value="${prefill.due_date || ''}">
+    <input data-inst="date" type="date" value="${prefill.due_date || prefill.forecast_due_date || ''}">
     <select data-inst="type">
-      <option${prefill.type === 'Booking' ? ' selected' : ''}>Booking</option>
-      <option${!prefill.type || prefill.type === 'Monthly' ? ' selected' : ''}>Monthly</option>
-      <option${prefill.type === 'Quarterly' ? ' selected' : ''}>Quarterly</option>
-      <option${prefill.type === 'Stage' ? ' selected' : ''}>Stage</option>
-      <option${prefill.type === 'Possession' ? ' selected' : ''}>Possession</option>
+      ${typeOpts.map((t) => `<option${(prefill.type || 'Monthly') === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}
     </select>
     <input data-inst="notes" type="text" placeholder="Notes" value="${esc(prefill.notes || '')}">
     <button type="button" class="del-btn" title="Remove">🗑</button>`;
+  const markCustom = () => {
+    if (planSource === 'template') {
+      planSource = 'custom';
+      if ($('bk-plan-source')) $('bk-plan-source').value = 'custom';
+      syncPlanSourceUi();
+    }
+  };
   r.querySelector('.del-btn').addEventListener('click', () => {
     r.remove();
+    markCustom();
     updateBookingSummary();
   });
   r.querySelectorAll('input, select').forEach((el) => {
-    el.addEventListener('input', updateBookingSummary);
-    el.addEventListener('change', updateBookingSummary);
+    el.addEventListener('input', () => { markCustom(); updateBookingSummary(); });
+    el.addEventListener('change', () => { markCustom(); updateBookingSummary(); });
   });
   $('instRows').appendChild(r);
   updateBookingSummary();
@@ -573,12 +698,17 @@ export async function resetBookingForm() {
   selectedProject = null;
   selectedUnit = null;
   dpLast = 'amount';
+  planSource = 'custom';
+  activeTemplateMeta = null;
+  heldCustomerId = null;
   ['bk-price', 'bk-dp', 'bk-dp-pct', 'bk-customer-q', 'bk-project-q', 'bk-unit-q'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
+  if ($('bk-plan-source')) $('bk-plan-source').value = 'custom';
   setUnitEnabled(false);
   hideAllLists();
   if ($('instRows')) $('instRows').innerHTML = '';
+  syncPlanSourceUi();
   updateSelectionDetails();
   await initBooking();
 }
@@ -590,7 +720,21 @@ function collectInstallments() {
     const due_date = row.querySelector('[data-inst="date"]')?.value;
     const type = row.querySelector('[data-inst="type"]')?.value || 'Monthly';
     const notes = row.querySelector('[data-inst="notes"]')?.value || '';
-    if (amount && due_date) rows.push({ amount, due_date, type, notes });
+    if (!amount) return;
+    const item = {
+      amount,
+      due_date: due_date || row.dataset.forecast || todayISO(),
+      type,
+      notes,
+      trigger_kind: row.dataset.triggerKind || 'time',
+      trigger_progress: row.dataset.triggerProgress ? parseInt(row.dataset.triggerProgress, 10) : null,
+      forecast_due_date: row.dataset.forecast || due_date || null,
+      due_days_after_trigger: row.dataset.dueDays ? parseInt(row.dataset.dueDays, 10) : 0,
+      template_rule_id: row.dataset.ruleId ? parseInt(row.dataset.ruleId, 10) : null,
+      trigger_label: row.dataset.triggerLabel || type,
+      label: type,
+    };
+    rows.push(item);
   });
   return rows;
 }
@@ -644,6 +788,10 @@ export async function submitBooking() {
     agent_id: parseInt($('bk-agent').value, 10) || null,
     payment_mode: 'Cheque',
     installments,
+    plan_source: planSource,
+    template_id: planSource === 'template' ? (activeTemplateMeta?.id || null) : null,
+    template_revision: planSource === 'template' ? (activeTemplateMeta?.revision || null) : null,
+    template_name: planSource === 'template' ? (activeTemplateMeta?.name || null) : null,
   };
 
   if (!await askConfirm(
@@ -740,7 +888,23 @@ export function initBookingEvents() {
   });
   $('btn-add-inst')?.addEventListener('click', () => addInstRow());
   $('btn-add-inst-2')?.addEventListener('click', () => addInstRow());
-  $('btn-gen-plan')?.addEventListener('click', generatePlan);
+  $('btn-gen-plan')?.addEventListener('click', () => {
+    planSource = 'custom';
+    if ($('bk-plan-source')) $('bk-plan-source').value = 'custom';
+    syncPlanSourceUi();
+    generatePlan();
+  });
+  $('bk-plan-source')?.addEventListener('change', () => {
+    syncPlanSourceUi();
+    if (planSource === 'template') loadTemplatePlan();
+  });
+  $('btn-load-tmpl')?.addEventListener('click', loadTemplatePlan);
+  $('bk-price')?.addEventListener('change', () => {
+    if (planSource === 'template') loadTemplatePlan();
+  });
+  $('bk-dp')?.addEventListener('change', () => {
+    if (planSource === 'template') loadTemplatePlan();
+  });
   $('btn-reset-booking')?.addEventListener('click', resetBookingForm);
   $('btn-submit-booking')?.addEventListener('click', submitBooking);
 }

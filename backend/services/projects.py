@@ -162,4 +162,10 @@ def update_project(conn, project_id: int, data: dict) -> dict | None:
         return get_project(conn, project_id)
     values.append(project_id)
     conn.execute(f"UPDATE projects SET {', '.join(fields)} WHERE id=?", values)
+    if "current_progress" in data and data["current_progress"] is not None:
+        from backend.services import installment_templates as tmpl_svc
+        from datetime import date
+        tmpl_svc.activate_milestones_for_project(
+            conn, project_id, data["current_progress"], date.today().isoformat(),
+        )
     return get_project(conn, project_id)

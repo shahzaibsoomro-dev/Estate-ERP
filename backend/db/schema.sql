@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS customers (
     contact_number TEXT,
     emergency_contact_number TEXT,
     email TEXT,
+    nok_name TEXT,
+    nok_relationship TEXT,
+    nok_phone TEXT,
+    nok_cnic TEXT,
+    nok_address TEXT,
     created_at TEXT DEFAULT (date('now'))
 );
 
@@ -94,6 +99,10 @@ CREATE TABLE IF NOT EXISTS bookings (
     status TEXT DEFAULT 'active',
     payment_mode TEXT DEFAULT 'Cheque',
     notes TEXT,
+    plan_source TEXT DEFAULT 'custom',
+    template_id INTEGER,
+    template_revision INTEGER,
+    template_name TEXT,
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (unit_id) REFERENCES units(id),
     FOREIGN KEY (project_id) REFERENCES projects(id),
@@ -113,6 +122,13 @@ CREATE TABLE IF NOT EXISTS installments (
     type TEXT DEFAULT 'Monthly',
     notes TEXT,
     status TEXT DEFAULT 'pending',
+    trigger_kind TEXT DEFAULT 'time',
+    trigger_progress INTEGER,
+    forecast_due_date TEXT,
+    activated_at TEXT,
+    trigger_label TEXT,
+    template_rule_id INTEGER,
+    due_days_after_trigger INTEGER DEFAULT 0,
     FOREIGN KEY (booking_id) REFERENCES bookings(id),
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (unit_id) REFERENCES units(id)
@@ -335,3 +351,96 @@ CREATE INDEX IF NOT EXISTS idx_po_vendor ON purchase_orders(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_po_project ON purchase_orders(project_id);
 CREATE INDEX IF NOT EXISTS idx_site_logs_project ON site_logs(project_id);
 CREATE INDEX IF NOT EXISTS idx_site_logs_date ON site_logs(log_date);
+
+CREATE TABLE IF NOT EXISTS unit_holds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_id INTEGER NOT NULL,
+    customer_id INTEGER,
+    hold_until TEXT,
+    notes TEXT,
+    status TEXT DEFAULT 'active',
+    token_amount INTEGER DEFAULT 0,
+    held_at TEXT DEFAULT (date('now')),
+    released_at TEXT,
+    release_reason TEXT,
+    converted_booking_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (unit_id) REFERENCES units(id),
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (converted_booking_id) REFERENCES bookings(id)
+);
+
+CREATE TABLE IF NOT EXISTS hold_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hold_id INTEGER NOT NULL,
+    direction TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    txn_date TEXT NOT NULL,
+    payment_method TEXT DEFAULT 'Cash',
+    bank TEXT,
+    reference_number TEXT,
+    received_by TEXT DEFAULT 'Admin',
+    notes TEXT,
+    voucher_no TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (hold_id) REFERENCES unit_holds(id)
+);
+
+CREATE TABLE IF NOT EXISTS hold_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hold_id INTEGER NOT NULL,
+    receipt_no TEXT UNIQUE NOT NULL,
+    acknowledged_amount INTEGER NOT NULL DEFAULT 0,
+    transaction_id INTEGER,
+    issued_at TEXT DEFAULT (datetime('now')),
+    notes TEXT,
+    FOREIGN KEY (hold_id) REFERENCES unit_holds(id),
+    FOREIGN KEY (transaction_id) REFERENCES hold_transactions(id)
+);
+
+CREATE TABLE IF NOT EXISTS hold_token_applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hold_id INTEGER NOT NULL,
+    booking_id INTEGER NOT NULL,
+    payment_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    applied_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (hold_id) REFERENCES unit_holds(id),
+    FOREIGN KEY (booking_id) REFERENCES bookings(id),
+    FOREIGN KEY (payment_id) REFERENCES payments(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_installment_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    default_booking_bps INTEGER DEFAULT 1000,
+    revision INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_installment_template_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    trigger_kind TEXT NOT NULL DEFAULT 'construction',
+    amount_bps INTEGER NOT NULL,
+    installment_count INTEGER DEFAULT 1,
+    start_offset_months INTEGER DEFAULT 0,
+    interval_months INTEGER DEFAULT 1,
+    milestone_progress INTEGER,
+    forecast_due_date TEXT,
+    due_days_after_trigger INTEGER DEFAULT 0,
+    notes TEXT,
+    FOREIGN KEY (template_id) REFERENCES project_installment_templates(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_unit_holds_unit ON unit_holds(unit_id);
+CREATE INDEX IF NOT EXISTS idx_unit_holds_status ON unit_holds(status);
+CREATE INDEX IF NOT EXISTS idx_hold_tx_hold ON hold_transactions(hold_id);
+CREATE INDEX IF NOT EXISTS idx_pit_project ON project_installment_templates(project_id);
+CREATE INDEX IF NOT EXISTS idx_pitr_template ON project_installment_template_rules(template_id);

@@ -1,17 +1,18 @@
 # Gulberg Square simulation report
 
-Ran against `http://127.0.0.1:5051` on 2026-08-09. Backup: `db/haven.pre-sim.db` (exists).
+Ran against `http://127.0.0.1:5050` on 2026-08-16. Backup: `db/haven.pre-sim.db` (exists).
 
 ## 1. Wipe / keep / create
 
 - Kept Haven projects: **3** (ids [1, 2, 3]). Haven units/bookings/customer receipts untouched.
-- After wipe: projects=3, units=280, customers=44, bookings=45, vendors/agents/investors=0.
-- Haven customer receipts still in cashbook: PKR 44,080,000.
-- Created **Gulberg Square** (id 66): 8 shops + 24 flats + 2 penthouses = 34 units; 2 holds; 14 customers; 3 agents; 5 vendors; 3 investors; 4 budget lines.
+- After wipe: projects=3, units=280, customers=48, bookings=49, vendors/agents/investors=0.
+- Haven customer receipts still in cashbook: PKR 46,080,000.
+- Created **Gulberg Square** (id 84): 8 shops + 24 flats + 2 penthouses = 34 units; 2 holds; 14 customers; 3 agents; 5 vendors; 3 investors; 4 budget lines.
 
 ## 2. Narrative
 
-- 2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204, GS-G08)
+- 2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204 zero-token, GS-G08 token 500k), milestone template
+- 2025-02-05  Shahid Malik booked GS-105 on construction milestone template (all stages scheduled)
 - 2025-02-01  Investor capital in: Khawaja 15M, Crescent 20M, Metro 15M
 - 2025-02-10  Bilal Ahmed booked GS-G01 for PKR 22,000,000 (DP 2,200,000) direct
 - 2025-02-12  Hina Qureshi booked GS-101 for PKR 18,000,000 (DP 2,000,000) via malik
@@ -36,7 +37,7 @@ Ran against `http://127.0.0.1:5051` on 2026-08-09. Backup: `db/haven.pre-sim.db`
 
 ## 3. Expected vs actual
 
-**30/30 checks passed.**
+**40/40 checks passed.**
 
 | Check | Result | Expected | Actual | Notes |
 |---|---|---|---|---|
@@ -46,11 +47,21 @@ Ran against `http://127.0.0.1:5051` on 2026-08-09. Backup: `db/haven.pre-sim.db`
 | dashboard gulberg hold | PASS | 2 | 2 |  |
 | site progress last write | PASS | 72 | 72 |  |
 | cancelled installments stay cancelled after dashboard refresh | PASS | True | True | statuses=[{'status': 'cancelled', 'n': 10}, {'status': 'paid', 'n': 3}] |
-| transfer booking owner is Zainab | PASS | 153 | 153 |  |
+| transfer booking owner is Zainab | PASS | 200 | 200 |  |
 | transfer: Farah has no payment rows on moved booking | PASS | 0 | 0 |  |
 | transfer: Zainab owns payment rows | PASS | True | True | zainab_paid=29000000 |
-| cashbook inflow (company-wide) | PASS | 325684322 | 325684322 | includes leftover Haven customer receipts |
+| cashbook inflow (company-wide) | PASS | 330034322 | 330034322 | includes leftover Haven customer receipts + hold tokens |
 | cashbook outflow | PASS | 26593750 | 26593750 |  |
+| hold token cashbook inflow | PASS | 500000 | 500000 |  |
+| hold token cashbook outflow | PASS | 0 | 0 |  |
+| GS-105 has activated milestones after progress >=70% | PASS | True | True |  |
+| GS-105 still has later scheduled milestones | PASS | True | True |  |
+| scheduled milestones excluded from recovery overdue | PASS | True | True |  |
+| Bilal NOK name persisted | PASS | Ayesha Ahmed | Ayesha Ahmed |  |
+| Bilal father separate from NOK | PASS | Tariq Ahmed | Tariq Ahmed |  |
+| Bilal NOK searchable fields present | PASS | True | True |  |
+| GS-G08 still on hold with token history | PASS | hold | hold |  |
+| GS-G08 hold token amount 500k | PASS | 500000 | 500000 |  |
 | dashboard payable == vendor balances + agent unpaid | PASS | 2966750 | 2966750 | vendor_bal=1650000 agent_unpaid=1316750 |
 | agent unpaid excludes reversed commissions | PASS | 1316750 | 1316750 | reversed_rows=1 |
 | budget finishing actual excludes cancelled 1M paint PO | PASS | 3000000 | 3000000 |  |
@@ -73,15 +84,15 @@ Ran against `http://127.0.0.1:5051` on 2026-08-09. Backup: `db/haven.pre-sim.db`
 
 ### Snapshot
 
-- Gulberg inventory: 34 total / 23 available / 2 hold / 7 booked / 2 delivered. Progress 72%.
-- Cashbook in PKR 325,684,322 / out PKR 26,593,750 / net PKR 299,090,572.
+- Gulberg inventory: 34 total / 22 available / 2 hold / 8 booked / 2 delivered. Progress 72%.
+- Cashbook in PKR 330,034,322 / out PKR 26,593,750 / net PKR 303,440,572.
 - Vendor payable PKR 21,800,000 paid PKR 20,150,000 balance PKR 1,650,000. Agent unpaid PKR 1,316,750. Dashboard payable PKR 2,966,750.
-- Gulberg receivable (dashboard filter) PKR 36,862,344.
-- Ageing report: `{'d30': 1870000, 'd60': 0, 'd90': 87262344, 'items': 71}`.
+- Gulberg receivable (dashboard filter) PKR 48,517,344.
+- Ageing report: `{'d30': 2210000, 'd60': 0, 'd90': 98917344, 'items': 76}`.
 - Transfer paid rows: Farah PKR 0 vs Zainab PKR 29,000,000 (API paid PKR 29,000,000, outstanding PKR 0).
 - Nadia installment statuses after refresh: `[{'status': 'cancelled', 'n': 10}, {'status': 'paid', 'n': 3}]`.
 - Negative tests: `{"double_book": "blocked HTTP 400", "overpay": "blocked HTTP 400", "cancel_paid_po": "blocked HTTP 400", "poss_bilal": "ok", "poss_imran_owing": "ALLOWED (no outstanding check)", "del_investor_money": "blocked HTTP 400", "del_proj_sitelog": "blocked HTTP 400: Cannot delete project \u2014 1 site log(s). Remove them first."}`.
-- Cancel preview/result: `{'booking_id': 80, 'booking_no': 'BK-1066', 'unit_id': 440, 'total_paid': 4666666, 'forfeit_pct': 30.0, 'forfeit_amount': 600000, 'refund_amount': 4066666}` / `{'ok': True, 'booking_id': 80, 'total_paid': 4666666, 'forfeit_amount': 600000, 'refund_amount': 4066666, 'forfeit_pct': 30.0}`.
+- Cancel preview/result: `{'booking_id': 114, 'booking_no': 'BK-1085', 'unit_id': 523, 'total_paid': 4666666, 'forfeit_pct': 30.0, 'forfeit_amount': 600000, 'refund_amount': 4066666}` / `{'ok': True, 'booking_id': 114, 'total_paid': 4666666, 'forfeit_amount': 600000, 'refund_amount': 4066666, 'forfeit_pct': 30.0}`.
 
 ## 4. Data mapping / calculation / fit
 

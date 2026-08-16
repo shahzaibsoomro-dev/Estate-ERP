@@ -26,9 +26,14 @@ def _resolve_agent_id(conn, agent_name: str | None) -> int | None:
 
 
 def create_booking(conn, data: dict) -> dict:
+    from backend.services import holds as holds_svc
+    from backend.services import installment_templates as tmpl_svc
+
     unit = fetch_one(conn, "SELECT * FROM units WHERE id=?", (data["unit_id"],))
     if not unit:
         raise ValueError("Unit not found — register the unit first")
+    holds_svc.expire_due_holds(conn, unit_id=unit["id"])
+    unit = fetch_one(conn, "SELECT * FROM units WHERE id=?", (data["unit_id"],))
     if unit["status"] not in ("available", "hold"):
         raise ValueError(f"Unit is not available for booking (status: {unit['status']})")
 
@@ -40,6 +45,7 @@ def create_booking(conn, data: dict) -> dict:
     customer = fetch_one(conn, "SELECT id FROM customers WHERE id=?", (customer_id,))
     if not customer:
         raise ValueError("Customer not found — register the customer first")
+    holds_svc.assert_booking_customer_ok(conn, unit, customer_id)
 
     project_id = data.get("project_id") or unit["project_id"]
     if project_id != unit["project_id"]:
@@ -52,17 +58,44 @@ def create_booking(conn, data: dict) -> dict:
     sale_price = data["sale_price"]
     booking_amount = data.get("booking_amount") or data.get("down_payment") or 0
 
+    plan_source = (data.get("plan_source") or "custom").lower()
+    template_meta = {
+        "plan_source": plan_source,
+        "template_id": data.get("template_id"),
+        "template_revision": data.get("template_revision"),
+        "template_name": data.get("template_name"),
+    }
+    installments = data.get("installments") or []
+    if plan_source == "template":
+        preview = tmpl_svc.preview_for_booking(
+            conn, project_id, sale_price, booking_amount, data.get("template_id"),
+        )
+        installments = preview["installments"]
+        template_meta.update({
+            "template_id": preview["template_id"],
+            "template_revision": preview["template_revision"],
+            "template_name": preview["template_name"],
+            "plan_source": "template",
+        })
+    else:
+        template_meta["plan_source"] = "custom"
+
     cur = conn.execute(
         """INSERT INTO bookings(booking_no, customer_id, unit_id, project_id, agent_id,
            booking_date, base_sale_price, final_sale_price, booking_amount,
-           possession_date, status, payment_mode, notes)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           possession_date, status, payment_mode, notes,
+           plan_source, template_id, template_revision, template_name)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             booking_no, customer_id, data["unit_id"], project_id, agent_id,
             data.get("booking_date") or date.today().isoformat(),
             data.get("base_sale_price") or sale_price, sale_price, booking_amount,
             data.get("possession_date"), "active",
             data.get("payment_mode", "Cheque"), data.get("notes"),
+            template_meta.get("plan_source") or "custom",
+            template_meta.get("template_id"),
+            template_meta.get("template_revision"),
+            template_meta.get("template_name"),
         ),
     )
     booking_id = cur.lastrowid
@@ -72,17 +105,29 @@ def create_booking(conn, data: dict) -> dict:
         (sale_price, data["unit_id"]),
     )
 
-    installments = data.get("installments") or []
     for n, inst in enumerate(installments, 1):
-        amt = inst["amount"]
+        amt = int(inst["amount"])
+        trigger_kind = (inst.get("trigger_kind") or "time").lower()
+        status = "scheduled" if trigger_kind == "construction" else "pending"
+        due_date = inst.get("due_date") or inst.get("forecast_due_date") or date.today().isoformat()
         conn.execute(
             """INSERT INTO installments(booking_id, customer_id, unit_id, installment_no,
-               due_date, amount, paid_amount, remaining_amount, type, notes, status)
-               VALUES(?,?,?,?,?,?,0,?,?,?,?)""",
+               due_date, amount, paid_amount, remaining_amount, type, notes, status,
+               trigger_kind, trigger_progress, forecast_due_date, activated_at,
+               trigger_label, template_rule_id, due_days_after_trigger)
+               VALUES(?,?,?,?,?,?,0,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 booking_id, customer_id, data["unit_id"], n,
-                inst["due_date"], amt, amt, inst.get("type", "Monthly"),
-                inst.get("notes", ""), "pending",
+                due_date, amt, amt,
+                inst.get("type") or inst.get("label") or "Monthly",
+                inst.get("notes", ""), status,
+                trigger_kind,
+                inst.get("trigger_progress") or inst.get("milestone_progress"),
+                inst.get("forecast_due_date") or due_date,
+                None if status == "scheduled" else date.today().isoformat(),
+                inst.get("trigger_label") or inst.get("label"),
+                inst.get("template_rule_id"),
+                int(inst.get("due_days_after_trigger") or 0),
             ),
         )
 
@@ -97,6 +142,8 @@ def create_booking(conn, data: dict) -> dict:
                commission_amount, paid_amount, status) VALUES(?,?,?,?,0,'earned')""",
             (booking_id, agent_id, rate, commission),
         )
+
+    holds_svc.convert_hold_to_booking(conn, data["unit_id"], booking_id, customer_id)
 
     audit_svc.log(conn, "booking", booking_id, "created", {"booking_no": booking_no, "unit_id": data["unit_id"]})
     inst_svc.refresh_statuses(conn, booking_id)

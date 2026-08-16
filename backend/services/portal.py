@@ -31,7 +31,8 @@ def get_portal(conn, customer_id: int) -> dict | None:
     customer = fetch_one(
         conn,
         """SELECT id, name, father_name, cnic, contact_number AS phone,
-                  email, residential_address AS address
+                  email, residential_address AS address,
+                  nok_name, nok_relationship, nok_phone, nok_cnic, nok_address
            FROM customers WHERE id=?""",
         (customer_id,),
     )
@@ -57,7 +58,8 @@ def get_portal(conn, customer_id: int) -> dict | None:
         installments = fetch_all(
             conn,
             """SELECT id, installment_no, type, due_date, amount, paid_amount,
-                      remaining_amount, status
+                      remaining_amount, status, trigger_kind, trigger_progress,
+                      forecast_due_date, activated_at, trigger_label
                FROM installments WHERE booking_id=?
                ORDER BY installment_no, due_date""",
             (b["id"],),

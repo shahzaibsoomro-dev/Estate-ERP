@@ -125,6 +125,11 @@ export function customerDetailsHtml(c) {
           ${row('Emergency', c.emergency_contact_number)}
           ${row('Email', c.email)}
           ${row('Address', c.address || c.residential_address)}
+          ${row('NOK name', c.nok_name)}
+          ${row('NOK relationship', c.nok_relationship)}
+          ${row('NOK phone', c.nok_phone)}
+          ${row('NOK CNIC', c.nok_cnic)}
+          ${row('NOK address', c.nok_address)}
         </div>
         <div>
           ${row('Status', `<span class="badge ${customerStatusBadgeClass(status)}">${esc(status)}</span>`, true)}

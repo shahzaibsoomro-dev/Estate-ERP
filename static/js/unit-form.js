@@ -6,6 +6,14 @@ import { parseAttrList } from './detail.js';
 export const RESIDENTIAL_TYPES = [
   '2 Bed Lounge', '2 Bed DD', '3 Bed DD', '4 Bed', 'Studio', 'Penthouse',
 ];
+export const RESIDENTIAL_PRESETS = {
+  '2 Bed Lounge': { bedrooms: 2, bathrooms: 2 },
+  '2 Bed DD': { bedrooms: 2, bathrooms: 2 },
+  '3 Bed DD': { bedrooms: 3, bathrooms: 3 },
+  '4 Bed': { bedrooms: 4, bathrooms: 4 },
+  Studio: { bedrooms: 0, bathrooms: 1 },
+  Penthouse: { bedrooms: 4, bathrooms: 4 },
+};
 export const FURNISHING = ['Builder Condition', 'Semi Furnished', 'Fully Furnished'];
 export const UNIT_ATTRS = [
   'Corner', 'Road Facing', 'Park Facing', 'West Open', 'East Open', 'North Open', 'South Open',
@@ -29,6 +37,38 @@ function intOrNull(v) {
 function floatOrNull(v) {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function isDefaultBedBath(value) {
+  return value === '' || value == null || value === '0';
+}
+
+/** Apply residential-type bedroom/bathroom suggestions without overwriting manual edits. */
+export function applyResidentialPreset(root, typeValue, { force = false } = {}) {
+  const preset = RESIDENTIAL_PRESETS[typeValue];
+  if (!preset || !root) return;
+  const bed = root.querySelector('[data-f="bedrooms"]');
+  const bath = root.querySelector('[data-f="bathrooms"]');
+  if (bed && (force || (!bed.dataset.manual && isDefaultBedBath(bed.value)))) {
+    bed.value = String(preset.bedrooms);
+    delete bed.dataset.manual;
+  }
+  if (bath && (force || (!bath.dataset.manual && isDefaultBedBath(bath.value)))) {
+    bath.value = String(preset.bathrooms);
+    delete bath.dataset.manual;
+  }
+}
+
+export function bindResidentialPreset(root) {
+  if (!root || root.dataset.resPresetBound) return;
+  root.dataset.resPresetBound = '1';
+  const typeSel = root.querySelector('[data-f="residential_type"]');
+  const bed = root.querySelector('[data-f="bedrooms"]');
+  const bath = root.querySelector('[data-f="bathrooms"]');
+  bed?.addEventListener('input', () => { bed.dataset.manual = '1'; });
+  bath?.addEventListener('input', () => { bath.dataset.manual = '1'; });
+  typeSel?.addEventListener('change', () => applyResidentialPreset(root, typeSel.value));
+  if (typeSel?.value) applyResidentialPreset(root, typeSel.value);
 }
 
 /** Build unit form HTML (uses data-f field names). */
@@ -96,6 +136,7 @@ export function openUnitFormModal({ mode, projectId, unit = null, onSaved }) {
   formContext = { mode, projectId, unitId: unit?.id || null, onSaved };
   $('unit-form-title').textContent = mode === 'edit' ? `Edit Unit — ${unit?.unit_no || ''}` : 'Add Unit';
   $('uf-body').innerHTML = unitFormHtml(unit || {});
+  bindResidentialPreset($('uf-body'));
   openModal('unit-form-modal');
 }
 

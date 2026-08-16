@@ -984,6 +984,164 @@ try:
 except Exception as e:
     fail("project-unit lifecycle", str(e))
 
+print("\n=== Step 14b: Holds, milestones, NOK ===")
+try:
+    from backend.db.seed import ensure_additive_schema
+    ensure_additive_schema(conn)
+    conn.commit()
+
+    nok_c = post("/api/customers", {
+        "name": f"NOK Cust {SUFFIX}", "cnic": f"1{SUFFIX}-5555555-5",
+        "father_name": "Father Only",
+        "nok_name": "Kin Person", "nok_relationship": "Brother",
+        "nok_phone": "03001112222", "nok_cnic": f"1{SUFFIX}-6666666-6",
+        "nok_address": "NOK Street 1",
+    })
+    got = get(f"/api/customers/{nok_c['id']}")
+    if (got.get("nok_name") == "Kin Person" and got.get("father_name") == "Father Only"
+            and got.get("nok_phone") == "03001112222" and got.get("nok_cnic")
+            and got.get("nok_address") == "NOK Street 1"):
+        ok("NOK fields round-trip; father separate")
+    else:
+        fail("NOK round-trip", str({k: got.get(k) for k in (
+            "nok_name", "father_name", "nok_phone", "nok_cnic", "nok_address")}))
+
+    hp = post("/api/projects", {"name": f"HoldProj {SUFFIX}", "location": "Test", "status": "planning"})
+    put(f"/api/projects/{hp['id']}/installment-template", {
+        "name": "Test milestones",
+        "rules": [
+            {"label": "A", "amount_bps": 4000, "trigger_kind": "construction",
+             "milestone_progress": 20, "due_days_after_trigger": 5},
+            {"label": "B", "amount_bps": 6000, "trigger_kind": "construction",
+             "milestone_progress": 80, "due_days_after_trigger": 0},
+        ],
+    })
+    bad_ok, _ = expect_http_error(f"/api/projects/{hp['id']}/installment-template", "PUT", {
+        "name": "bad", "rules": [
+            {"label": "A", "amount_bps": 5000, "trigger_kind": "construction", "milestone_progress": 50},
+            {"label": "B", "amount_bps": 4000, "trigger_kind": "construction", "milestone_progress": 50},
+        ],
+    })
+    if bad_ok:
+        ok("reject non-unique / non-100% template rules")
+    else:
+        # may fail on unique or total — either is fine if 400
+        bad2_ok, _ = expect_http_error(f"/api/projects/{hp['id']}/installment-template", "PUT", {
+            "name": "bad2", "rules": [
+                {"label": "A", "amount_bps": 3000, "trigger_kind": "construction", "milestone_progress": 10},
+            ],
+        })
+        if bad2_ok:
+            ok("reject template percentages not totaling 100%")
+        else:
+            fail("template validation", "expected 400")
+
+    preview = post(f"/api/projects/{hp['id']}/installment-template/preview", {
+        "sale_price": 10_000_000, "booking_amount": 1_000_000,
+    })
+    amts = [i["amount"] for i in preview.get("installments") or []]
+    if sum(amts) == 9_000_000 and all(a > 0 for a in amts):
+        ok("template preview totals financed balance with positive amounts")
+    else:
+        fail("template preview", str(amts))
+
+    hu = post("/api/units", {
+        "project_id": hp["id"], "unit_no": f"H0-{SUFFIX}", "unit_type": "Flat",
+        "floor_number": 1, "base_sale_price": 10_000_000, "bedrooms": 2, "bathrooms": 2,
+        "residential_type": "2 Bed Lounge",
+    })
+    if hu.get("bedrooms") == 2 and hu.get("bathrooms") == 2:
+        ok("unit bedrooms/bathrooms persist")
+    else:
+        fail("bedrooms/bathrooms", str(hu)[:120])
+
+    zero_hold = post(f"/api/units/{hu['id']}/holds", {
+        "customer_id": nok_c["id"], "hold_until": "2099-01-01", "token_amount": 0,
+        "notes": "ack only",
+    })
+    if (zero_hold.get("receipt") or {}).get("acknowledged_amount") == 0:
+        ok("zero-token hold issues acknowledgement receipt")
+    else:
+        fail("zero-token receipt", str(zero_hold.get("receipt"))[:160])
+    ledger0 = get("/api/accounts/cashbook") if False else None
+    # release zero hold
+    post(f"/api/holds/{zero_hold['hold']['id']}/release", {"reason": "verify release"})
+
+    hu2 = post("/api/units", {
+        "project_id": hp["id"], "unit_no": f"H1-{SUFFIX}", "unit_type": "Flat",
+        "floor_number": 1, "base_sale_price": 10_000_000,
+    })
+    before_cb = get("/api/ledger")
+    before_in = before_cb.get("inflow") or 0
+    tok_hold = post(f"/api/units/{hu2['id']}/holds", {
+        "customer_id": nok_c["id"], "token_amount": 250_000,
+        "receipt_date": "2026-08-01", "payment_method": "Cash",
+    })
+    after_hold = get("/api/ledger")
+    if (after_hold.get("inflow") or 0) - before_in == 250_000:
+        ok("positive hold token posts cashbook inflow once")
+    else:
+        fail("hold token inflow", f"before={before_in} after={after_hold.get('inflow')}")
+
+    # convert hold → booking with template
+    bk = post("/api/bookings", {
+        "unit_id": hu2["id"], "project_id": hp["id"], "customer_id": nok_c["id"],
+        "sale_price": 10_000_000, "booking_amount": 1_000_000,
+        "plan_source": "template", "installments": [],
+    })
+    after_bk = get("/api/ledger")
+    # applied token payment must not increase cashbook again
+    if (after_bk.get("inflow") or 0) == (after_hold.get("inflow") or 0):
+        ok("hold token application does not double-count cashbook inflow")
+    else:
+        fail("token double-count", f"hold_in={after_hold.get('inflow')} after_bk={after_bk.get('inflow')}")
+
+    detail = get(f"/api/units/{hu2['id']}")
+    sched = [i for i in (detail.get("installments") or []) if i.get("status") == "scheduled"]
+    if len(sched) == 2:
+        ok("template booking creates scheduled milestones")
+    else:
+        fail("scheduled milestones", str([i.get("status") for i in detail.get("installments") or []]))
+
+    put(f"/api/projects/{hp['id']}", {"current_progress": 25})
+    detail2 = get(f"/api/units/{hu2['id']}")
+    statuses = [i.get("status") for i in (detail2.get("installments") or [])]
+    if statuses.count("pending") >= 1 and statuses.count("scheduled") >= 1:
+        ok("progress activates crossed milestones once")
+    else:
+        fail("milestone activation", str(statuses))
+    put(f"/api/projects/{hp['id']}", {"current_progress": 10})
+    detail3 = get(f"/api/units/{hu2['id']}")
+    statuses3 = [i.get("status") for i in (detail3.get("installments") or [])]
+    if statuses3.count("pending") >= 1:
+        ok("lowering progress does not deactivate milestones")
+    else:
+        fail("milestone deactivation guard", str(statuses3))
+
+    # cleanup: cancel booking then delete
+    post(f"/api/bookings/{bk['booking_id']}/cancel", {"reason": "verify cleanup"})
+    # release shouldn't be needed; unit available after cancel
+    try:
+        delete(f"/api/units/{hu['id']}")
+    except Exception:
+        pass
+    try:
+        delete(f"/api/units/{hu2['id']}")
+    except Exception:
+        pass
+    # may fail delete project if booking history — leave fixtures if needed
+    try:
+        delete(f"/api/projects/{hp['id']}")
+    except Exception:
+        ok("project kept due to booking history (expected)")
+    try:
+        delete(f"/api/customers/{nok_c['id']}")
+    except Exception:
+        ok("customer kept due to booking history (expected)")
+    ok("holds/milestones/NOK verification path completed")
+except Exception as e:
+    fail("holds/milestones/NOK", str(e))
+
 print("\n=== Step 14: Audit log ===")
 audit_count = conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
 if audit_count > 0:

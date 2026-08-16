@@ -16,7 +16,33 @@ def list_cashbook(conn) -> dict:
                   p.amount AS inflow, 0 AS outflow, 'customer' AS source, NULL AS id
            FROM payments p
            JOIN customers c ON c.id=p.customer_id
-           LEFT JOIN bookings b ON b.id=p.booking_id""",
+           LEFT JOIN bookings b ON b.id=p.booking_id
+           WHERE NOT EXISTS (
+             SELECT 1 FROM hold_token_applications hta WHERE hta.payment_id=p.id
+           )""",
+    )
+    hold_in = fetch_all(
+        conn,
+        """SELECT ht.id AS source_id, ht.txn_date AS entry_date,
+                  'Hold token · ' || COALESCE(c.name,'Customer') || ' · ' || u.unit_no AS narration,
+                  ht.amount AS inflow, 0 AS outflow, 'hold' AS source, NULL AS id
+           FROM hold_transactions ht
+           JOIN unit_holds h ON h.id=ht.hold_id
+           JOIN units u ON u.id=h.unit_id
+           LEFT JOIN customers c ON c.id=h.customer_id
+           WHERE ht.direction='in' AND ht.amount > 0""",
+    )
+    hold_out = fetch_all(
+        conn,
+        """SELECT ht.id AS source_id, ht.txn_date AS entry_date,
+                  'Hold refund · ' || COALESCE(c.name,'Customer') || ' · ' || u.unit_no
+                    || COALESCE(' · ' || ht.voucher_no,'') AS narration,
+                  0 AS inflow, ht.amount AS outflow, 'hold' AS source, NULL AS id
+           FROM hold_transactions ht
+           JOIN unit_holds h ON h.id=ht.hold_id
+           JOIN units u ON u.id=h.unit_id
+           LEFT JOIN customers c ON c.id=h.customer_id
+           WHERE ht.direction='refund' AND ht.amount > 0""",
     )
     vendor_out = fetch_all(
         conn,
@@ -64,7 +90,7 @@ def list_cashbook(conn) -> dict:
            FROM ledger_entries""",
     )
     rows = []
-    for group in (inflows, vendor_out, agent_out, inv_in, inv_out, manual):
+    for group in (inflows, hold_in, hold_out, vendor_out, agent_out, inv_in, inv_out, manual):
         rows.extend(group)
     rows.sort(key=lambda r: (r.get("entry_date") or "", r.get("source") or "", r.get("source_id") or 0))
     balance = 0

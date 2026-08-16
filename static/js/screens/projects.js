@@ -5,7 +5,7 @@ import { askConfirm } from '../dialog.js';
 import { openModal, closeModal } from '../modal.js';
 import { state } from '../state.js';
 import { goScreen } from '../nav.js';
-import { unitFormHtml, readUnitForm, openUnitFormModal } from '../unit-form.js';
+import { unitFormHtml, readUnitForm, openUnitFormModal, bindResidentialPreset } from '../unit-form.js';
 import { projectDetailsHtml } from '../detail.js';
 import { loadProjectFilterOptions } from '../project-filter.js';
 
@@ -203,14 +203,123 @@ function unitCardHtml(seq) {
 
 function resetProjectForm() {
   ['np-name', 'np-location', 'np-area', 'np-city', 'np-notes', 'np-units', 'np-floors',
-    'np-area-ghaz', 'np-cost', 'np-progress'].forEach((id) => {
+    'np-area-ghaz', 'np-cost', 'np-progress', 'np-tmpl-name'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
   if ($('np-status')) $('np-status').value = 'under_construction';
+  if ($('np-tmpl-enable')) $('np-tmpl-enable').value = '0';
   const today = new Date().toISOString().split('T')[0];
   if ($('np-start')) $('np-start').value = today;
   if ($('np-end')) $('np-end').value = '';
   $('np-attributes')?.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = false; });
+  resetTemplateRules();
+}
+
+function resetTemplateRules() {
+  const box = $('np-tmpl-rules');
+  if (!box) return;
+  box.innerHTML = '';
+  EXAMPLE_TMPL_RULES.forEach((r) => addTemplateRuleRow(r));
+  syncTemplateEnableUi();
+}
+
+const EXAMPLE_TMPL_RULES = [
+  { label: 'Foundation', amount_pct: 20, milestone_progress: 10, due_days_after_trigger: 7 },
+  { label: 'Structure 40%', amount_pct: 25, milestone_progress: 40, due_days_after_trigger: 7 },
+  { label: 'Structure 70%', amount_pct: 25, milestone_progress: 70, due_days_after_trigger: 7 },
+  { label: 'Finishing 90%', amount_pct: 20, milestone_progress: 90, due_days_after_trigger: 7 },
+  { label: 'Possession', amount_pct: 10, milestone_progress: 100, due_days_after_trigger: 0 },
+];
+
+function addTemplateRuleRow(data = {}) {
+  const box = $('np-tmpl-rules');
+  if (!box) return;
+  const row = document.createElement('div');
+  row.className = 'form-row tmpl-rule';
+  row.innerHTML = `
+    <div class="fg"><label>Label</label><input data-tr="label" type="text" value="${esc(data.label || '')}"></div>
+    <div class="fg"><label>% of financed</label><input data-tr="pct" type="number" min="0" max="100" step="0.01" value="${data.amount_pct ?? (data.amount_bps != null ? data.amount_bps / 100 : '')}"></div>
+    <div class="fg"><label>Progress %</label><input data-tr="progress" type="number" min="0" max="100" value="${data.milestone_progress ?? data.trigger_progress ?? ''}"></div>
+    <div class="fg"><label>Grace days</label><input data-tr="grace" type="number" min="0" value="${data.due_days_after_trigger ?? 0}"></div>
+    <div class="fg"><label>Forecast date</label><input data-tr="forecast" type="date" value="${esc(data.forecast_due_date || '')}"></div>
+    <div class="fg"><label>&nbsp;</label><button type="button" class="btn sm danger" data-tr-del>Remove</button></div>`;
+  row.querySelector('[data-tr-del]')?.addEventListener('click', () => row.remove());
+  box.appendChild(row);
+}
+
+function syncTemplateEnableUi() {
+  const on = $('np-tmpl-enable')?.value === '1';
+  if ($('np-tmpl-rules')) $('np-tmpl-rules').style.opacity = on ? '1' : '0.55';
+  if ($('btn-add-tmpl-rule')) $('btn-add-tmpl-rule').hidden = !on;
+  if ($('np-tmpl-name')) $('np-tmpl-name').disabled = !on;
+}
+
+function collectTemplatePayload() {
+  if ($('np-tmpl-enable')?.value !== '1') return null;
+  const rules = [];
+  $('np-tmpl-rules')?.querySelectorAll('.tmpl-rule').forEach((row) => {
+    const label = row.querySelector('[data-tr="label"]')?.value.trim();
+    const pct = parseFloat(row.querySelector('[data-tr="pct"]')?.value);
+    const progress = parseInt(row.querySelector('[data-tr="progress"]')?.value, 10);
+    const grace = parseInt(row.querySelector('[data-tr="grace"]')?.value, 10) || 0;
+    const forecast = row.querySelector('[data-tr="forecast"]')?.value || null;
+    if (!label || !Number.isFinite(pct)) return;
+    rules.push({
+      label,
+      amount_bps: Math.round(pct * 100),
+      trigger_kind: 'construction',
+      milestone_progress: Number.isFinite(progress) ? progress : null,
+      due_days_after_trigger: grace,
+      forecast_due_date: forecast,
+    });
+  });
+  if (!rules.length) {
+    toast('Add at least one template rule or disable the template', 'error');
+    return false;
+  }
+  return {
+    name: ($('np-tmpl-name')?.value || '').trim() || 'Construction installment plan',
+    default_booking_bps: 1000,
+    rules,
+  };
+}
+
+async function saveProjectTemplate(projectId) {
+  const tmpl = collectTemplatePayload();
+  if (tmpl === false) return false;
+  if (tmpl === null) {
+    try {
+      await api(`/api/projects/${projectId}/installment-template`, { method: 'DELETE' });
+    } catch { /* ignore if none */ }
+    return true;
+  }
+  await api(`/api/projects/${projectId}/installment-template`, {
+    method: 'PUT',
+    body: JSON.stringify(tmpl),
+  });
+  return true;
+}
+
+async function loadProjectTemplateIntoForm(projectId) {
+  resetTemplateRules();
+  if (!projectId) return;
+  try {
+    const tmpl = await api(`/api/projects/${projectId}/installment-template`);
+    if (!tmpl?.rules?.length || tmpl.is_active === 0) {
+      if ($('np-tmpl-enable')) $('np-tmpl-enable').value = '0';
+      syncTemplateEnableUi();
+      return;
+    }
+    if ($('np-tmpl-enable')) $('np-tmpl-enable').value = '1';
+    if ($('np-tmpl-name')) $('np-tmpl-name').value = tmpl.name || '';
+    const box = $('np-tmpl-rules');
+    if (box) box.innerHTML = '';
+    tmpl.rules.forEach((r) => addTemplateRuleRow(r));
+    syncTemplateEnableUi();
+  } catch {
+    if ($('np-tmpl-enable')) $('np-tmpl-enable').value = '0';
+    syncTemplateEnableUi();
+  }
 }
 
 function fillProjectForm(p) {
@@ -261,6 +370,7 @@ function addUnitRow() {
   const wrap = document.createElement('div');
   wrap.innerHTML = unitCardHtml(unitRowSeq);
   const card = wrap.firstElementChild;
+  bindResidentialPreset(card);
   card.querySelector('[data-remove-unit]')?.addEventListener('click', () => {
     const rows = $('np-units-list').querySelectorAll('[data-unit-row]');
     if (rows.length <= 1) {
@@ -310,6 +420,7 @@ export async function openProjectEditModal(projectId) {
   try {
     const p = await api(`/api/projects/${projectId}`);
     fillProjectForm(p);
+    await loadProjectTemplateIntoForm(projectId);
     setProjectFormMode('edit');
     openModal('proj-modal');
   } catch {
@@ -376,10 +487,12 @@ function collectUnitPayloads() {
 async function saveProjectEdit() {
   const payload = collectProjectPayload();
   if (!payload || !editProjectId) return;
+  if (collectTemplatePayload() === false) return;
   await api(`/api/projects/${editProjectId}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+  if (!(await saveProjectTemplate(editProjectId))) return;
   toast(`Project "${payload.name}" updated`);
   closeModal('proj-modal');
   editProjectId = null;
@@ -390,11 +503,13 @@ async function saveProjectEdit() {
 async function createProjectWithUnits(units) {
   const payload = collectProjectPayload();
   if (!payload) return;
+  if (collectTemplatePayload() === false) return;
 
   const created = await api('/api/projects', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  if (!(await saveProjectTemplate(created.id))) return;
 
   let createdCount = 0;
   for (const unit of units) {
@@ -435,4 +550,6 @@ export function initProjectEvents() {
   $('btn-onboard-finish')?.addEventListener('click', () => createProjectWithUnits(collectUnitPayloads()));
   $('btn-save-project')?.addEventListener('click', saveProjectEdit);
   $('btn-add-unit-row')?.addEventListener('click', addUnitRow);
+  $('btn-add-tmpl-rule')?.addEventListener('click', () => addTemplateRuleRow());
+  $('np-tmpl-enable')?.addEventListener('change', syncTemplateEnableUi);
 }

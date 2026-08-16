@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.database import get_db
+from backend.services import installment_templates as tmpl_svc
 from backend.services import projects as svc
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -76,5 +77,65 @@ def delete_project(project_id: int):
         try:
             svc.delete_project(conn, project_id)
             return {"ok": True}
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+
+class TemplateRule(BaseModel):
+    label: str
+    amount_bps: int
+    trigger_kind: str = "construction"
+    milestone_progress: int | None = None
+    trigger_progress: int | None = None
+    forecast_due_date: str | None = None
+    due_days_after_trigger: int = 0
+    installment_count: int = 1
+    start_offset_months: int = 0
+    interval_months: int = 1
+    notes: str | None = None
+
+
+class TemplateBody(BaseModel):
+    name: str = "Construction installment plan"
+    default_booking_bps: int = 1000
+    rules: list[TemplateRule]
+
+
+class TemplatePreviewBody(BaseModel):
+    sale_price: int
+    booking_amount: int = 0
+    template_id: int | None = None
+
+
+@router.get("/{project_id}/installment-template")
+def get_installment_template(project_id: int):
+    with get_db() as conn:
+        tmpl = tmpl_svc.get_active_template(conn, project_id)
+        return tmpl or {"rules": [], "is_active": 0}
+
+
+@router.put("/{project_id}/installment-template")
+def put_installment_template(project_id: int, body: TemplateBody):
+    with get_db() as conn:
+        try:
+            return tmpl_svc.save_template(conn, project_id, body.model_dump())
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+
+
+@router.delete("/{project_id}/installment-template")
+def delete_installment_template(project_id: int):
+    with get_db() as conn:
+        tmpl_svc.delete_active_template(conn, project_id)
+        return {"ok": True}
+
+
+@router.post("/{project_id}/installment-template/preview")
+def preview_installment_template(project_id: int, body: TemplatePreviewBody):
+    with get_db() as conn:
+        try:
+            return tmpl_svc.preview_plan(
+                conn, project_id, body.sale_price, body.booking_amount, body.template_id,
+            )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

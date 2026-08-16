@@ -242,7 +242,19 @@
           <button type="button" class="btn sm" id="btn-add-inst">+ Add Installment</button>
         </div>
         <div class="card-bd">
-          <div class="bk-plan-tools">
+          <div class="form-row" style="margin-bottom:10px">
+            <div class="fg"><label>Plan source</label>
+              <select id="bk-plan-source">
+                <option value="custom">Custom</option>
+                <option value="template">Project template</option>
+              </select>
+            </div>
+            <div class="fg"><label>&nbsp;</label>
+              <button type="button" class="btn" id="btn-load-tmpl" hidden>Load project template</button>
+            </div>
+          </div>
+          <div id="bk-tmpl-hint" class="bk-dsub" style="margin-bottom:8px" hidden></div>
+          <div class="bk-plan-tools" id="bk-custom-tools">
             <div class="fg"><label>Count</label><input id="bk-plan-count" type="number" min="1" max="120" value="12"></div>
             <div class="fg"><label>Frequency</label>
               <select id="bk-plan-freq">
@@ -256,7 +268,7 @@
             </div>
           </div>
           <div id="bk-plan-balance" class="bk-plan-balance" hidden></div>
-          <div class="inst-hd"><span>Amount</span><span>Due Date</span><span>Type</span><span>Notes</span><span></span></div>
+          <div class="inst-hd"><span>Amount</span><span>Due / Forecast</span><span>Type</span><span>Notes</span><span></span></div>
           <div id="instRows"></div>
           <button type="button" class="add-inst" id="btn-add-inst-2">+ Add Installment</button>
         </div>
@@ -661,6 +673,19 @@
             <label><input type="checkbox" value="commercial"> Commercial</label>
           </div>
         </div>
+        <div style="font-size:13px;font-weight:800;color:var(--navy);margin:18px 0 8px">Construction installment template (optional)</div>
+        <p style="font-size:12px;color:var(--g500);margin:0 0 10px">Percentages apply to financed balance (sale price − booking amount) and must total 100%.</p>
+        <div class="form-row">
+          <div class="fg"><label>Template name</label><input id="np-tmpl-name" type="text" placeholder="e.g. Standard construction plan"></div>
+          <div class="fg"><label>Enable template</label>
+            <select id="np-tmpl-enable">
+              <option value="0">No — bookers use custom plans</option>
+              <option value="1">Yes — default for bookings</option>
+            </select>
+          </div>
+        </div>
+        <div id="np-tmpl-rules"></div>
+        <button type="button" class="add-inst" id="btn-add-tmpl-rule">+ Add milestone rule</button>
       </div>
       <div id="onboard-step-2" class="onboard-panel" hidden>
         <div id="np-units-list"></div>
@@ -705,6 +730,16 @@
     </div>
     <div class="fg"><label>Residential address</label><textarea id="nc-address"></textarea></div>
     <div class="fg"><label>Description</label><textarea id="nc-description"></textarea></div>
+    <div style="font-size:12px;font-weight:800;color:var(--navy);margin:14px 0 8px">Next of kin (optional)</div>
+    <div class="form-row">
+      <div class="fg"><label>NOK name</label><input id="nc-nok-name" type="text"></div>
+      <div class="fg"><label>Relationship</label><input id="nc-nok-rel" type="text" placeholder="e.g. Spouse, Brother"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>NOK phone</label><input id="nc-nok-phone" type="text"></div>
+      <div class="fg"><label>NOK CNIC</label><input id="nc-nok-cnic" type="text" placeholder="XXXXX-XXXXXXX-X"></div>
+    </div>
+    <div class="fg"><label>NOK address</label><textarea id="nc-nok-address"></textarea></div>
     <div id="nc-computed" class="bk-dcard" style="margin-top:12px" hidden></div>
     <div id="nc-preview" class="bk-dcard" style="margin-top:12px" hidden></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
@@ -1091,18 +1126,45 @@
 </div>
 
 <div class="modal-bg" id="hold-modal">
-  <div class="modal" style="max-width:460px">
+  <div class="modal" style="max-width:520px">
     <div class="modal-title"><span id="hold-title">Hold unit</span><button type="button" class="modal-close" data-close-modal="hold-modal">✕</button></div>
     <input type="hidden" id="hold-unit-id" value="">
     <div id="hold-summary" class="bk-dcard" style="margin-bottom:12px"></div>
     <div class="fg"><label>Interested customer</label>
       <select id="hold-cust"><option value="">— none —</option></select>
     </div>
-    <div class="fg"><label>Hold until</label><input id="hold-until" type="date"></div>
+    <div class="form-row">
+      <div class="fg"><label>Hold until</label><input id="hold-until" type="date"></div>
+      <div class="fg"><label>Token amount (PKR)</label><input id="hold-token" type="number" min="0" value="0" placeholder="0 = acknowledgement only"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Receipt date</label><input id="hold-receipt-date" type="date"></div>
+      <div class="fg"><label>Method</label>
+        <select id="hold-method">
+          <option>Cash</option>
+          <option>Bank Transfer</option>
+          <option>Cheque</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Bank / reference</label><input id="hold-ref" type="text"></div>
+      <div class="fg"><label>Received by</label><input id="hold-received-by" type="text" value="Admin"></div>
+    </div>
     <div class="fg"><label>Notes</label><textarea id="hold-notes"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="hold-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-hold">Put on hold</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="hold-receipt-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title"><span>Hold receipt</span><button type="button" class="modal-close" data-close-modal="hold-receipt-modal">✕</button></div>
+    <div id="hold-receipt-body" class="bk-dcard"></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn primary" data-close-modal="hold-receipt-modal">Done</button>
     </div>
   </div>
 </div>
@@ -1146,6 +1208,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=sweep8"></script>
+<script type="module" src="/static/js/app.js?v=sweep9"></script>
 </body>
 </html>

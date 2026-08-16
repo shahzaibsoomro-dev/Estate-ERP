@@ -8,9 +8,17 @@ router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 class InstallmentRow(BaseModel):
     amount: int
-    due_date: str
+    due_date: str | None = None
     type: str = "Monthly"
     notes: str | None = None
+    label: str | None = None
+    trigger_kind: str | None = None
+    trigger_progress: int | None = None
+    milestone_progress: int | None = None
+    forecast_due_date: str | None = None
+    due_days_after_trigger: int | None = None
+    trigger_label: str | None = None
+    template_rule_id: int | None = None
 
 
 class CustomerInline(BaseModel):
@@ -36,6 +44,17 @@ class BookingCreate(BaseModel):
     agent_id: int | None = None
     payment_mode: str = "Cheque"
     installments: list[InstallmentRow] = []
+    plan_source: str | None = "custom"
+    template_id: int | None = None
+    template_revision: int | None = None
+    template_name: str | None = None
+
+
+class PlanPreviewBody(BaseModel):
+    project_id: int
+    sale_price: int
+    booking_amount: int = 0
+    template_id: int | None = None
 
 
 class CancelBody(BaseModel):
@@ -52,6 +71,18 @@ class TransferBody(BaseModel):
 def list_bookings(project_id: int | None = None):
     with get_db() as conn:
         return svc.list_bookings(conn, project_id)
+
+
+@router.post("/plan-preview")
+def plan_preview(body: PlanPreviewBody):
+    from backend.services import installment_templates as tmpl_svc
+    with get_db() as conn:
+        try:
+            return tmpl_svc.preview_plan(
+                conn, body.project_id, body.sale_price, body.booking_amount, body.template_id,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
 
 
 @router.post("")

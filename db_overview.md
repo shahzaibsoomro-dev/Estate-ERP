@@ -80,7 +80,6 @@ agents — NOT linked by FK (bookings.agent is free text)
 
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# New DB structure
 
 * optional field
 ** ask sharjeel bhai (for now add these fields as dummy)
@@ -256,6 +255,3 @@ Planned Amount
 Actual Spent
 Variance
 Status (Within Budget, Near Limit, Exceeded)
-
-
-

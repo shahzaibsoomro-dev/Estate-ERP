@@ -11,9 +11,12 @@ export function fmtShort(n) {
 }
 
 export function instStatusBadge(status) {
-  if (status === 'paid') return 'bg-green';
-  if (status === 'overdue') return 'bg-red';
-  if (status === 'partial') return 'bg-orange';
+  const s = String(status || '').toLowerCase();
+  if (s === 'paid') return 'bg-green';
+  if (s === 'overdue') return 'bg-red';
+  if (s === 'partial') return 'bg-orange';
+  if (s === 'scheduled') return 'bg-blue';
+  if (s === 'cancelled') return 'bg-grey';
   return 'bg-yellow';
 }
 

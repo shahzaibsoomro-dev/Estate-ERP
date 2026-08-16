@@ -3,8 +3,8 @@
     "before": {
       "projects": 4,
       "units": 314,
-      "customers": 58,
-      "bookings": 55,
+      "customers": 62,
+      "bookings": 60,
       "vendors": 5,
       "agents": 3,
       "investors": 3
@@ -13,12 +13,12 @@
       "projects": 3,
       "haven_projects": 3,
       "units": 280,
-      "customers": 44,
-      "bookings": 45,
+      "customers": 48,
+      "bookings": 49,
       "vendors": 0,
       "agents": 0,
       "investors": 0,
-      "haven_payments": 44080000,
+      "haven_payments": 46080000,
       "backup": "exists",
       "haven_ids": [
         1,
@@ -27,438 +27,449 @@
       ]
     }
   },
-  "project_id": 66,
+  "project_id": 84,
   "units": {
     "GS-G01": {
-      "id": 431,
+      "id": 514,
       "price": 22000000,
       "type": "Shop"
     },
     "GS-G02": {
-      "id": 432,
+      "id": 515,
       "price": 18500000,
       "type": "Shop"
     },
     "GS-G03": {
-      "id": 433,
+      "id": 516,
       "price": 25000000,
       "type": "Shop"
     },
     "GS-G04": {
-      "id": 434,
+      "id": 517,
       "price": 19800000,
       "type": "Shop"
     },
     "GS-G05": {
-      "id": 435,
+      "id": 518,
       "price": 30000000,
       "type": "Shop"
     },
     "GS-G06": {
-      "id": 436,
+      "id": 519,
       "price": 21000000,
       "type": "Shop"
     },
     "GS-G07": {
-      "id": 437,
+      "id": 520,
       "price": 24000000,
       "type": "Shop"
     },
     "GS-G08": {
-      "id": 438,
+      "id": 521,
       "price": 27500000,
       "type": "Shop"
     },
     "GS-101": {
-      "id": 439,
+      "id": 522,
       "price": 18050000,
       "type": "Flat"
     },
     "GS-102": {
-      "id": 440,
+      "id": 523,
       "price": 18100000,
       "type": "Flat"
     },
     "GS-103": {
-      "id": 441,
+      "id": 524,
       "price": 18150000,
       "type": "Flat"
     },
     "GS-104": {
-      "id": 442,
+      "id": 525,
       "price": 28200000,
       "type": "Flat"
     },
     "GS-105": {
-      "id": 443,
+      "id": 526,
       "price": 28250000,
       "type": "Flat"
     },
     "GS-106": {
-      "id": 444,
+      "id": 527,
       "price": 28300000,
       "type": "Flat"
     },
     "GS-201": {
-      "id": 445,
+      "id": 528,
       "price": 18550000,
       "type": "Flat"
     },
     "GS-202": {
-      "id": 446,
+      "id": 529,
       "price": 18600000,
       "type": "Flat"
     },
     "GS-203": {
-      "id": 447,
+      "id": 530,
       "price": 18650000,
       "type": "Flat"
     },
     "GS-204": {
-      "id": 448,
+      "id": 531,
       "price": 28700000,
       "type": "Flat"
     },
     "GS-205": {
-      "id": 449,
+      "id": 532,
       "price": 28750000,
       "type": "Flat"
     },
     "GS-206": {
-      "id": 450,
+      "id": 533,
       "price": 28800000,
       "type": "Flat"
     },
     "GS-301": {
-      "id": 451,
+      "id": 534,
       "price": 19050000,
       "type": "Flat"
     },
     "GS-302": {
-      "id": 452,
+      "id": 535,
       "price": 19100000,
       "type": "Flat"
     },
     "GS-303": {
-      "id": 453,
+      "id": 536,
       "price": 19150000,
       "type": "Flat"
     },
     "GS-304": {
-      "id": 454,
+      "id": 537,
       "price": 29200000,
       "type": "Flat"
     },
     "GS-305": {
-      "id": 455,
+      "id": 538,
       "price": 29250000,
       "type": "Flat"
     },
     "GS-306": {
-      "id": 456,
+      "id": 539,
       "price": 29300000,
       "type": "Flat"
     },
     "GS-401": {
-      "id": 457,
+      "id": 540,
       "price": 19550000,
       "type": "Flat"
     },
     "GS-402": {
-      "id": 458,
+      "id": 541,
       "price": 19600000,
       "type": "Flat"
     },
     "GS-403": {
-      "id": 459,
+      "id": 542,
       "price": 19650000,
       "type": "Flat"
     },
     "GS-404": {
-      "id": 460,
+      "id": 543,
       "price": 30200000,
       "type": "Flat"
     },
     "GS-405": {
-      "id": 461,
+      "id": 544,
       "price": 30250000,
       "type": "Flat"
     },
     "GS-406": {
-      "id": 462,
+      "id": 545,
       "price": 30300000,
       "type": "Flat"
     },
     "GS-PH1": {
-      "id": 463,
+      "id": 546,
       "price": 55000000,
       "type": "Flat"
     },
     "GS-PH2": {
-      "id": 464,
+      "id": 547,
       "price": 58000000,
       "type": "Flat"
     }
   },
   "customers": {
     "bilal": {
-      "id": 145,
+      "id": 192,
       "name": "Bilal Ahmed",
       "cnic": "37405-9900001-1"
     },
     "hina": {
-      "id": 146,
+      "id": 193,
       "name": "Hina Qureshi",
       "cnic": "37405-9900002-3"
     },
     "usman": {
-      "id": 147,
+      "id": 194,
       "name": "Usman Tariq",
       "cnic": "37405-9900003-5"
     },
     "saima": {
-      "id": 148,
+      "id": 195,
       "name": "Saima Riaz",
       "cnic": "37405-9900004-7"
     },
     "omar": {
-      "id": 149,
+      "id": 196,
       "name": "Omar Farooq",
       "cnic": "37405-9900005-9"
     },
     "nadia": {
-      "id": 150,
+      "id": 197,
       "name": "Nadia Sheikh",
       "cnic": "37405-9900006-1"
     },
     "kamal": {
-      "id": 151,
+      "id": 198,
       "name": "Kamal Hussain",
       "cnic": "37405-9900007-3"
     },
     "farah": {
-      "id": 152,
+      "id": 199,
       "name": "Farah Malik",
       "cnic": "37405-9900008-5"
     },
     "zainab": {
-      "id": 153,
+      "id": 200,
       "name": "Zainab Ali",
       "cnic": "37405-9900009-7"
     },
     "imran": {
-      "id": 154,
+      "id": 201,
       "name": "Imran Cheema",
       "cnic": "37405-9900010-9"
     },
     "rabia": {
-      "id": 155,
+      "id": 202,
       "name": "Rabia Noor",
       "cnic": "37405-9900011-1"
     },
     "shahid": {
-      "id": 156,
+      "id": 203,
       "name": "Shahid Mehmood",
       "cnic": "37405-9900012-3"
     },
     "asad": {
-      "id": 157,
+      "id": 204,
       "name": "Asad Javed",
       "cnic": "37405-9900013-5"
     },
     "tariq": {
-      "id": 158,
+      "id": 205,
       "name": "Tariq Nadeem",
       "cnic": "37405-9900014-7"
     }
   },
   "agents": {
     "malik": {
-      "id": 23,
+      "id": 33,
       "name": "Malik Brokers",
       "rate": 2.0
     },
     "horizon": {
-      "id": 24,
+      "id": 34,
       "name": "Horizon Realty",
       "rate": 2.5
     },
     "citylink": {
-      "id": 25,
+      "id": 35,
       "name": "City Link Associates",
       "rate": 1.5
     }
   },
   "vendors": {
     "steel": {
-      "id": 40,
+      "id": 56,
       "name": "Punjab Steel Works"
     },
     "elec": {
-      "id": 41,
+      "id": 57,
       "name": "Spark Electricals"
     },
     "paint": {
-      "id": 42,
+      "id": 58,
       "name": "ColorCraft Paints"
     },
     "plumb": {
-      "id": 43,
+      "id": 59,
       "name": "FlowLine Plumbing"
     },
     "tiles": {
-      "id": 44,
+      "id": 60,
       "name": "Royal Ceramics"
     }
   },
   "investors": {
     "khawaja": {
-      "id": 18,
+      "id": 28,
       "name": "Khawaja Capital",
       "agreed": 25000000,
       "type": "Monthly Return"
     },
     "crescent": {
-      "id": 19,
+      "id": 29,
       "name": "Crescent Holdings",
       "agreed": 40000000,
       "type": "Profit Sharing"
     },
     "metro": {
-      "id": 20,
+      "id": 30,
       "name": "Metro Seed Fund",
       "agreed": 15000000,
       "type": "Profit Sharing"
     }
   },
   "bookings": {
+    "shahid_m": {
+      "id": 109,
+      "unit": "GS-105",
+      "unit_id": 526,
+      "customer": "shahid",
+      "customer_id": 203,
+      "sale": 18500000,
+      "dp": 1850000,
+      "date": "2025-02-05",
+      "plan": "template"
+    },
     "bilal": {
-      "id": 76,
+      "id": 110,
       "unit": "GS-G01",
-      "unit_id": 431,
+      "unit_id": 514,
       "customer": "bilal",
-      "customer_id": 145,
+      "customer_id": 192,
       "sale": 22000000,
       "dp": 2200000,
       "agent": null,
       "date": "2025-02-10",
-      "receipt": "RCP-1068"
+      "receipt": "RCP-1265"
     },
     "hina": {
-      "id": 77,
+      "id": 111,
       "unit": "GS-101",
-      "unit_id": 439,
+      "unit_id": 522,
       "customer": "hina",
-      "customer_id": 146,
+      "customer_id": 193,
       "sale": 18000000,
       "dp": 2000000,
       "agent": "malik",
       "date": "2025-02-12",
-      "receipt": "RCP-1069"
+      "receipt": "RCP-1266"
     },
     "usman": {
-      "id": 78,
+      "id": 112,
       "unit": "GS-203",
-      "unit_id": 447,
+      "unit_id": 530,
       "customer": "usman",
-      "customer_id": 147,
+      "customer_id": 194,
       "sale": 28500000,
       "dp": 2000000,
       "agent": "horizon",
       "date": "2025-02-15",
-      "receipt": "RCP-1070"
+      "receipt": "RCP-1267"
     },
     "saima": {
-      "id": 79,
+      "id": 113,
       "unit": "GS-G03",
-      "unit_id": 433,
+      "unit_id": 516,
       "customer": "saima",
-      "customer_id": 148,
+      "customer_id": 195,
       "sale": 25000000,
       "dp": 1500000,
       "agent": "malik",
       "date": "2025-02-20",
-      "receipt": "RCP-1071"
+      "receipt": "RCP-1268"
     },
     "nadia": {
-      "id": 80,
+      "id": 114,
       "unit": "GS-102",
-      "unit_id": 440,
+      "unit_id": 523,
       "customer": "nadia",
-      "customer_id": 150,
+      "customer_id": 197,
       "sale": 18000000,
       "dp": 2000000,
       "agent": "horizon",
       "date": "2025-02-25",
-      "receipt": "RCP-1072"
+      "receipt": "RCP-1269"
     },
     "omar": {
-      "id": 81,
+      "id": 115,
       "unit": "GS-104",
-      "unit_id": 442,
+      "unit_id": 525,
       "customer": "omar",
-      "customer_id": 149,
+      "customer_id": 196,
       "sale": 18200000,
       "dp": 2000000,
       "agent": "citylink",
       "date": "2025-03-01",
-      "receipt": "RCP-1073"
+      "receipt": "RCP-1270"
     },
     "farah": {
-      "id": 82,
+      "id": 116,
       "unit": "GS-301",
-      "unit_id": 451,
+      "unit_id": 534,
       "customer": "farah",
-      "customer_id": 152,
+      "customer_id": 199,
       "sale": 29000000,
       "dp": 3000000,
       "agent": "malik",
       "date": "2025-03-05",
-      "receipt": "RCP-1074"
+      "receipt": "RCP-1271"
     },
     "imran": {
-      "id": 83,
+      "id": 117,
       "unit": "GS-PH1",
-      "unit_id": 463,
+      "unit_id": 546,
       "customer": "imran",
-      "customer_id": 154,
+      "customer_id": 201,
       "sale": 55000000,
       "dp": 8000000,
       "agent": "horizon",
       "date": "2025-03-10",
-      "receipt": "RCP-1075"
+      "receipt": "RCP-1272"
     },
     "rabia": {
-      "id": 84,
+      "id": 118,
       "unit": "GS-G05",
-      "unit_id": 435,
+      "unit_id": 518,
       "customer": "rabia",
-      "customer_id": 155,
+      "customer_id": 202,
       "sale": 30000000,
       "dp": 12000000,
       "agent": null,
       "date": "2025-03-12",
-      "receipt": "RCP-1076"
+      "receipt": "RCP-1273"
     },
     "kamal": {
-      "id": 85,
+      "id": 119,
       "unit": "GS-102",
-      "unit_id": 440,
+      "unit_id": 523,
       "customer": "kamal",
-      "customer_id": 151,
+      "customer_id": 198,
       "sale": 18000000,
       "dp": 2000000,
       "agent": "malik",
       "date": "2025-05-05",
-      "receipt": "RCP-1083"
+      "receipt": "RCP-1280"
     }
   },
   "pos": {
-    "steel": 22,
-    "elec": 23,
-    "paint": 24,
-    "plumb": 25,
-    "tiles": 26
+    "steel": 36,
+    "elec": 37,
+    "paint": 38,
+    "plumb": 39,
+    "tiles": 40
   },
   "budget_cats": {
     "Structural Steel": 1,
@@ -467,18 +478,21 @@
     "Tiles & Finishing": 5
   },
   "expected": {
-    "cust_in": 211504322,
+    "cust_in": 213354322,
     "vendor_out": 20150000,
     "agent_out": 2843750,
     "inv_in": 70000000,
     "inv_out": 3575000,
     "manual_in": 100000,
     "manual_out": 25000,
-    "haven_payments": 44080000,
+    "hold_in": 500000,
+    "hold_out": 0,
+    "haven_payments": 46080000,
     "unalloc_cust": 300000
   },
   "narrative": [
-    "2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204, GS-G08)",
+    "2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204 zero-token, GS-G08 token 500k), milestone template",
+    "2025-02-05  Shahid Malik booked GS-105 on construction milestone template (all stages scheduled)",
     "2025-02-01  Investor capital in: Khawaja 15M, Crescent 20M, Metro 15M",
     "2025-02-10  Bilal Ahmed booked GS-G01 for PKR 22,000,000 (DP 2,200,000) direct",
     "2025-02-12  Hina Qureshi booked GS-101 for PKR 18,000,000 (DP 2,000,000) via malik",
@@ -566,8 +580,8 @@
     },
     {
       "name": "transfer booking owner is Zainab",
-      "expected": 153,
-      "actual": 153,
+      "expected": 200,
+      "actual": 200,
       "pass": true,
       "sev": "high",
       "note": ""
@@ -590,16 +604,96 @@
     },
     {
       "name": "cashbook inflow (company-wide)",
-      "expected": 325684322,
-      "actual": 325684322,
+      "expected": 330034322,
+      "actual": 330034322,
       "pass": true,
       "sev": "high",
-      "note": "includes leftover Haven customer receipts"
+      "note": "includes leftover Haven customer receipts + hold tokens"
     },
     {
       "name": "cashbook outflow",
       "expected": 26593750,
       "actual": 26593750,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "hold token cashbook inflow",
+      "expected": 500000,
+      "actual": 500000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "hold token cashbook outflow",
+      "expected": 0,
+      "actual": 0,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-105 has activated milestones after progress >=70%",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-105 still has later scheduled milestones",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "med",
+      "note": ""
+    },
+    {
+      "name": "scheduled milestones excluded from recovery overdue",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "Bilal NOK name persisted",
+      "expected": "Ayesha Ahmed",
+      "actual": "Ayesha Ahmed",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "Bilal father separate from NOK",
+      "expected": "Tariq Ahmed",
+      "actual": "Tariq Ahmed",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "Bilal NOK searchable fields present",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-G08 still on hold with token history",
+      "expected": "hold",
+      "actual": "hold",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-G08 hold token amount 500k",
+      "expected": 500000,
+      "actual": 500000,
       "pass": true,
       "sev": "high",
       "note": ""
@@ -784,10 +878,70 @@
       "msg": "Audit still omits most CRUD and site logs (payments/bookings/money are logged)."
     }
   ],
+  "holds": {
+    "gs204": "zero-token",
+    "gsg08": {
+      "hold": {
+        "id": 27,
+        "unit_id": 521,
+        "customer_id": 204,
+        "hold_until": "2027-05-15",
+        "notes": "Price negotiation \u00b7 token received",
+        "status": "active",
+        "token_amount": 500000,
+        "held_at": "2025-01-15",
+        "released_at": null,
+        "release_reason": null,
+        "converted_booking_id": null,
+        "created_at": "2026-08-16 17:08:44",
+        "customer_name": "Asad Javed",
+        "unit_no": "GS-G08",
+        "project_name": "Gulberg Square"
+      },
+      "receipts": [
+        {
+          "id": 28,
+          "hold_id": 27,
+          "receipt_no": "RCP-1265",
+          "acknowledged_amount": 500000,
+          "transaction_id": 5,
+          "issued_at": "2026-08-16 17:08:44",
+          "notes": "Hold token receipt"
+        }
+      ],
+      "transactions": [
+        {
+          "id": 5,
+          "hold_id": 27,
+          "direction": "in",
+          "amount": 500000,
+          "txn_date": "2025-01-15",
+          "payment_method": "Cash",
+          "bank": null,
+          "reference_number": null,
+          "received_by": "Admin",
+          "notes": "Price negotiation \u00b7 token received",
+          "voucher_no": null,
+          "created_at": "2026-08-16 17:08:44"
+        }
+      ],
+      "applications": [],
+      "unapplied_token": 500000,
+      "receipt": {
+        "id": 28,
+        "hold_id": 27,
+        "receipt_no": "RCP-1265",
+        "acknowledged_amount": 500000,
+        "transaction_id": 5,
+        "issued_at": "2026-08-16 17:08:44",
+        "notes": "Hold token receipt"
+      }
+    }
+  },
   "cancel_preview": {
-    "booking_id": 80,
-    "booking_no": "BK-1066",
-    "unit_id": 440,
+    "booking_id": 114,
+    "booking_no": "BK-1085",
+    "unit_id": 523,
     "total_paid": 4666666,
     "forfeit_pct": 30.0,
     "forfeit_amount": 600000,
@@ -795,7 +949,7 @@
   },
   "cancel_result": {
     "ok": true,
-    "booking_id": 80,
+    "booking_id": 114,
     "total_paid": 4666666,
     "forfeit_amount": 600000,
     "refund_amount": 4066666,
@@ -914,27 +1068,27 @@
   "snapshot": {
     "gulberg_units": 34,
     "gulberg_hold": 2,
-    "gulberg_available": 23,
-    "gulberg_booked": 7,
+    "gulberg_available": 22,
+    "gulberg_booked": 8,
     "gulberg_delivered": 2,
     "dash_all_payable": 2966750,
-    "dash_g_receivable": 36862344,
-    "cash_in": 325684322,
+    "dash_g_receivable": 48517344,
+    "cash_in": 330034322,
     "cash_out": 26593750,
-    "cash_net": 299090572,
+    "cash_net": 303440572,
     "vendor_payable": 21800000,
     "vendor_paid": 20150000,
     "vendor_balance": 1650000,
     "agent_unpaid": 1316750,
     "ageing": {
-      "d30": 1870000,
+      "d30": 2210000,
       "d60": 0,
-      "d90": 87262344,
-      "items": 71
+      "d90": 98917344,
+      "items": 76
     },
     "budget": [
       {
-        "project_id": 66,
+        "project_id": 84,
         "project_name": "Gulberg Square",
         "category_id": 1,
         "category_name": "Structural Steel",
@@ -945,7 +1099,7 @@
         "status": "Exceeded"
       },
       {
-        "project_id": 66,
+        "project_id": 84,
         "project_name": "Gulberg Square",
         "category_id": 4,
         "category_name": "Electrical",
@@ -956,7 +1110,7 @@
         "status": "Near Limit"
       },
       {
-        "project_id": 66,
+        "project_id": 84,
         "project_name": "Gulberg Square",
         "category_id": 5,
         "category_name": "Tiles & Finishing",
@@ -967,7 +1121,7 @@
         "status": "Within Budget"
       },
       {
-        "project_id": 66,
+        "project_id": 84,
         "project_name": "Gulberg Square",
         "category_id": 8,
         "category_name": "Plumbing",

@@ -32,6 +32,13 @@ class StatusUpdate(BaseModel):
     hold_customer_id: int | None = None
     hold_until: str | None = None
     hold_notes: str | None = None
+    token_amount: int = 0
+    payment_method: str | None = None
+    method: str | None = None
+    bank: str | None = None
+    reference_number: str | None = None
+    received_by: str | None = None
+    receipt_date: str | None = None
 
 
 class PossessionBody(BaseModel):
@@ -99,10 +106,20 @@ def update_unit(unit_id: int, body: UnitUpdate):
 @router.put("/{unit_id}/status")
 def update_status(unit_id: int, body: StatusUpdate):
     with get_db() as conn:
-        u = svc.update_status(
-            conn, unit_id, body.status,
-            body.hold_customer_id, body.hold_until, body.hold_notes,
-        )
+        try:
+            u = svc.update_status(
+                conn, unit_id, body.status,
+                body.hold_customer_id, body.hold_until, body.hold_notes,
+                token_amount=body.token_amount,
+                payment_method=body.payment_method,
+                method=body.method,
+                bank=body.bank,
+                reference_number=body.reference_number,
+                received_by=body.received_by,
+                receipt_date=body.receipt_date,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         if not u:
             raise HTTPException(404, "Unit not found")
         return {"ok": True, "unit": u}

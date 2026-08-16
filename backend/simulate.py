@@ -108,8 +108,11 @@ def in_clause(ids):
 # ---------------------------------------------------------------------------
 
 def wipe() -> dict:
+    from backend.db.seed import ensure_additive_schema
     kind = backup_db()
     conn = db()
+    ensure_additive_schema(conn)
+    conn.commit()
     before = {
         "projects": q1(conn, "SELECT COUNT(*) n FROM projects")["n"],
         "units": q1(conn, "SELECT COUNT(*) n FROM units")["n"],
@@ -134,11 +137,18 @@ def wipe() -> dict:
         pay_ids = _ids(f"SELECT id FROM payments WHERE booking_id IN ({bp})", bparams)
         if pay_ids:
             pp, pparams = in_clause(pay_ids)
+            conn.execute(f"DELETE FROM hold_token_applications WHERE payment_id IN ({pp})", pparams)
             conn.execute(f"DELETE FROM receipts WHERE payment_id IN ({pp})", pparams)
+        conn.execute(f"DELETE FROM hold_token_applications WHERE booking_id IN ({bp})", bparams)
         conn.execute(f"DELETE FROM payments WHERE booking_id IN ({bp})", bparams)
         conn.execute(f"DELETE FROM installments WHERE booking_id IN ({bp})", bparams)
         conn.execute(f"DELETE FROM booking_cancellations WHERE booking_id IN ({bp})", bparams)
         conn.execute(f"DELETE FROM booking_transfers WHERE booking_id IN ({bp})", bparams)
+        # Clear converted_booking_id before deleting bookings
+        conn.execute(
+            f"UPDATE unit_holds SET converted_booking_id=NULL WHERE converted_booking_id IN ({bp})",
+            bparams,
+        )
         comm_ids = _ids(f"SELECT id FROM agent_commissions WHERE booking_id IN ({bp})", bparams)
         if comm_ids:
             cp, cparams = in_clause(comm_ids)
@@ -148,6 +158,25 @@ def wipe() -> dict:
 
     if non:
         ph, pparams = in_clause(non)
+        unit_ids = _ids(f"SELECT id FROM units WHERE project_id IN ({ph})", pparams)
+        if unit_ids:
+            uh, uhparams = in_clause(unit_ids)
+            hold_ids = _ids(f"SELECT id FROM unit_holds WHERE unit_id IN ({uh})", uhparams)
+            if hold_ids:
+                hh, hparams = in_clause(hold_ids)
+                conn.execute(f"DELETE FROM hold_token_applications WHERE hold_id IN ({hh})", hparams)
+                conn.execute(f"DELETE FROM hold_receipts WHERE hold_id IN ({hh})", hparams)
+                conn.execute(f"DELETE FROM hold_transactions WHERE hold_id IN ({hh})", hparams)
+                conn.execute(f"DELETE FROM unit_holds WHERE id IN ({hh})", hparams)
+        tmpl_ids = _ids(
+            f"SELECT id FROM project_installment_templates WHERE project_id IN ({ph})", pparams
+        )
+        if tmpl_ids:
+            th, tparams = in_clause(tmpl_ids)
+            conn.execute(
+                f"DELETE FROM project_installment_template_rules WHERE template_id IN ({th})", tparams
+            )
+            conn.execute(f"DELETE FROM project_installment_templates WHERE id IN ({th})", tparams)
         conn.execute(f"DELETE FROM site_logs WHERE project_id IN ({ph})", pparams)
         po_ids = _ids(f"SELECT id FROM purchase_orders WHERE project_id IN ({ph})", pparams)
         if po_ids:
@@ -158,6 +187,21 @@ def wipe() -> dict:
         conn.execute(f"DELETE FROM units WHERE project_id IN ({ph})", pparams)
         conn.execute(f"UPDATE investor_agreements SET project_id=NULL WHERE project_id IN ({ph})", pparams)
         conn.execute(f"DELETE FROM projects WHERE id IN ({ph})", pparams)
+
+    # Orphan hold cleanup (Haven units may keep holds)
+    conn.execute(
+        """DELETE FROM hold_token_applications WHERE hold_id IN (
+             SELECT id FROM unit_holds WHERE unit_id NOT IN (SELECT id FROM units))"""
+    )
+    conn.execute(
+        """DELETE FROM hold_receipts WHERE hold_id IN (
+             SELECT id FROM unit_holds WHERE unit_id NOT IN (SELECT id FROM units))"""
+    )
+    conn.execute(
+        """DELETE FROM hold_transactions WHERE hold_id IN (
+             SELECT id FROM unit_holds WHERE unit_id NOT IN (SELECT id FROM units))"""
+    )
+    conn.execute("DELETE FROM unit_holds WHERE unit_id NOT IN (SELECT id FROM units)")
 
     conn.execute("DELETE FROM vendor_payments")
     conn.execute("DELETE FROM purchase_orders")
@@ -176,6 +220,7 @@ def wipe() -> dict:
              SELECT customer_id FROM bookings
              UNION SELECT customer_id FROM payments WHERE customer_id IS NOT NULL
              UNION SELECT hold_customer_id FROM units WHERE hold_customer_id IS NOT NULL
+             UNION SELECT customer_id FROM unit_holds WHERE customer_id IS NOT NULL
              UNION SELECT from_customer_id FROM booking_transfers
              UNION SELECT to_customer_id FROM booking_transfers
              UNION SELECT customer_id FROM installments
@@ -247,7 +292,11 @@ def _unit_detail(unit_id):
 
 def _unpaid_insts(unit_id):
     d = _unit_detail(unit_id)
-    return d, [i for i in (d.get("installments") or []) if (i.get("remaining_amount") or 0) > 0]
+    return d, [
+        i for i in (d.get("installments") or [])
+        if (i.get("remaining_amount") or 0) > 0
+        and (i.get("status") or "") not in ("cancelled", "scheduled", "paid")
+    ]
 
 
 def _pay_due(unit_id, customer_id, booking_id, as_of, fraction=1.0, method="Cash"):
@@ -423,13 +472,20 @@ def build_world(state):
         ("tariq", "Tariq Nadeem", "Nadeem Akhtar", "37405-9900014-7", "0300-5110014"),
     ]
     for key, name, father, cnic, phone in customers:
-        c = post("/api/customers", {
+        payload = {
             "name": name, "father_name": father, "cnic": cnic, "phone": phone,
             "emergency_contact_number": "0300-5990000",
             "email": f"{key}.sim@example.com",
             "address": f"House {hash(key) % 90 + 10}, Block C, DHA Phase 5, Lahore",
             "description": f"Sim customer ({key})",
-        })
+        }
+        if key == "bilal":
+            payload.update({
+                "nok_name": "Ayesha Ahmed", "nok_relationship": "Spouse",
+                "nok_phone": "0300-5110099", "nok_cnic": "37405-9900099-1",
+                "nok_address": "Same as residential",
+            })
+        c = post("/api/customers", payload)
         state["customers"][key] = {"id": c["id"], "name": name, "cnic": cnic}
 
     cats = {c["name"]: c["id"] for c in get("/api/budget/categories")}
@@ -467,16 +523,48 @@ def build_world(state):
         })
         state["investors"][key] = {"id": inv["id"], "name": name, "agreed": agreed, "type": typ}
 
-    # holds
+    # holds — GS-204 zero-token legacy-style; GS-G08 with token receipt
     put(f"/api/units/{state['units']['GS-204']['id']}/status", {
         "status": "hold", "hold_customer_id": state["customers"]["shahid"]["id"],
-        "hold_until": "2025-06-30", "hold_notes": "Waiting for overseas remittance",
+        "hold_until": "2027-06-30", "hold_notes": "Waiting for overseas remittance",
+        "token_amount": 0,
     })
-    put(f"/api/units/{state['units']['GS-G08']['id']}/status", {
-        "status": "hold", "hold_customer_id": state["customers"]["asad"]["id"],
-        "hold_until": "2025-05-15", "hold_notes": "Price negotiation",
+    hold_tok = post(f"/api/units/{state['units']['GS-G08']['id']}/holds", {
+        "customer_id": state["customers"]["asad"]["id"],
+        "hold_until": "2027-05-15",
+        "notes": "Price negotiation · token received",
+        "token_amount": 500_000,
+        "receipt_date": "2025-01-15",
+        "payment_method": "Cash",
+        "received_by": "Admin",
     })
-    state["narrative"].append("2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204, GS-G08)")
+    state["holds"] = {
+        "gs204": "zero-token",
+        "gsg08": hold_tok,
+    }
+    state["expected"]["hold_in"] = 500_000
+    state["expected"]["hold_out"] = 0
+
+    # construction installment template for Gulberg
+    put(f"/api/projects/{pid}/installment-template", {
+        "name": "Gulberg construction milestones",
+        "default_booking_bps": 1000,
+        "rules": [
+            {"label": "Foundation", "amount_bps": 2000, "trigger_kind": "construction",
+             "milestone_progress": 10, "due_days_after_trigger": 7, "forecast_due_date": "2025-06-01"},
+            {"label": "Structure 40%", "amount_bps": 2500, "trigger_kind": "construction",
+             "milestone_progress": 40, "due_days_after_trigger": 7, "forecast_due_date": "2025-10-01"},
+            {"label": "Structure 70%", "amount_bps": 2500, "trigger_kind": "construction",
+             "milestone_progress": 70, "due_days_after_trigger": 7, "forecast_due_date": "2026-03-01"},
+            {"label": "Finishing 90%", "amount_bps": 2000, "trigger_kind": "construction",
+             "milestone_progress": 90, "due_days_after_trigger": 7, "forecast_due_date": "2026-07-01"},
+            {"label": "Possession", "amount_bps": 1000, "trigger_kind": "construction",
+             "milestone_progress": 100, "due_days_after_trigger": 0, "forecast_due_date": "2026-10-01"},
+        ],
+    })
+    state["narrative"].append(
+        "2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204 zero-token, GS-G08 token 500k), milestone template"
+    )
 
 
 def run_timeline(state):
@@ -492,6 +580,38 @@ def run_timeline(state):
         state["last_progress"] = prog
 
     site("2025-01-20", 8, "Site clearance and layout of podium grid")
+
+    # milestone template booking (scheduled until progress crosses thresholds)
+    tmpl_preview = post(f"/api/projects/{pid}/installment-template/preview", {
+        "sale_price": 18_500_000, "booking_amount": 1_850_000,
+    })
+    res = post("/api/bookings", {
+        "unit_id": state["units"]["GS-105"]["id"],
+        "project_id": pid,
+        "customer_id": state["customers"]["shahid"]["id"],
+        "booking_date": "2025-02-05",
+        "sale_price": 18_500_000,
+        "booking_amount": 1_850_000,
+        "plan_source": "template",
+        "template_id": tmpl_preview["template_id"],
+        "installments": [],
+    })
+    state["bookings"]["shahid_m"] = {
+        "id": res["booking_id"], "unit": "GS-105", "unit_id": state["units"]["GS-105"]["id"],
+        "customer": "shahid", "customer_id": state["customers"]["shahid"]["id"],
+        "sale": 18_500_000, "dp": 1_850_000, "date": "2025-02-05", "plan": "template",
+    }
+    # booking amount paid as normal (template milestones stay scheduled)
+    post("/api/payments", {
+        "booking_id": res["booking_id"],
+        "customer_id": state["customers"]["shahid"]["id"],
+        "amount": 1_850_000, "payment_date": "2025-02-05", "method": "Cheque",
+        "notes": "Booking amount for milestone plan",
+    })
+    exp["cust_in"] += 1_850_000
+    state["narrative"].append(
+        "2025-02-05  Shahid Malik booked GS-105 on construction milestone template (all stages scheduled)"
+    )
 
     # investors stage 1
     post(f"/api/investors/{state['investors']['khawaja']['id']}/contribute", {
@@ -896,6 +1016,7 @@ def new_state(wipe_info):
         "expected": {
             "cust_in": 0, "vendor_out": 0, "agent_out": 0,
             "inv_in": 0, "inv_out": 0, "manual_in": 0, "manual_out": 0,
+            "hold_in": 0, "hold_out": 0,
             "haven_payments": (wipe_info or {}).get("after", {}).get("haven_payments", 0),
             "unalloc_cust": 0,
         },
@@ -1019,15 +1140,49 @@ def run_assert(state):
     # cashbook
     inflow = ledger.get("inflow") or ledger.get("revenue") or 0
     outflow = ledger.get("outflow") or ledger.get("expenses") or 0
-    exp_in = exp["haven_payments"] + exp["cust_in"] + exp["inv_in"] + exp["manual_in"]
-    exp_out = exp["vendor_out"] + exp["agent_out"] + exp["inv_out"] + exp["manual_out"]
+    exp_in = (exp["haven_payments"] + exp["cust_in"] + exp["inv_in"] + exp["manual_in"]
+              + exp.get("hold_in", 0))
+    exp_out = (exp["vendor_out"] + exp["agent_out"] + exp["inv_out"] + exp["manual_out"]
+               + exp.get("hold_out", 0))
     _check_close(state, "cashbook inflow (company-wide)", exp_in, inflow,
-                 note="includes leftover Haven customer receipts")
+                 note="includes leftover Haven customer receipts + hold tokens")
     _check_close(state, "cashbook outflow", exp_out, outflow)
     state["ux_notes"].append({
         "sev": "med", "screen": "Accounts",
         "msg": "Cashbook is company-wide (now labelled in UI). Dashboard project filter will not match Accounts net cash.",
     })
+
+    # hold token accounting — inflow once, no double-count if later applied
+    hold_entries = [e for e in (ledger.get("entries") or []) if e.get("source") == "hold"]
+    hold_in_sum = sum(int(e.get("inflow") or 0) for e in hold_entries)
+    hold_out_sum = sum(int(e.get("outflow") or 0) for e in hold_entries)
+    _check_close(state, "hold token cashbook inflow", exp.get("hold_in", 0), hold_in_sum)
+    _check_close(state, "hold token cashbook outflow", exp.get("hold_out", 0), hold_out_sum)
+
+    # milestone template booking
+    sh = _unit_detail(state["units"]["GS-105"]["id"])
+    sched = [i for i in (sh.get("installments") or []) if i.get("status") == "scheduled"]
+    active_m = [i for i in (sh.get("installments") or []) if i.get("status") in ("pending", "partial", "overdue", "paid")]
+    _check(state, "GS-105 has activated milestones after progress >=70%", True, len(active_m) >= 3,
+           sev="high")
+    _check(state, "GS-105 still has later scheduled milestones", True, len(sched) >= 1, sev="med")
+    recv = get(f"/api/recovery?project_id={state['project_id']}")
+    recv_ids = {r.get("id") for r in (recv.get("overdue") or [])}
+    sched_ids = {i["id"] for i in sched}
+    _check(state, "scheduled milestones excluded from recovery overdue", True,
+           not (sched_ids & recv_ids), sev="high")
+
+    bilal = get(f"/api/customers/{state['customers']['bilal']['id']}")
+    _check(state, "Bilal NOK name persisted", "Ayesha Ahmed", bilal.get("nok_name"))
+    _check(state, "Bilal father separate from NOK", "Tariq Ahmed", bilal.get("father_name"))
+    _check(state, "Bilal NOK searchable fields present", True,
+           bool(bilal.get("nok_phone") and bilal.get("nok_cnic")))
+
+    g08 = _unit_detail(state["units"]["GS-G08"]["id"])
+    _check(state, "GS-G08 still on hold with token history", "hold",
+           (g08.get("unit") or {}).get("status") or (g08.get("unit") or {}).get("raw_status"))
+    hold_amt = ((g08.get("hold") or {}).get("hold") or {}).get("token_amount")
+    _check(state, "GS-G08 hold token amount 500k", 500_000, hold_amt)
 
     # vendors vs dashboard payable
     v_pay = sum(v.get("total_payable") or 0 for v in vendors.values())

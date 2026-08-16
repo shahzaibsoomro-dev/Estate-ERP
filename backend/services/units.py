@@ -47,6 +47,8 @@ def _map_unit(row: dict) -> dict:
 
 def list_units(conn, project_id: int | None = None, project_ids: list[int] | None = None,
                status: str | None = None, floor: int | None = None) -> list[dict]:
+    from backend.services import holds as holds_svc
+    holds_svc.expire_due_holds(conn)
     q = """SELECT u.*, p.name AS project_name FROM units u
            JOIN projects p ON p.id=u.project_id WHERE 1=1"""
     params: list = []
@@ -66,7 +68,23 @@ def list_units(conn, project_id: int | None = None, project_ids: list[int] | Non
         q += " AND u.floor_number=?"
         params.append(floor)
     q += " ORDER BY u.floor_number, u.id"
-    return [_map_unit(r) for r in fetch_all(conn, q, tuple(params))]
+    units = [_map_unit(r) for r in fetch_all(conn, q, tuple(params))]
+    for u in units:
+        if u.get("raw_status") == "hold" and not u.get("hold_customer_id"):
+            h = fetch_one(
+                conn,
+                """SELECT customer_id, hold_until, notes, token_amount, id
+                   FROM unit_holds WHERE unit_id=? AND status='active'
+                   ORDER BY id DESC LIMIT 1""",
+                (u["id"],),
+            )
+            if h:
+                u["hold_customer_id"] = h["customer_id"]
+                u["hold_until"] = h["hold_until"]
+                u["hold_notes"] = h["notes"]
+                u["hold_token_amount"] = h["token_amount"]
+                u["hold_id"] = h["id"]
+    return units
 
 
 def get_unit(conn, unit_id: int) -> dict | None:
@@ -80,6 +98,9 @@ def get_unit(conn, unit_id: int) -> dict | None:
 
 
 def get_unit_detail(conn, unit_id: int) -> dict | None:
+    from backend.services import holds as holds_svc
+
+    holds_svc.expire_due_holds(conn, unit_id=unit_id)
     unit = get_unit(conn, unit_id)
     if not unit:
         return None
@@ -87,7 +108,9 @@ def get_unit_detail(conn, unit_id: int) -> dict | None:
     booking = fetch_one(
         conn,
         """SELECT b.*, c.name AS customer_name, c.cnic, c.contact_number AS phone,
-           c.email, c.residential_address AS address, c.father_name AS nok_name
+           c.email, c.residential_address AS address,
+           c.nok_name, c.nok_relationship, c.nok_phone, c.nok_cnic, c.nok_address,
+           c.father_name
            FROM bookings b
            JOIN customers c ON c.id=b.customer_id
            WHERE b.unit_id=? AND b.status='active'
@@ -106,9 +129,12 @@ def get_unit_detail(conn, unit_id: int) -> dict | None:
         installments = inst_svc.list_for_booking(conn, booking["id"])
         payments = fetch_all(
             conn,
-            """SELECT py.*, i.type AS inst_type, i.due_date, r.receipt_no FROM payments py
+            """SELECT py.*, i.type AS inst_type, i.due_date, r.receipt_no,
+                      CASE WHEN hta.id IS NOT NULL THEN 1 ELSE 0 END AS from_hold_token
+               FROM payments py
                LEFT JOIN installments i ON i.id=py.installment_id
                LEFT JOIN receipts r ON r.payment_id=py.id
+               LEFT JOIN hold_token_applications hta ON hta.payment_id=py.id
                WHERE py.booking_id=? ORDER BY py.payment_date DESC""",
             (booking["id"],),
         )
@@ -121,11 +147,27 @@ def get_unit_detail(conn, unit_id: int) -> dict | None:
     outstanding = max(sale_price - total_paid, 0) if booking else 0
     pct = round(total_paid / sale_price * 100) if booking and sale_price else 0
 
+    active_hold = holds_svc.get_active_hold(conn, unit_id)
+    hold_info = None
+    if active_hold:
+        detail = holds_svc.hold_detail(conn, active_hold["id"])
+        hold_info = detail
+        # Mirror legacy fields on unit for UI
+        unit["hold_customer_id"] = active_hold.get("customer_id")
+        unit["hold_until"] = active_hold.get("hold_until")
+        unit["hold_notes"] = active_hold.get("notes")
+        unit["hold_token_amount"] = active_hold.get("token_amount")
+        unit["hold_id"] = active_hold.get("id")
+        if detail.get("receipt"):
+            unit["hold_receipt_no"] = detail["receipt"].get("receipt_no")
+
     return {
         "unit": unit,
         "booking": booking,
         "installments": installments,
         "payments": payments,
+        "hold": hold_info,
+        "hold_history": holds_svc.hold_history(conn, unit_id),
         "summary": {
             "sale_price": sale_price,
             "total_paid": total_paid,
@@ -164,10 +206,28 @@ def create_unit(conn, data: dict) -> dict:
 
 
 def update_status(conn, unit_id: int, status: str, hold_customer_id: int | None = None,
-                  hold_until: str | None = None, hold_notes: str | None = None) -> dict | None:
-    unit = fetch_one(conn, "SELECT id FROM units WHERE id=?", (unit_id,))
+                  hold_until: str | None = None, hold_notes: str | None = None,
+                  token_amount: int = 0, **extra) -> dict | None:
+    from backend.services import holds as holds_svc
+
+    unit = fetch_one(conn, "SELECT * FROM units WHERE id=?", (unit_id,))
     if not unit:
         return None
+    status = (status or "").lower()
+    if status == "hold":
+        holds_svc.create_hold(conn, unit_id, {
+            "customer_id": hold_customer_id,
+            "hold_until": hold_until,
+            "notes": hold_notes,
+            "token_amount": token_amount,
+            **extra,
+        })
+        return get_unit(conn, unit_id)
+    if status == "available" and unit["status"] == "hold":
+        active = holds_svc.get_active_hold(conn, unit_id)
+        if active:
+            holds_svc.release_hold(conn, active["id"], hold_notes or "Hold released")
+            return get_unit(conn, unit_id)
     conn.execute(
         """UPDATE units SET status=?, hold_customer_id=?, hold_until=?, hold_notes=?
            WHERE id=?""",
@@ -247,4 +307,17 @@ def delete_unit(conn, unit_id: int) -> None:
         raise ValueError("Cannot delete a unit that has booking history")
     if unit["status"] in ("sold", "booked", "possession_delivered"):
         raise ValueError("Cannot delete sold or booked units — cancel booking first")
+    if unit["status"] == "hold" or fetch_one(
+        conn, "SELECT id FROM unit_holds WHERE unit_id=? AND status='active' LIMIT 1", (unit_id,),
+    ):
+        raise ValueError("Cannot delete a unit on hold — release the hold first")
+    hold_ids = [
+        r["id"] for r in fetch_all(conn, "SELECT id FROM unit_holds WHERE unit_id=?", (unit_id,))
+    ]
+    for hid in hold_ids:
+        conn.execute("DELETE FROM hold_token_applications WHERE hold_id=?", (hid,))
+        conn.execute("DELETE FROM hold_receipts WHERE hold_id=?", (hid,))
+        conn.execute("DELETE FROM hold_transactions WHERE hold_id=?", (hid,))
+    if hold_ids:
+        conn.execute("DELETE FROM unit_holds WHERE unit_id=?", (unit_id,))
     conn.execute("DELETE FROM units WHERE id=?", (unit_id,))

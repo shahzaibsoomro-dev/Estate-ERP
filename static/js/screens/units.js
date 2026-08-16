@@ -262,8 +262,14 @@ export async function openUnit(uid) {
     const instRows = (d.installments || []).length
       ? d.installments.map((i) => {
           const canPay = b && ['pending', 'partial', 'overdue'].includes(i.status) && i.remaining_amount > 0;
+          const dueLabel = i.status === 'scheduled'
+            ? `Forecast ${esc(i.forecast_due_date || i.due_date || '—')}`
+            : esc(i.due_date);
+          const typeLabel = i.trigger_kind === 'construction'
+            ? `${esc(i.trigger_label || i.type || 'Milestone')} @ ${i.trigger_progress ?? '—'}%`
+            : esc(i.type);
           return `<tr>
-            <td>${esc(i.due_date)}</td><td>${esc(i.type)}</td>
+            <td>${dueLabel}</td><td>${typeLabel}</td>
             <td>${fmt(i.amount)}${i.remaining_amount < i.amount ? `<div class="td-sm">Due: ${fmt(i.remaining_amount)}</div>` : ''}</td>
             <td>${esc(i.notes || '—')}</td>
             <td><span class="badge ${instStatusBadge(i.status)}">${esc(i.status)}</span></td>
@@ -275,12 +281,13 @@ export async function openUnit(uid) {
     const payRows = (d.payments || []).length
       ? d.payments.map((p) => `
         <tr><td>${esc(p.paid_date)}</td><td>${esc(p.inst_type || '—')}</td>
-        <td class="td-green">${fmt(p.amount)}</td><td>${esc(p.method)}</td>
+        <td class="td-green">${fmt(p.amount)}</td>
+        <td>${esc(p.method)}${p.from_hold_token ? ' · hold token' : ''}</td>
         <td><span class="badge bg-green">${esc(p.receipt_no || '—')}</span></td></tr>`).join('')
       : '<tr><td colspan="5" style="text-align:center;color:var(--g400)">No payments recorded yet</td></tr>';
 
     $('um-body').innerHTML = b ? soldUnitHtml(u, b, s, instRows, payRows, displayStatus)
-      : availableUnitHtml(u, displayStatus);
+      : availableUnitHtml(u, displayStatus, d.hold, d.hold_history);
     $('um-body').scrollTop = 0;
 
     $('um-body').querySelectorAll('[data-pay]').forEach((btn) => {
@@ -404,17 +411,38 @@ function soldUnitHtml(u, b, s, instRows, payRows, displayStatus) {
     </div>`;
 }
 
-function availableUnitHtml(u, displayStatus) {
+function availableUnitHtml(u, displayStatus, holdDetail = null, holdHistory = []) {
   const isAvail = u.status === 'available' || displayStatus === 'available';
   const isHold = displayStatus === 'hold';
   const canManage = isAvail || isHold;
+  const h = holdDetail?.hold || null;
+  const receipt = holdDetail?.receipt || (holdDetail?.receipts || [])[0];
+  const holdBlock = isHold && h ? `
+    <div class="bk-dcard" style="margin:12px 0;text-align:left">
+      <div class="bk-dname">On hold</div>
+      <div class="sum-row"><span class="sum-lbl">Customer</span><span class="sum-val">${esc(h.customer_name || '—')}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Until</span><span class="sum-val">${esc(h.hold_until || '—')}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Token received</span><span class="sum-val">${fmt(h.token_amount || 0)}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Receipt</span><span class="sum-val">${esc(receipt?.receipt_no || u.hold_receipt_no || '—')}</span></div>
+      ${h.notes ? `<div class="sum-row"><span class="sum-lbl">Notes</span><span class="sum-val">${esc(h.notes)}</span></div>` : ''}
+      <div style="font-size:11px;color:var(--g500);margin-top:8px">Booking will use this customer and apply any unrefunded token once.</div>
+    </div>` : '';
+  const hist = (holdHistory || []).filter((x) => x.status !== 'active').slice(0, 3);
+  const histBlock = hist.length ? `
+    <div style="text-align:left;margin:8px 0 12px;font-size:12px;color:var(--g500)">
+      <div style="font-weight:700;margin-bottom:4px">Prior hold history</div>
+      ${hist.map((x) => `<div>${esc(x.status)} · token ${fmt(x.token_amount || 0)} · ${esc(x.customer_name || '—')}</div>`).join('')}
+    </div>` : '';
   return `
     ${unitDetailsHtml(u, displayStatus)}
+    ${holdBlock}
+    ${histBlock}
     <div style="text-align:center;padding:16px 0 4px;color:var(--g400)">
       ${canManage ? `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        ${isHold ? '<button class="btn primary" data-book-unit>📋 Book Held Unit</button>' : ''}
         ${isAvail ? '<button class="btn primary" data-book-unit>📋 Book This Unit</button>' : ''}
         ${isAvail ? '<button type="button" class="btn" data-hold-unit>Hold</button>' : ''}
-        ${isHold ? '<button type="button" class="btn" data-release-hold>Release hold</button>' : ''}
+        ${isHold ? '<button type="button" class="btn" data-release-hold>Release + Refund</button>' : ''}
         <button class="btn" data-edit-unit>✏️ Edit</button>
         <button class="btn danger" data-delete-unit>🗑 Delete</button>
       </div>` : ''}
@@ -428,6 +456,11 @@ async function openHoldModal(u) {
     <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(u.project_name || '—')}</span></div>`;
   if ($('hold-until')) $('hold-until').value = '';
   if ($('hold-notes')) $('hold-notes').value = u.hold_notes || '';
+  if ($('hold-token')) $('hold-token').value = '0';
+  if ($('hold-receipt-date')) $('hold-receipt-date').value = new Date().toISOString().slice(0, 10);
+  if ($('hold-method')) $('hold-method').value = 'Cash';
+  if ($('hold-ref')) $('hold-ref').value = '';
+  if ($('hold-received-by')) $('hold-received-by').value = 'Admin';
   try {
     const custs = await api('/api/customers');
     $('hold-cust').innerHTML = '<option value="">— none —</option>' + (custs || []).map((c) =>
@@ -439,35 +472,76 @@ async function openHoldModal(u) {
 }
 
 async function releaseHold(u) {
-  if (!await askConfirm(`Release hold on ${u.unit_no}?`, { title: 'Release hold', confirmLabel: 'Release' })) return;
+  const holdId = u.hold_id || (await api(`/api/units/${u.id}`))?.hold?.hold?.id;
+  if (!await askConfirm(`Release hold on ${u.unit_no}? Any unapplied token will be refunded automatically.`, {
+    title: 'Release + Refund', confirmLabel: 'Release',
+  })) return;
   try {
-    await api(`/api/units/${u.id}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status: 'available' }),
-    });
-    toast('Hold released');
+    if (holdId) {
+      const res = await api(`/api/holds/${holdId}/release`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Released from unit detail' }),
+      });
+      const refund = res?.refund;
+      toast(refund?.amount
+        ? `Hold released · refund ${fmt(refund.amount)} (${refund.voucher_no || refund.receipt_no})`
+        : 'Hold released');
+    } else {
+      await api(`/api/units/${u.id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'available' }),
+      });
+      toast('Hold released');
+    }
     await loadUnits();
     loadProjects();
     openUnit(u.id);
   } catch { /* toasted */ }
 }
 
+function showHoldReceipt(detail, unitNo) {
+  const receipt = detail?.receipt || (detail?.receipts || [])[0];
+  const hold = detail?.hold || {};
+  const amt = receipt?.acknowledged_amount ?? hold.token_amount ?? 0;
+  const body = $('hold-receipt-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="bk-dname">${esc(receipt?.receipt_no || '—')}</div>
+    <div class="bk-dsub">${esc(unitNo || '')}</div>
+    <div class="sum-row"><span class="sum-lbl">Customer</span><span class="sum-val">${esc(hold.customer_name || '—')}</span></div>
+    <div class="sum-row"><span class="sum-lbl">Acknowledged</span><span class="sum-val">${fmt(amt)}</span></div>
+    <div class="sum-row"><span class="sum-lbl">Hold until</span><span class="sum-val">${esc(hold.hold_until || '—')}</span></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--g500)">${esc(receipt?.notes || (amt > 0 ? 'Hold token receipt' : 'Hold acknowledgement — no money received'))}</div>`;
+  openModal('hold-receipt-modal');
+}
+
 async function saveHold() {
   const uid = parseInt($('hold-unit-id').value, 10);
   if (!uid) return;
   const cust = parseInt($('hold-cust').value, 10) || null;
+  const token = parseInt($('hold-token')?.value, 10) || 0;
+  if (token > 0 && !cust) {
+    toast('Positive token requires a registered customer', 'error');
+    return;
+  }
   try {
-    await api(`/api/units/${uid}/status`, {
-      method: 'PUT',
+    const detail = await api(`/api/units/${uid}/holds`, {
+      method: 'POST',
       body: JSON.stringify({
-        status: 'hold',
-        hold_customer_id: cust,
+        customer_id: cust,
         hold_until: $('hold-until')?.value || null,
-        hold_notes: ($('hold-notes')?.value || '').trim() || null,
+        notes: ($('hold-notes')?.value || '').trim() || null,
+        token_amount: token,
+        receipt_date: $('hold-receipt-date')?.value || null,
+        payment_method: $('hold-method')?.value || 'Cash',
+        bank: ($('hold-ref')?.value || '').trim() || null,
+        reference_number: ($('hold-ref')?.value || '').trim() || null,
+        received_by: ($('hold-received-by')?.value || '').trim() || 'Admin',
       }),
     });
     closeModal('hold-modal');
-    toast('Unit on hold');
+    showHoldReceipt(detail, detail?.hold?.unit_no || '');
+    toast(token > 0 ? 'Unit on hold · token receipt issued' : 'Unit on hold · acknowledgement issued');
     await loadUnits();
     loadProjects();
     openUnit(uid);

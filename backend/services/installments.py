@@ -18,7 +18,8 @@ def refresh_statuses(conn, booking_id: int | None = None):
         params,
     )
     for r in rows:
-        if (r.get("status") or "").lower() == "cancelled":
+        st = (r.get("status") or "").lower()
+        if st in ("cancelled", "scheduled"):
             continue
         paid = r["paid_amount"] or 0
         amount = r["amount"]

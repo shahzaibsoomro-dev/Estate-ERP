@@ -129,7 +129,8 @@ export async function openCustomerDetail(id) {
 }
 
 function resetCustomerForm() {
-  ['nc-id', 'nc-name', 'nc-cnic', 'nc-father', 'nc-phone', 'nc-emergency', 'nc-email', 'nc-address', 'nc-description']
+  ['nc-id', 'nc-name', 'nc-cnic', 'nc-father', 'nc-phone', 'nc-emergency', 'nc-email', 'nc-address', 'nc-description',
+    'nc-nok-name', 'nc-nok-rel', 'nc-nok-phone', 'nc-nok-cnic', 'nc-nok-address']
     .forEach((id) => { if ($(id)) $(id).value = ''; });
   if ($('cust-modal-title')) $('cust-modal-title').textContent = 'Add Customer';
   if ($('btn-save-customer')) $('btn-save-customer').textContent = 'Save Customer';
@@ -146,6 +147,11 @@ function fillCustomerForm(c) {
   $('nc-email').value = c.email || '';
   $('nc-address').value = c.address || c.residential_address || '';
   $('nc-description').value = c.description || '';
+  if ($('nc-nok-name')) $('nc-nok-name').value = c.nok_name || '';
+  if ($('nc-nok-rel')) $('nc-nok-rel').value = c.nok_relationship || '';
+  if ($('nc-nok-phone')) $('nc-nok-phone').value = c.nok_phone || '';
+  if ($('nc-nok-cnic')) $('nc-nok-cnic').value = c.nok_cnic || '';
+  if ($('nc-nok-address')) $('nc-nok-address').value = c.nok_address || '';
   const box = $('nc-computed');
   if (box) {
     box.hidden = false;
@@ -165,7 +171,7 @@ function paintCustomerPreview() {
   const box = $('nc-preview');
   if (!box) return;
   const p = readCustomerForm();
-  if (!p.name && !p.cnic && !p.phone && !p.father_name && !p.address) {
+  if (!p.name && !p.cnic && !p.phone && !p.father_name && !p.address && !p.nok_name) {
     box.hidden = true;
     box.innerHTML = '';
     return;
@@ -175,11 +181,14 @@ function paintCustomerPreview() {
     p.father_name ? `S/O ${p.father_name}` : '',
     p.cnic, p.phone, p.emergency_contact_number, p.email,
   ].filter(Boolean);
+  const nok = [p.nok_name, p.nok_relationship, p.nok_phone, p.nok_cnic].filter(Boolean).join(' · ');
   box.innerHTML = `
     <h4>Details preview</h4>
     <div class="bk-dname">${esc(p.name || 'New customer')}</div>
     ${bits.length ? `<div class="bk-dsub">${esc(bits.join(' · '))}</div>` : ''}
     ${p.address ? `<div class="bk-dsub" style="margin-top:6px">${esc(p.address)}</div>` : ''}
+    ${nok ? `<div class="bk-dsub" style="margin-top:6px">NOK: ${esc(nok)}</div>` : ''}
+    ${p.nok_address ? `<div class="bk-dsub">${esc(p.nok_address)}</div>` : ''}
     ${p.description ? `<div class="bk-dsub" style="margin-top:4px">${esc(p.description)}</div>` : ''}`;
 }
 
@@ -213,6 +222,11 @@ function readCustomerForm() {
     email: $('nc-email').value.trim(),
     address: $('nc-address').value.trim(),
     description: $('nc-description').value.trim(),
+    nok_name: ($('nc-nok-name')?.value || '').trim(),
+    nok_relationship: ($('nc-nok-rel')?.value || '').trim(),
+    nok_phone: ($('nc-nok-phone')?.value || '').trim(),
+    nok_cnic: ($('nc-nok-cnic')?.value || '').trim(),
+    nok_address: ($('nc-nok-address')?.value || '').trim(),
   };
 }
 
@@ -263,6 +277,7 @@ function filterCustomerRows(rows, q) {
     const blob = [
       c.name, c.cnic, c.phone, c.contact_number, c.email,
       c.father_name, c.address, c.residential_address, c.units,
+      c.nok_name, c.nok_phone, c.nok_cnic, c.nok_relationship,
     ].filter(Boolean).join(' ').toLowerCase();
     return blob.includes(s);
   });

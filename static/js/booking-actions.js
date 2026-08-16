@@ -134,7 +134,7 @@ function paintXferMenu() {
   const rows = xferCustomers.filter((c) => {
     if (xferExcludeId && c.id === xferExcludeId) return false;
     if (!q) return true;
-    return [c.name, c.cnic, c.phone, c.contact_number, c.father_name]
+    return [c.name, c.cnic, c.phone, c.contact_number, c.father_name, c.nok_name, c.nok_phone, c.nok_cnic]
       .filter(Boolean).join(' ').toLowerCase().includes(q);
   });
   if (!rows.length) {

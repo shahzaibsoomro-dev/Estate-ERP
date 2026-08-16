@@ -9,7 +9,7 @@ def _customer_status(conn, customer_id: int) -> str | None:
         """SELECT
              SUM(CASE WHEN status='overdue' THEN 1 ELSE 0 END) AS ov,
              SUM(CASE WHEN status IN ('pending','partial') THEN 1 ELSE 0 END) AS pe
-           FROM installments WHERE customer_id=? AND status != 'cancelled'""",
+           FROM installments WHERE customer_id=? AND status NOT IN ('cancelled','scheduled')""",
         (customer_id,),
     )
     if not row:
@@ -46,6 +46,11 @@ def normalize_customer_data(data: dict) -> dict:
         "phone": _clean(data.get("phone") or data.get("contact_number")),
         "emergency_contact_number": _clean(data.get("emergency_contact_number")),
         "email": _clean(data.get("email")),
+        "nok_name": _clean(data.get("nok_name")),
+        "nok_relationship": _clean(data.get("nok_relationship")),
+        "nok_phone": _clean(data.get("nok_phone")),
+        "nok_cnic": _clean(data.get("nok_cnic")),
+        "nok_address": _clean(data.get("nok_address")),
     }
 
 
@@ -115,12 +120,15 @@ def create_customer(conn, data: dict) -> dict:
         raise ValueError("CNIC already exists")
     cur = conn.execute(
         """INSERT INTO customers(name, father_name, description, residential_address,
-           cnic, contact_number, emergency_contact_number, email)
-           VALUES(?,?,?,?,?,?,?,?)""",
+           cnic, contact_number, emergency_contact_number, email,
+           nok_name, nok_relationship, nok_phone, nok_cnic, nok_address)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             payload["name"], payload["father_name"], payload["description"],
             payload["address"], payload["cnic"], payload["phone"],
             payload["emergency_contact_number"], payload["email"],
+            payload["nok_name"], payload["nok_relationship"], payload["nok_phone"],
+            payload["nok_cnic"], payload["nok_address"],
         ),
     )
     return enrich_customer(conn, fetch_one(conn, "SELECT * FROM customers WHERE id=?", (cur.lastrowid,)))
@@ -138,12 +146,15 @@ def update_customer(conn, customer_id: int, data: dict) -> dict | None:
         raise ValueError("CNIC already exists")
     conn.execute(
         """UPDATE customers SET name=?, father_name=?, description=?, residential_address=?,
-           cnic=?, contact_number=?, emergency_contact_number=?, email=?
+           cnic=?, contact_number=?, emergency_contact_number=?, email=?,
+           nok_name=?, nok_relationship=?, nok_phone=?, nok_cnic=?, nok_address=?
            WHERE id=?""",
         (
             payload["name"], payload["father_name"], payload["description"],
             payload["address"], payload["cnic"], payload["phone"],
-            payload["emergency_contact_number"], payload["email"], customer_id,
+            payload["emergency_contact_number"], payload["email"],
+            payload["nok_name"], payload["nok_relationship"], payload["nok_phone"],
+            payload["nok_cnic"], payload["nok_address"], customer_id,
         ),
     )
     return enrich_customer(conn, fetch_one(conn, "SELECT * FROM customers WHERE id=?", (customer_id,)))
@@ -158,8 +169,25 @@ def delete_customer(conn, customer_id: int) -> None:
     )
     if hold:
         raise ValueError(f"Cannot delete: customer is holding unit {hold['unit_no']}")
+    active_hold = fetch_one(
+        conn,
+        """SELECT u.unit_no FROM unit_holds h
+           JOIN units u ON u.id=h.unit_id
+           WHERE h.customer_id=? AND h.status='active' LIMIT 1""",
+        (customer_id,),
+    )
+    if active_hold:
+        raise ValueError(f"Cannot delete: customer is holding unit {active_hold['unit_no']}")
     if fetch_one(conn, "SELECT id FROM bookings WHERE customer_id=? LIMIT 1", (customer_id,)):
         raise ValueError("Cannot delete a customer with bookings")
     if fetch_one(conn, "SELECT id FROM payments WHERE customer_id=? LIMIT 1", (customer_id,)):
         raise ValueError("Cannot delete a customer with payment history")
+    if fetch_one(
+        conn,
+        """SELECT ht.id FROM hold_transactions ht
+           JOIN unit_holds h ON h.id=ht.hold_id
+           WHERE h.customer_id=? LIMIT 1""",
+        (customer_id,),
+    ):
+        raise ValueError("Cannot delete a customer with hold token history")
     conn.execute("DELETE FROM customers WHERE id=?", (customer_id,))

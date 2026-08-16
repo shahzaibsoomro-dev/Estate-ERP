@@ -15,6 +15,11 @@ class CustomerWrite(BaseModel):
     address: str | None = None
     emergency_contact_number: str | None = None
     description: str | None = None
+    nok_name: str | None = None
+    nok_relationship: str | None = None
+    nok_phone: str | None = None
+    nok_cnic: str | None = None
+    nok_address: str | None = None
 
 
 def _http_from_value_error(exc: ValueError) -> HTTPException:

@@ -71,6 +71,11 @@ def create_site_log(conn, data: dict) -> dict:
     if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
         raise ValueError("Project not found")
     _maybe_progress(conn, project_id, data.get("current_progress"))
+    if data.get("current_progress") not in (None, ""):
+        from backend.services import installment_templates as tmpl_svc
+        tmpl_svc.activate_milestones_for_project(
+            conn, project_id, data.get("current_progress"), log_date,
+        )
     cur = conn.execute(
         """INSERT INTO site_logs(project_id, log_date, engineer, workers_skilled,
            workers_unskilled, material_used, work_done)
@@ -99,6 +104,12 @@ def update_site_log(conn, log_id: int, data: dict) -> dict:
     if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
         raise ValueError("Project not found")
     _maybe_progress(conn, project_id, data.get("current_progress"))
+    if data.get("current_progress") not in (None, ""):
+        from backend.services import installment_templates as tmpl_svc
+        tmpl_svc.activate_milestones_for_project(
+            conn, project_id, data.get("current_progress"),
+            _clean(data.get("log_date")) or existing["log_date"],
+        )
     conn.execute(
         """UPDATE site_logs SET project_id=?, log_date=?, engineer=?, workers_skilled=?,
            workers_unskilled=?, material_used=?, work_done=? WHERE id=?""",
