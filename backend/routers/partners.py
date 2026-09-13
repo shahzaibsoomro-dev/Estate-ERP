@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.database import get_db
-from backend.services import investors as svc
+from backend.services import partners as svc
 
-router = APIRouter(prefix="/api/investors", tags=["investors"])
+router = APIRouter(prefix="/api/partners", tags=["partners"])
 
 
-class InvestorWrite(BaseModel):
+class PartnerWrite(BaseModel):
     name: str
     cnic: str | None = None
     mobile_number: str | None = None
@@ -14,7 +14,8 @@ class InvestorWrite(BaseModel):
     email: str | None = None
     description: str | None = None
     status: str | None = "active"
-    investor_type: str | None = None
+    partner_type: str | None = None
+    investor_type: str | None = None  # alias accepted from shared UI payloads
     return_type: str | None = None
     project_id: int | None = None
     agreed_amount: int | None = None
@@ -43,64 +44,64 @@ def _http(exc: ValueError) -> HTTPException:
 
 
 @router.get("")
-def list_investors():
+def list_partners():
     with get_db() as conn:
-        return svc.list_investors(conn)
+        return svc.list_partners(conn)
 
 
 @router.post("")
-def create_investor(body: InvestorWrite):
+def create_partner(body: PartnerWrite):
     with get_db() as conn:
         try:
-            return svc.create_investor(conn, body.model_dump())
+            return svc.create_partner(conn, body.model_dump())
         except ValueError as e:
             raise _http(e) from e
 
 
-@router.get("/{investor_id}")
-def get_investor(investor_id: int):
+@router.get("/{partner_id}")
+def get_partner(partner_id: int):
     with get_db() as conn:
-        inv = svc.get_investor(conn, investor_id)
-        if not inv:
-            raise HTTPException(404, "Investor not found")
-        return inv
+        partner = svc.get_partner(conn, partner_id)
+        if not partner:
+            raise HTTPException(404, "Partner not found")
+        return partner
 
 
-@router.put("/{investor_id}")
-def update_investor(investor_id: int, body: InvestorWrite):
+@router.put("/{partner_id}")
+def update_partner(partner_id: int, body: PartnerWrite):
     with get_db() as conn:
         try:
-            inv = svc.update_investor(conn, investor_id, body.model_dump())
+            partner = svc.update_partner(conn, partner_id, body.model_dump())
         except ValueError as e:
             raise _http(e) from e
-    if not inv:
-        raise HTTPException(404, "Investor not found")
-    return inv
+    if not partner:
+        raise HTTPException(404, "Partner not found")
+    return partner
 
 
-@router.delete("/{investor_id}")
-def delete_investor(investor_id: int):
+@router.delete("/{partner_id}")
+def delete_partner(partner_id: int):
     with get_db() as conn:
         try:
-            svc.delete_investor(conn, investor_id)
+            svc.delete_partner(conn, partner_id)
             return {"ok": True}
         except ValueError as e:
             raise _http(e) from e
 
 
-@router.post("/{investor_id}/contribute")
-def contribute(investor_id: int, body: MoneyBody):
+@router.post("/{partner_id}/contribute")
+def contribute(partner_id: int, body: MoneyBody):
     with get_db() as conn:
         try:
-            return svc.add_contribution(conn, investor_id, body.model_dump())
+            return svc.add_contribution(conn, partner_id, body.model_dump())
         except ValueError as e:
             raise _http(e) from e
 
 
-@router.post("/{investor_id}/distribute")
-def distribute(investor_id: int, body: MoneyBody):
+@router.post("/{partner_id}/distribute")
+def distribute(partner_id: int, body: MoneyBody):
     with get_db() as conn:
         try:
-            return svc.add_distribution(conn, investor_id, body.model_dump())
+            return svc.add_distribution(conn, partner_id, body.model_dump())
         except ValueError as e:
             raise _http(e) from e

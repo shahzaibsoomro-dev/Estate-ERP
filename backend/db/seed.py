@@ -328,13 +328,14 @@ def run_seed(conn: sqlite3.Connection) -> None:
     )
 
     agreements = [
-        (1, 1, "monthly_return", 50000000, "2023-06-01", 1.5, None, "active"),
-        (2, None, "profit_sharing", 80000000, "2024-01-15", None, 15.0, "active"),
+        (1, 1, "Monthly Return", 50000000, "2023-06-01", 1.5, None, "2024-01-01", "spread", 6, None, "active"),
+        (2, None, "Profit Sharing", 80000000, "2024-01-15", None, 15.0, "2024-07-01", "lump_sum", None, "quarterly", "active"),
     ]
     conn.executemany(
         """INSERT INTO investor_agreements(investor_id, project_id, investor_type,
-           investment_amount, investment_date, monthly_return_pct, profit_share_pct, status)
-           VALUES(?,?,?,?,?,?,?,?)""",
+           investment_amount, investment_date, monthly_return_pct, profit_share_pct,
+           returns_start_date, catch_up_policy, catch_up_months, profit_share_basis, status)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
         agreements,
     )
 
@@ -343,6 +344,32 @@ def run_seed(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         "INSERT INTO investor_distributions(agreement_id, amount, distribution_date, notes) VALUES(1, 750000, '2025-04-01', 'Monthly return Q1')"
+    )
+
+    partners = [
+        ("Foundation Partners", "35201-3333333-3", "0300-3333333", "partners@foundation.pk", "Early capital partner", "active"),
+        ("BuildCo JV", "35202-4444444-4", "0300-4444444", "jv@buildco.pk", "Project partner", "active"),
+    ]
+    conn.executemany(
+        "INSERT INTO partners(name, cnic, mobile_number, email, description, status) VALUES(?,?,?,?,?,?)",
+        partners,
+    )
+    partner_agreements = [
+        (1, 1, "Monthly Return", 120000000, "2023-01-01", 2.0, None, "2024-06-01", "lump_sum", None, None, "active"),
+        (2, 1, "Profit Sharing", 200000000, "2023-03-01", None, 25.0, "2025-01-01", "spread", 12, "project", "active"),
+    ]
+    conn.executemany(
+        """INSERT INTO partner_agreements(partner_id, project_id, partner_type,
+           investment_amount, investment_date, monthly_return_pct, profit_share_pct,
+           returns_start_date, catch_up_policy, catch_up_months, profit_share_basis, status)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+        partner_agreements,
+    )
+    conn.execute(
+        "INSERT INTO partner_contributions(agreement_id, amount, contribution_date) VALUES(1, 120000000, '2023-01-01')"
+    )
+    conn.execute(
+        "INSERT INTO partner_contributions(agreement_id, amount, contribution_date) VALUES(2, 200000000, '2023-03-01')"
     )
 
 
@@ -471,9 +498,58 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_hold_tx_hold ON hold_transactions(hold_id);
         CREATE INDEX IF NOT EXISTS idx_pit_project ON project_installment_templates(project_id);
         CREATE INDEX IF NOT EXISTS idx_pitr_template ON project_installment_template_rules(template_id);
+        CREATE TABLE IF NOT EXISTS partners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            cnic TEXT,
+            mobile_number TEXT,
+            email TEXT,
+            description TEXT,
+            status TEXT DEFAULT 'active'
+        );
+        CREATE TABLE IF NOT EXISTS partner_agreements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partner_id INTEGER NOT NULL,
+            project_id INTEGER,
+            partner_type TEXT NOT NULL,
+            investment_amount INTEGER NOT NULL,
+            investment_date TEXT NOT NULL,
+            monthly_return_pct REAL,
+            profit_share_pct REAL,
+            returns_start_date TEXT,
+            catch_up_policy TEXT DEFAULT 'lump_sum',
+            catch_up_months INTEGER,
+            profit_share_basis TEXT,
+            status TEXT DEFAULT 'active',
+            FOREIGN KEY (partner_id) REFERENCES partners(id),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        );
+        CREATE TABLE IF NOT EXISTS partner_contributions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agreement_id INTEGER NOT NULL,
+            amount INTEGER NOT NULL,
+            contribution_date TEXT NOT NULL,
+            notes TEXT,
+            FOREIGN KEY (agreement_id) REFERENCES partner_agreements(id)
+        );
+        CREATE TABLE IF NOT EXISTS partner_distributions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agreement_id INTEGER NOT NULL,
+            amount INTEGER NOT NULL,
+            distribution_date TEXT NOT NULL,
+            notes TEXT,
+            FOREIGN KEY (agreement_id) REFERENCES partner_agreements(id)
+        );
         """
     )
     _ensure_column(conn, "agents", "category", "TEXT")
+    for col, decl in (
+        ("returns_start_date", "TEXT"),
+        ("catch_up_policy", "TEXT DEFAULT 'lump_sum'"),
+        ("catch_up_months", "INTEGER"),
+        ("profit_share_basis", "TEXT"),
+    ):
+        _ensure_column(conn, "investor_agreements", col, decl)
     for col, decl in (
         ("nok_name", "TEXT"),
         ("nok_relationship", "TEXT"),

@@ -273,6 +273,10 @@ CREATE TABLE IF NOT EXISTS investor_agreements (
     investment_date TEXT NOT NULL,
     monthly_return_pct REAL,
     profit_share_pct REAL,
+    returns_start_date TEXT,
+    catch_up_policy TEXT DEFAULT 'lump_sum',
+    catch_up_months INTEGER,
+    profit_share_basis TEXT,
     status TEXT DEFAULT 'active',
     FOREIGN KEY (investor_id) REFERENCES investors(id),
     FOREIGN KEY (project_id) REFERENCES projects(id)
@@ -294,6 +298,52 @@ CREATE TABLE IF NOT EXISTS investor_distributions (
     distribution_date TEXT NOT NULL,
     notes TEXT,
     FOREIGN KEY (agreement_id) REFERENCES investor_agreements(id)
+);
+
+CREATE TABLE IF NOT EXISTS partners (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    cnic TEXT,
+    mobile_number TEXT,
+    email TEXT,
+    description TEXT,
+    status TEXT DEFAULT 'active'
+);
+
+CREATE TABLE IF NOT EXISTS partner_agreements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    partner_id INTEGER NOT NULL,
+    project_id INTEGER,
+    partner_type TEXT NOT NULL,
+    investment_amount INTEGER NOT NULL,
+    investment_date TEXT NOT NULL,
+    monthly_return_pct REAL,
+    profit_share_pct REAL,
+    returns_start_date TEXT,
+    catch_up_policy TEXT DEFAULT 'lump_sum',
+    catch_up_months INTEGER,
+    profit_share_basis TEXT,
+    status TEXT DEFAULT 'active',
+    FOREIGN KEY (partner_id) REFERENCES partners(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS partner_contributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agreement_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    contribution_date TEXT NOT NULL,
+    notes TEXT,
+    FOREIGN KEY (agreement_id) REFERENCES partner_agreements(id)
+);
+
+CREATE TABLE IF NOT EXISTS partner_distributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agreement_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    distribution_date TEXT NOT NULL,
+    notes TEXT,
+    FOREIGN KEY (agreement_id) REFERENCES partner_agreements(id)
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (

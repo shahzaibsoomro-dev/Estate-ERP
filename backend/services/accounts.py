@@ -81,6 +81,34 @@ def list_cashbook(conn) -> dict:
            JOIN investor_agreements a ON a.id=d.agreement_id
            JOIN investors inv ON inv.id=a.investor_id""",
     )
+    partner_in = fetch_all(
+        conn,
+        """SELECT pc.id AS source_id, pc.contribution_date AS entry_date,
+                  'Partner in · ' || p.name AS narration,
+                  pc.amount AS inflow, 0 AS outflow, 'partner' AS source, NULL AS id
+           FROM partner_contributions pc
+           JOIN partner_agreements a ON a.id=pc.agreement_id
+           JOIN partners p ON p.id=a.partner_id""",
+    )
+    partner_out = fetch_all(
+        conn,
+        """SELECT d.id AS source_id, d.distribution_date AS entry_date,
+                  'Partner out · ' || p.name AS narration,
+                  0 AS inflow, d.amount AS outflow, 'partner' AS source, NULL AS id
+           FROM partner_distributions d
+           JOIN partner_agreements a ON a.id=d.agreement_id
+           JOIN partners p ON p.id=a.partner_id""",
+    )
+    cancel_out = fetch_all(
+        conn,
+        """SELECT bc.id AS source_id, date(bc.cancelled_at) AS entry_date,
+                  'Cancel refund · ' || c.name || ' · ' || COALESCE(b.booking_no,'') AS narration,
+                  0 AS inflow, bc.refund_amount AS outflow, 'cancel' AS source, NULL AS id
+           FROM booking_cancellations bc
+           JOIN bookings b ON b.id=bc.booking_id
+           JOIN customers c ON c.id=b.customer_id
+           WHERE bc.refund_amount > 0""",
+    )
     manual = fetch_all(
         conn,
         """SELECT id AS source_id, entry_date, narration,
@@ -90,7 +118,7 @@ def list_cashbook(conn) -> dict:
            FROM ledger_entries""",
     )
     rows = []
-    for group in (inflows, hold_in, hold_out, vendor_out, agent_out, inv_in, inv_out, manual):
+    for group in (inflows, hold_in, hold_out, vendor_out, agent_out, inv_in, inv_out, partner_in, partner_out, cancel_out, manual):
         rows.extend(group)
     rows.sort(key=lambda r: (r.get("entry_date") or "", r.get("source") or "", r.get("source_id") or 0))
     balance = 0

@@ -186,6 +186,7 @@ def wipe() -> dict:
         conn.execute(f"DELETE FROM project_budget_lines WHERE project_id IN ({ph})", pparams)
         conn.execute(f"DELETE FROM units WHERE project_id IN ({ph})", pparams)
         conn.execute(f"UPDATE investor_agreements SET project_id=NULL WHERE project_id IN ({ph})", pparams)
+        conn.execute(f"UPDATE partner_agreements SET project_id=NULL WHERE project_id IN ({ph})", pparams)
         conn.execute(f"DELETE FROM projects WHERE id IN ({ph})", pparams)
 
     # Orphan hold cleanup (Haven units may keep holds)
@@ -210,6 +211,10 @@ def wipe() -> dict:
     conn.execute("DELETE FROM investor_distributions")
     conn.execute("DELETE FROM investor_agreements")
     conn.execute("DELETE FROM investors")
+    conn.execute("DELETE FROM partner_contributions")
+    conn.execute("DELETE FROM partner_distributions")
+    conn.execute("DELETE FROM partner_agreements")
+    conn.execute("DELETE FROM partners")
     conn.execute("UPDATE bookings SET agent_id=NULL")
     conn.execute("DELETE FROM agent_commission_payments")
     conn.execute("DELETE FROM agent_commissions")
@@ -688,9 +693,10 @@ def run_timeline(state):
         "reason": "Buyer emigrating; requested cancellation",
     })
     state["cancel_result"] = cancel
+    exp["cancel_out"] += int(cancel.get("refund_amount") or 0)
     state["narrative"].append(
         f"2025-05-01  Cancelled Nadia Sheikh GS-102  paid={cancel.get('total_paid')} "
-        f"forfeit={cancel.get('forfeit_amount')} refund={cancel.get('refund_amount')} (not posted to cashbook)"
+        f"forfeit={cancel.get('forfeit_amount')} refund={cancel.get('refund_amount')}"
     )
 
     conn = db()
@@ -1016,7 +1022,7 @@ def new_state(wipe_info):
         "expected": {
             "cust_in": 0, "vendor_out": 0, "agent_out": 0,
             "inv_in": 0, "inv_out": 0, "manual_in": 0, "manual_out": 0,
-            "hold_in": 0, "hold_out": 0,
+            "hold_in": 0, "hold_out": 0, "cancel_out": 0,
             "haven_payments": (wipe_info or {}).get("after", {}).get("haven_payments", 0),
             "unalloc_cust": 0,
         },
@@ -1143,10 +1149,13 @@ def run_assert(state):
     exp_in = (exp["haven_payments"] + exp["cust_in"] + exp["inv_in"] + exp["manual_in"]
               + exp.get("hold_in", 0))
     exp_out = (exp["vendor_out"] + exp["agent_out"] + exp["inv_out"] + exp["manual_out"]
-               + exp.get("hold_out", 0))
+               + exp.get("hold_out", 0) + exp.get("cancel_out", 0))
     _check_close(state, "cashbook inflow (company-wide)", exp_in, inflow,
                  note="includes leftover Haven customer receipts + hold tokens")
     _check_close(state, "cashbook outflow", exp_out, outflow)
+    cancel_entries = [e for e in (ledger.get("entries") or []) if e.get("source") == "cancel"]
+    cancel_out_sum = sum(int(e.get("outflow") or 0) for e in cancel_entries)
+    _check_close(state, "cancel refund cashbook outflow", exp.get("cancel_out", 0), cancel_out_sum)
     state["ux_notes"].append({
         "sev": "med", "screen": "Accounts",
         "msg": "Cashbook is company-wide (now labelled in UI). Dashboard project filter will not match Accounts net cash.",
@@ -1319,13 +1328,6 @@ def run_assert(state):
         "msg": "Audit still omits most CRUD and site logs (payments/bookings/money are logged).",
     })
 
-    # cancel refund not in cashbook
-    if state.get("cancel_result", {}).get("refund_amount", 0) > 0:
-        state["findings"].append({
-            "sev": "med", "area": "cancel",
-            "msg": f"Cancel computed refund {state['cancel_result']['refund_amount']} but no cashbook/ledger outflow was posted.",
-        })
-
     conn = db()
     state["snapshot"] = {
         "gulberg_units": live_total,
@@ -1453,7 +1455,7 @@ def write_report(state):
         "",
         "## 7. Still open / product choices",
         "",
-        "- Cancel refund is computed but not posted to cashbook.",
+        "- Cancel refunds now appear in cashbook as money out.",
         "- Possession allowed while outstanding; booking stays `active` (so portal still lists them).",
         "- Cashbook has no project filter.",
         "- Demand WhatsApp/PDF/email not built. Multi-agreement investors not in UI.",

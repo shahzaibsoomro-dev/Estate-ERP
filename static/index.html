@@ -38,6 +38,7 @@
     <div class="ni" data-s="accounts"><span class="ni-ico">📒</span>Accounts</div>
     <div class="ni" data-s="agents"><span class="ni-ico">🤝</span>Agents</div>
     <div class="ni" data-s="investors"><span class="ni-ico">💼</span>Investors</div>
+    <div class="ni" data-s="partners"><span class="ni-ico">🏛️</span>Partners</div>
     <div class="ni" data-s="reports"><span class="ni-ico">📈</span>Reports</div>
   </nav>
   <div class="sb-sec">Portal</div>
@@ -461,7 +462,7 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div>
       <div style="font-size:16px;font-weight:900">Accounts</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Company-wide cash movement (all projects) — collections, vendors, agents, investors</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Company-wide cash movement (all projects) — collections, vendors, agents, investors, partners</div>
     </div>
     <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
   </div>
@@ -501,7 +502,9 @@
 
 <div class="screen" id="s-investors">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Investors</div></div>
+    <div><div style="font-size:16px;font-weight:900">Investors</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Returns start on a set date; catch-up can be lump sum or spread</div>
+    </div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="inv-search" style="width:200px">
       <button type="button" class="btn primary" id="btn-add-investor">+ Add Investor</button>
@@ -517,10 +520,39 @@
       <table>
         <thead><tr>
           <th>Investor</th><th>CNIC</th><th>Mobile</th><th>Type</th><th>Project</th>
-          <th>Agreed</th><th>Date</th><th>Monthly %</th><th>Profit %</th>
-          <th>Contributed</th><th>Distributed</th><th>Outstanding</th><th>Status</th><th>Actions</th>
+          <th>Agreed</th><th>Invested</th><th>Returns start</th><th>Catch-up</th>
+          <th>Contributed</th><th>Distributed</th><th>Return due</th><th>Status</th><th>Actions</th>
         </tr></thead>
         <tbody id="inv-tbody"><tr><td colspan="14" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-partners">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Partners</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Early / larger capital — same return rules as investors</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="par-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-add-partner">+ Add Partner</button>
+    </div>
+  </div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="par-total">—</div><div class="sm-l">Partners</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--success)" id="par-kpi-in">—</div><div class="sm-l">Contributed</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="par-kpi-dist">—</div><div class="sm-l">Distributed</div></div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Partner</th><th>CNIC</th><th>Mobile</th><th>Type</th><th>Project</th>
+          <th>Agreed</th><th>Invested</th><th>Returns start</th><th>Catch-up</th>
+          <th>Contributed</th><th>Distributed</th><th>Return due</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="par-tbody"><tr><td colspan="14" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1046,7 +1078,7 @@
       <div class="fg"><label>Email</label><input id="ni-email" type="email"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Investor type</label>
+      <div class="fg"><label>Return type</label>
         <select id="ni-type">
           <option value="Profit Sharing">Profit Sharing</option>
           <option value="Monthly Return">Monthly Return</option>
@@ -1061,10 +1093,32 @@
       <div class="fg"><label>Investment date</label><input id="ni-date" type="date"></div>
     </div>
     <div class="form-row">
+      <div class="fg"><label>Returns start date</label><input id="ni-returns-start" type="date"></div>
+      <div class="fg"><label>Catch-up policy</label>
+        <select id="ni-catch-up">
+          <option value="lump_sum">Lump sum at start</option>
+          <option value="spread">Spread over N months</option>
+          <option value="none">No catch-up (waive silent months)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="ni-catch-up-months-row" style="display:none">
+      <div class="fg"><label>Catch-up months (N)</label><input id="ni-catch-up-months" type="number" min="1" placeholder="e.g. 6"></div>
+      <div class="fg"></div>
+    </div>
+    <div class="form-row">
       <div class="fg"><label>Monthly return %</label><input id="ni-monthly" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
       <div class="fg"><label>Profit share %</label><input id="ni-profit" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="ni-profit-basis-row">
+      <div class="fg"><label>Profit share basis</label>
+        <select id="ni-profit-basis">
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="milestone">Milestone</option>
+          <option value="project">Project</option>
+        </select>
+      </div>
       <div class="fg"><label>Status</label>
         <select id="ni-status">
           <option value="active">Active</option>
@@ -1077,6 +1131,101 @@
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="inv-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-investor">Save Investor</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="par-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="pd-title">Partner</span><button type="button" class="modal-close" data-close-modal="par-detail-modal">✕</button></div>
+    <div id="pd-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="par-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title"><span id="par-modal-title">Add Partner</span><button type="button" class="modal-close" data-close-modal="par-modal">✕</button></div>
+    <input type="hidden" id="np-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Partner name *</label><input id="np-name" type="text"></div>
+      <div class="fg"><label>CNIC</label><input id="np-cnic" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Mobile number</label><input id="np-contact" type="text"></div>
+      <div class="fg"><label>Email</label><input id="np-email" type="email"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Return type</label>
+        <select id="np-type">
+          <option value="Profit Sharing">Profit Sharing</option>
+          <option value="Monthly Return">Monthly Return</option>
+        </select>
+      </div>
+      <div class="fg"><label>Project</label>
+        <select id="np-proj"><option value="">Company (no project)</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Investment amount (PKR)</label><input id="np-agreed" type="number" min="0" placeholder="0"></div>
+      <div class="fg"><label>Investment date</label><input id="np-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Returns start date</label><input id="np-returns-start" type="date"></div>
+      <div class="fg"><label>Catch-up policy</label>
+        <select id="np-catch-up">
+          <option value="lump_sum">Lump sum at start</option>
+          <option value="spread">Spread over N months</option>
+          <option value="none">No catch-up (waive silent months)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="np-catch-up-months-row" style="display:none">
+      <div class="fg"><label>Catch-up months (N)</label><input id="np-catch-up-months" type="number" min="1" placeholder="e.g. 6"></div>
+      <div class="fg"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Monthly return %</label><input id="np-monthly" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
+      <div class="fg"><label>Profit share %</label><input id="np-profit" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
+    </div>
+    <div class="form-row" id="np-profit-basis-row">
+      <div class="fg"><label>Profit share basis</label>
+        <select id="np-profit-basis">
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="milestone">Milestone</option>
+          <option value="project">Project</option>
+        </select>
+      </div>
+      <div class="fg"><label>Status</label>
+        <select id="np-status">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="withdrawn">Withdrawn</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label>Description</label><textarea id="np-description"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="par-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-partner">Save Partner</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="pmoney-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span id="pmoney-title">Record in</span><button type="button" class="modal-close" data-close-modal="pmoney-modal">✕</button></div>
+    <input type="hidden" id="pmoney-id" value="">
+    <input type="hidden" id="pmoney-kind" value="in">
+    <div id="pmoney-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="pmoney-amount" type="number" min="1"></div>
+      <div class="fg"><label>Date</label><input id="pmoney-date" type="date"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="pmoney-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="pmoney-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-pmoney">Confirm</button>
     </div>
   </div>
 </div>

@@ -22,6 +22,7 @@ export async function refreshProjectSelects() {
   if ($('sl-proj')) $('sl-proj').innerHTML = `<option value="">Select…</option>${opts}`;
   if ($('site-f-proj')) $('site-f-proj').innerHTML = `<option value="">All (top filter)</option>${opts}`;
   if ($('ni-proj')) $('ni-proj').innerHTML = `<option value="">Company (no project)</option>${opts}`;
+  if ($('np-proj')) $('np-proj').innerHTML = `<option value="">Company (no project)</option>${opts}`;
 }
 
 export async function loadProjects() {

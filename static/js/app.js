@@ -18,6 +18,7 @@ import { loadAgents, initAgentEvents } from './screens/agents.js';
 import { initReportsEvents } from './screens/finance-extra.js';
 import { loadPortal, initPortalEvents } from './screens/portal.js';
 import { loadInvestors, initInvestorEvents } from './screens/investors.js';
+import { loadPartners, initPartnerEvents } from './screens/partners.js';
 import { loadActivity } from './screens/activity.js';
 
 registerScreen('dashboard', loadDashboard);
@@ -34,6 +35,7 @@ registerScreen('site', loadSite);
 registerScreen('accounts', loadAccounts);
 registerScreen('agents', loadAgents);
 registerScreen('investors', loadInvestors);
+registerScreen('partners', loadPartners);
 registerScreen('reports', () => {});
 registerScreen('portal', loadPortal);
 
@@ -72,6 +74,7 @@ async function init() {
   safe('reports', initReportsEvents);
   safe('portal', initPortalEvents);
   safe('investors', initInvestorEvents);
+  safe('partners', initPartnerEvents);
   try {
     await refreshProjectSelects();
   } catch (e) {

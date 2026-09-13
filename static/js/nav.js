@@ -13,6 +13,7 @@ const meta = {
   accounts: ['Accounts', 'Finance / Cashbook'],
   agents: ['Agents', 'Finance / Commissions'],
   investors: ['Investors', 'Finance / Investors'],
+  partners: ['Partners', 'Finance / Partners'],
   reports: ['Reports', 'Finance / Reports'],
   portal: ['Customer Portal', 'Portal / Customer view'],
 };
