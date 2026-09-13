@@ -123,23 +123,88 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
         chart_vals.insert(0, 0)
     chart_vals = chart_vals[-12:]
 
-    recovery_chart = fetch_all(
+    # Collection rate: due installments vs collections in each of last 5 months (project-scoped)
+    due_filt, due_params = sql_in("u.project_id", project_ids)
+    pay_filt, pay_params = sql_in("b.project_id", project_ids)
+    months = fetch_all(
         conn,
-        """SELECT strftime('%m', payment_date) AS m,
-                  COALESCE(SUM(amount),0) AS collected,
-                  (SELECT COALESCE(SUM(amount),0) FROM installments
-                   WHERE strftime('%m', due_date)=strftime('%m', p.payment_date)) AS due
-           FROM payments p
-           WHERE payment_date >= date('now','-5 months')
-           GROUP BY strftime('%Y-%m', payment_date)""",
+        """SELECT strftime('%Y-%m', date('now', '-' || n || ' months')) AS ym
+           FROM (SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2
+                 UNION ALL SELECT 3 UNION ALL SELECT 4)""",
     )
+    months = [m["ym"] for m in months]
+    months.reverse()  # oldest → newest
     rec_pcts = []
-    for r in recovery_chart:
-        due = r["due"] or 1
-        rec_pcts.append(min(100, int(r["collected"] / due * 100)))
-    while len(rec_pcts) < 5:
-        rec_pcts.insert(0, 82)
-    rec_pcts = rec_pcts[-5:]
+    for ym in months:
+        due_row = fetch_one(
+            conn,
+            f"""SELECT COALESCE(SUM(i.amount),0) AS v
+                FROM installments i
+                JOIN units u ON u.id=i.unit_id
+                WHERE strftime('%Y-%m', i.due_date)=?
+                  AND i.status != 'scheduled'
+                  {due_filt}""",
+            (ym, *due_params),
+        )
+        coll_row = fetch_one(
+            conn,
+            f"""SELECT COALESCE(SUM(p.amount),0) AS v
+                FROM payments p
+                LEFT JOIN bookings b ON b.id=p.booking_id
+                WHERE strftime('%Y-%m', p.payment_date)=?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM hold_token_applications hta WHERE hta.payment_id=p.id
+                  )
+                  {pay_filt}""",
+            (ym, *pay_params),
+        )
+        due = int(due_row["v"] if due_row else 0)
+        collected = int(coll_row["v"] if coll_row else 0)
+        if due > 0:
+            rec_pcts.append(min(100, int(round(collected / due * 100))))
+        elif collected > 0:
+            rec_pcts.append(100)
+        else:
+            rec_pcts.append(0)
+
+    # Overall collection rate (lifetime in scope): collected / (collected + remaining due)
+    if project_ids:
+        ph = ",".join("?" * len(project_ids))
+        overall_coll = fetch_one(
+            conn,
+            f"""SELECT COALESCE(SUM(p.amount),0) AS v FROM payments p
+                JOIN bookings b ON b.id=p.booking_id
+                WHERE b.project_id IN ({ph})
+                  AND NOT EXISTS (
+                    SELECT 1 FROM hold_token_applications hta WHERE hta.payment_id=p.id
+                  )""",
+            tuple(project_ids),
+        )
+        overall_remain = fetch_one(
+            conn,
+            f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS v
+                FROM installments i JOIN units u ON u.id=i.unit_id
+                WHERE i.status IN ('pending','partial','overdue','paid')
+                  AND u.project_id IN ({ph})""",
+            tuple(project_ids),
+        )
+    else:
+        overall_coll = fetch_one(
+            conn,
+            """SELECT COALESCE(SUM(p.amount),0) AS v FROM payments p
+               WHERE NOT EXISTS (
+                 SELECT 1 FROM hold_token_applications hta WHERE hta.payment_id=p.id
+               )""",
+        )
+        overall_remain = fetch_one(
+            conn,
+            """SELECT COALESCE(SUM(remaining_amount),0) AS v FROM installments
+               WHERE status IN ('pending','partial','overdue','paid')""",
+        )
+    coll_total = int(overall_coll["v"] if overall_coll else 0)
+    remain_total = int(overall_remain["v"] if overall_remain else 0)
+    billed = coll_total + remain_total
+    collection_rate = min(100, int(round(coll_total / billed * 100))) if billed > 0 else 0
 
     return {
         "kpi": {
@@ -149,11 +214,15 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
             "hold": inv["hold"] or 0,
             "receivable": recv["v"] if recv else 0,
             "payable": payable,
+            "collection_rate": collection_rate,
+            "collected_total": coll_total,
+            "billed_total": billed,
         },
         "overdue": overdue,
         "alerts": _alerts(conn, project_ids),
         "sales_chart": chart_vals or [0] * 12,
-        "recovery_chart": rec_pcts or [82, 75, 91, 68, 54],
+        "recovery_chart": rec_pcts,
+        "recovery_months": months,
     }
 
 

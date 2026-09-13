@@ -31,14 +31,19 @@
   <nav class="nav">
     <div class="ni" data-s="procurement"><span class="ni-ico">🛒</span>Procurement</div>
     <div class="ni" data-s="vendors"><span class="ni-ico">🏭</span>Vendors</div>
+    <div class="ni" data-s="contractors"><span class="ni-ico">👷</span>Contractors</div>
+    <div class="ni" data-s="inventory"><span class="ni-ico">📦</span>Inventory</div>
     <div class="ni" data-s="site"><span class="ni-ico">⛏️</span>Site Management</div>
   </nav>
   <div class="sb-sec">Finance</div>
   <nav class="nav">
     <div class="ni" data-s="accounts"><span class="ni-ico">📒</span>Accounts</div>
+    <div class="ni" data-s="budget"><span class="ni-ico">📐</span>Budget</div>
+    <div class="ni" data-s="payplans"><span class="ni-ico">📅</span>Pay Plans</div>
     <div class="ni" data-s="agents"><span class="ni-ico">🤝</span>Agents</div>
     <div class="ni" data-s="investors"><span class="ni-ico">💼</span>Investors</div>
     <div class="ni" data-s="partners"><span class="ni-ico">🏛️</span>Partners</div>
+    <div class="ni" data-s="parties"><span class="ni-ico">🪪</span>Parties</div>
     <div class="ni" data-s="reports"><span class="ni-ico">📈</span>Reports</div>
   </nav>
   <div class="sb-sec">Portal</div>
@@ -87,8 +92,11 @@
     </div>
     <div class="col">
       <div class="card" style="height:100%">
-        <div class="card-hd"><span class="card-title">📉 Collection Rate</span></div>
-        <div class="card-bd" id="rec-chart"><div class="loading"><span class="spinner"></span></div></div>
+        <div class="card-hd"><span class="card-title">📉 Collection Rate</span><span class="badge bg-blue" id="rec-overall">—</span></div>
+        <div class="card-bd">
+          <div style="font-size:11px;color:var(--g400);margin-bottom:8px" id="rec-scope">Project filter applies</div>
+          <div id="rec-chart"><div class="loading"><span class="spinner"></span></div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -433,8 +441,106 @@
   <div class="card">
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Vendor</th><th>Category</th><th>Contact</th><th>Payable</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="vendor-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        <thead><tr><th>Vendor</th><th>Category</th><th>NTN</th><th>Contact</th><th>Payable</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="vendor-tbody"><tr><td colspan="9" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-contractors">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Contractors</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Site contractors assigned to projects — contracts and payments</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="ctr-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-add-ctr">+ Add Contractor</button>
+    </div>
+  </div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="ctr-total">—</div><div class="sm-l">Contractors</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--navy)" id="ctr-contracted">—</div><div class="sm-l">Contracted</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="ctr-balance">—</div><div class="sm-l">Balance</div></div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Specialty</th><th>NTN</th><th>Contact</th><th>Contracted</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="ctr-tbody"><tr><td colspan="10" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-inventory">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Material Inventory</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Stock on hand — GRN from procurement posts receipts automatically</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="search" placeholder="Search…" id="invmat-search" style="width:200px">
+      <button type="button" class="btn primary" id="btn-add-invmat">+ Add Item</button>
+    </div>
+  </div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="invmat-total">—</div><div class="sm-l">Items</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--success)" id="invmat-ok">—</div><div class="sm-l">In stock</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="invmat-low">—</div><div class="sm-l">Low stock</div></div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Item</th><th>Category</th><th>Project</th><th>Unit</th><th>On hand</th><th>Min</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="invmat-tbody"><tr><td colspan="9" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-budget">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Project Budget</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Categories and planned vs actual (from purchase orders)</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="bud-project" style="min-width:180px"><option value="">All projects</option></select>
+      <button type="button" class="btn" id="btn-add-bud-cat">+ Category</button>
+      <button type="button" class="btn primary" id="btn-add-bud-line">+ Budget line</button>
+    </div>
+  </div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="bud-planned">—</div><div class="sm-l">Planned</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--accent)" id="bud-spent">—</div><div class="sm-l">Spent</div></div>
+    <div class="sm"><div class="sm-v" id="bud-var">—</div><div class="sm-l">Variance</div></div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd"><span class="card-title">Categories</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Sort</th><th>Actions</th></tr></thead>
+      <tbody id="bud-cat-tbody"><tr><td colspan="3" class="loading"><span class="spinner"></span></td></tr></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">Budget vs actual</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Project</th><th>Category</th><th>Planned</th><th>Spent</th><th>Variance</th><th>% Used</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="bud-sum-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="screen" id="s-payplans">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Pay Plans</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Installment templates per project — used on booking (must total 100% of financed balance)</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Project</th><th>Template</th><th>Rules</th><th>Booking %</th><th>Revision</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="payplan-tbody"><tr><td colspan="7" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -479,7 +585,9 @@
 
 <div class="screen" id="s-agents">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Agents</div></div>
+    <div><div style="font-size:16px;font-weight:900">Agents</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Commissions plus performance bonuses from each agent's bonus budget</div>
+    </div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="agent-search" style="width:200px">
       <button type="button" class="btn primary" id="btn-add-agent">+ Add Agent</button>
@@ -493,8 +601,36 @@
   <div class="card">
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Agent</th><th>Category</th><th>Contact</th><th>Description</th><th>Rate</th><th>Bookings</th><th>Payable</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>ID</th><th>Agent</th><th>Category</th><th>Contact</th><th>Rate</th><th>Bookings</th><th>Payable</th><th>Paid</th><th>Bonus left</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="agent-tbody"><tr><td colspan="11" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-parties">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:16px;font-weight:900">Parties / Master IDs</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Look up any customer, vendor, agent, investor or partner and see all related records</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="party-type" style="min-width:140px">
+        <option value="">All types</option>
+        <option value="customer">Customers</option>
+        <option value="vendor">Vendors</option>
+        <option value="agent">Agents</option>
+        <option value="investor">Investors</option>
+        <option value="partner">Partners</option>
+        <option value="contractor">Contractors</option>
+      </select>
+      <input type="search" placeholder="Search name or master id…" id="party-search" style="width:240px">
+    </div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Master ID</th><th>Type</th><th>Name</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="party-tbody"><tr><td colspan="6" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -532,7 +668,7 @@
 <div class="screen" id="s-partners">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div><div style="font-size:16px;font-weight:900">Partners</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Early / larger capital — same return rules as investors</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Project-linked early capital — returns start after the silent period</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="par-search" style="width:200px">
@@ -865,6 +1001,7 @@
       <div class="fg"><label>Status</label>
         <select id="na-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
+      <div class="fg"><label>Bonus budget (PKR)</label><input id="na-bonus-budget" type="number" min="0" value="0" placeholder="Performance pot"></div>
     </div>
     <div class="fg"><label>Description</label><textarea id="na-description"></textarea></div>
     <div id="na-computed" class="bk-dcard" style="margin-top:12px" hidden></div>
@@ -889,6 +1026,24 @@
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="apay-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-apay">Record Payment</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="abonus-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Award Agent Bonus</span><button type="button" class="modal-close" data-close-modal="abonus-modal">✕</button></div>
+    <input type="hidden" id="abonus-agent-id" value="">
+    <div id="abonus-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="abonus-amount" type="number" min="1"></div>
+      <div class="fg"><label>Date</label><input id="abonus-date" type="date"></div>
+    </div>
+    <div class="fg"><label>Reason</label><input id="abonus-reason" type="text" placeholder="e.g. Q1 top closer"></div>
+    <div class="fg"><label>Notes</label><textarea id="abonus-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="abonus-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-abonus">Award Bonus</button>
     </div>
   </div>
 </div>
@@ -955,6 +1110,9 @@
     </div>
     <div class="form-row">
       <div class="fg"><label>Contact</label><input id="nv-contact" type="text"></div>
+      <div class="fg"><label>NTN</label><input id="nv-ntn" type="text" placeholder="e.g. 1234567-8"></div>
+    </div>
+    <div class="form-row">
       <div class="fg"><label>Status</label>
         <select id="nv-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
@@ -1093,7 +1251,9 @@
       <div class="fg"><label>Investment date</label><input id="ni-date" type="date"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Returns start date</label><input id="ni-returns-start" type="date"></div>
+      <div class="fg"><label>Returns start date</label><input id="ni-returns-start" type="date">
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">No payouts allowed before this date</div>
+      </div>
       <div class="fg"><label>Catch-up policy</label>
         <select id="ni-catch-up">
           <option value="lump_sum">Lump sum at start</option>
@@ -1161,8 +1321,8 @@
           <option value="Monthly Return">Monthly Return</option>
         </select>
       </div>
-      <div class="fg"><label>Project</label>
-        <select id="np-proj"><option value="">Company (no project)</option></select>
+      <div class="fg"><label>Project *</label>
+        <select id="np-proj"><option value="">Select project…</option></select>
       </div>
     </div>
     <div class="form-row">
@@ -1170,7 +1330,9 @@
       <div class="fg"><label>Investment date</label><input id="np-date" type="date"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Returns start date</label><input id="np-returns-start" type="date"></div>
+      <div class="fg"><label>Returns start date</label><input id="np-returns-start" type="date">
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">No payouts allowed before this date</div>
+      </div>
       <div class="fg"><label>Catch-up policy</label>
         <select id="np-catch-up">
           <option value="lump_sum">Lump sum at start</option>
@@ -1248,6 +1410,13 @@
   </div>
 </div>
 
+<div class="modal-bg" id="party-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="party-d-title">Party</span><button type="button" class="modal-close" data-close-modal="party-detail-modal">✕</button></div>
+    <div id="party-d-body"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="xfer-modal">
   <div class="modal" style="max-width:480px">
     <div class="modal-title"><span>Transfer ownership</span><button type="button" class="modal-close" data-close-modal="xfer-modal">✕</button></div>
@@ -1265,7 +1434,10 @@
       </div>
       <input type="hidden" id="xfer-cust" value="">
     </div>
-    <div class="fg"><label>Transfer date</label><input id="xfer-date" type="date"></div>
+    <div class="form-row">
+      <div class="fg"><label>Transfer date</label><input id="xfer-date" type="date"></div>
+      <div class="fg"><label>Transfer fee (PKR)</label><input id="xfer-fee" type="number" min="0" value="0" placeholder="0"></div>
+    </div>
     <div class="fg"><label>Notes</label><textarea id="xfer-notes"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="xfer-modal">Cancel</button>
@@ -1332,14 +1504,167 @@
 </div>
 
 <div class="modal-bg" id="poss-modal">
-  <div class="modal" style="max-width:440px">
+  <div class="modal" style="max-width:560px">
     <div class="modal-title"><span>Mark possession</span><button type="button" class="modal-close" data-close-modal="poss-modal">✕</button></div>
     <input type="hidden" id="poss-unit-id" value="">
     <div id="poss-summary" class="bk-dcard" style="margin-bottom:12px"></div>
     <div class="fg"><label>Possession date</label><input id="poss-date" type="date"></div>
+    <div class="fg"><label>Completed by</label><input id="poss-by" type="text" placeholder="Name / role"></div>
+    <div style="font-size:12px;font-weight:800;color:var(--navy);margin:12px 0 6px">Handover checklist</div>
+    <div id="poss-checklist" style="max-height:240px;overflow:auto;border:1px solid var(--g200);border-radius:8px;padding:10px;margin-bottom:8px">
+      <div class="loading"><span class="spinner"></span>Loading checklist…</div>
+    </div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="poss-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-confirm-poss">Mark possession</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="ctr-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title"><span id="ctr-modal-title">Add Contractor</span><button type="button" class="modal-close" data-close-modal="ctr-modal">✕</button></div>
+    <input type="hidden" id="nctr-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Name *</label><input id="nctr-name" type="text"></div>
+      <div class="fg"><label>Specialty</label><input id="nctr-specialty" type="text" placeholder="Civil, Electrical…"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Contact</label><input id="nctr-contact" type="text"></div>
+      <div class="fg"><label>NTN</label><input id="nctr-ntn" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>CNIC</label><input id="nctr-cnic" type="text"></div>
+      <div class="fg"><label>Status</label>
+        <select id="nctr-status"><option value="active">Active</option><option value="inactive">Inactive</option><option value="completed">Completed</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Description</label><textarea id="nctr-description"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="ctr-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-ctr">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="ctr-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="ctrd-title">Contractor</span><button type="button" class="modal-close" data-close-modal="ctr-detail-modal">✕</button></div>
+    <div id="ctrd-body"><div class="loading"><span class="spinner"></span></div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="ctr-assign-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Assign to project</span><button type="button" class="modal-close" data-close-modal="ctr-assign-modal">✕</button></div>
+    <input type="hidden" id="ctr-asg-id" value="">
+    <div class="fg"><label>Project *</label><select id="ctr-asg-proj"></select></div>
+    <div class="form-row">
+      <div class="fg"><label>Role</label><input id="ctr-asg-role" type="text" placeholder="Main / Sub / Finishing"></div>
+      <div class="fg"><label>Contract amount (PKR)</label><input id="ctr-asg-amount" type="number" min="0" value="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Start date</label><input id="ctr-asg-start" type="date"></div>
+      <div class="fg"><label>End date</label><input id="ctr-asg-end" type="date"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="ctr-asg-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="ctr-assign-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-ctr-asg">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="ctr-pay-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Record contractor payment</span><button type="button" class="modal-close" data-close-modal="ctr-pay-modal">✕</button></div>
+    <input type="hidden" id="ctr-pay-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Amount (PKR) *</label><input id="ctr-pay-amount" type="number" min="1" value=""></div>
+      <div class="fg"><label>Date</label><input id="ctr-pay-date" type="date"></div>
+    </div>
+    <div class="fg"><label>Project</label><select id="ctr-pay-proj"><option value="">—</option></select></div>
+    <div class="form-row">
+      <div class="fg"><label>Method</label>
+        <select id="ctr-pay-method">
+          <option>Bank Transfer</option><option>Cash</option><option>Cheque</option>
+        </select>
+      </div>
+      <div class="fg"><label>Reference</label><input id="ctr-pay-ref" type="text"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="ctr-pay-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="ctr-pay-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-ctr-pay">Record payment</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="invmat-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title"><span id="invmat-modal-title">Add Inventory Item</span><button type="button" class="modal-close" data-close-modal="invmat-modal">✕</button></div>
+    <input type="hidden" id="ninv-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Name *</label><input id="ninv-name" type="text"></div>
+      <div class="fg"><label>SKU</label><input id="ninv-sku" type="text"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Category</label><input id="ninv-category" type="text"></div>
+      <div class="fg"><label>Unit</label><input id="ninv-unit" type="text" value="pcs"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Project</label><select id="ninv-proj"><option value="">Company-wide</option></select></div>
+      <div class="fg"><label>Min stock</label><input id="ninv-min" type="number" min="0" step="0.01" value="0"></div>
+    </div>
+    <div class="form-row" id="ninv-opening-row">
+      <div class="fg"><label>Opening stock</label><input id="ninv-opening" type="number" min="0" step="0.01" value="0"></div>
+      <div class="fg"><label>Unit cost (PKR)</label><input id="ninv-cost" type="number" min="0" value="0"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="ninv-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="invmat-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-invmat">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="invmat-detail-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span id="invmatd-title">Item</span><button type="button" class="modal-close" data-close-modal="invmat-detail-modal">✕</button></div>
+    <div id="invmatd-body"><div class="loading"><span class="spinner"></span></div></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="bud-line-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Add budget line</span><button type="button" class="modal-close" data-close-modal="bud-line-modal">✕</button></div>
+    <div class="fg"><label>Project *</label><select id="bl-project"></select></div>
+    <div class="fg"><label>Category *</label><select id="bl-category"></select></div>
+    <div class="fg"><label>Planned amount (PKR) *</label><input id="bl-planned" type="number" min="1"></div>
+    <div class="fg"><label>Notes</label><textarea id="bl-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="bud-line-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-bud-line">Save line</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="payplan-modal">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-title"><span id="payplan-modal-title">Edit pay plan</span><button type="button" class="modal-close" data-close-modal="payplan-modal">✕</button></div>
+    <input type="hidden" id="pp-project-id" value="">
+    <div class="form-row">
+      <div class="fg"><label>Template name</label><input id="pp-name" type="text"></div>
+      <div class="fg"><label>Enable</label>
+        <select id="pp-enable"><option value="1">Yes</option><option value="0">Disable / remove</option></select>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--g500);margin:0 0 10px">Percentages apply to financed balance (sale − booking) and must total 100%.</p>
+    <div id="pp-rules"></div>
+    <button type="button" class="add-inst" id="btn-add-pp-rule">+ Add rule</button>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="payplan-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-payplan">Save pay plan</button>
     </div>
   </div>
 </div>
@@ -1357,6 +1682,6 @@
 
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=sweep9"></script>
+<script type="module" src="/static/js/app.js?v=cap1"></script>
 </body>
 </html>

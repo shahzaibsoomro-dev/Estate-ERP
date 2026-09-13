@@ -24,6 +24,7 @@ def normalize_vendor(data: dict) -> dict:
         "description": _clean(data.get("description")),
         "contact": _clean(data.get("contact")),
         "category": _clean(data.get("category")),
+        "ntn": _clean(data.get("ntn")),
         "status": status,
     }
 
@@ -50,6 +51,7 @@ def _attach_balances(conn, vendor: dict) -> dict:
     vendor["total_payable"] = pos["total_payable"] if pos else 0
     vendor["total_paid"] = paid["v"] if paid else 0
     vendor["balance"] = vendor["total_payable"] - vendor["total_paid"]
+    vendor["master_id"] = f"VEN-{vendor['id']}"
     return vendor
 
 
@@ -91,10 +93,10 @@ def _mapped_po(conn, po: dict) -> dict:
 def create_vendor(conn, data: dict) -> dict:
     payload = normalize_vendor(data)
     cur = conn.execute(
-        "INSERT INTO vendors(name, description, contact, category, status) VALUES(?,?,?,?,?)",
+        "INSERT INTO vendors(name, description, contact, category, ntn, status) VALUES(?,?,?,?,?,?)",
         (
             payload["name"], payload["description"], payload["contact"],
-            payload["category"], payload["status"],
+            payload["category"], payload["ntn"], payload["status"],
         ),
     )
     return get_vendor(conn, cur.lastrowid)
@@ -132,11 +134,11 @@ def update_vendor(conn, vendor_id: int, data: dict) -> dict | None:
         return None
     payload = normalize_vendor(data)
     conn.execute(
-        """UPDATE vendors SET name=?, description=?, contact=?, category=?, status=?
+        """UPDATE vendors SET name=?, description=?, contact=?, category=?, ntn=?, status=?
            WHERE id=?""",
         (
             payload["name"], payload["description"], payload["contact"],
-            payload["category"], payload["status"], vendor_id,
+            payload["category"], payload["ntn"], payload["status"], vendor_id,
         ),
     )
     return get_vendor(conn, vendor_id)
@@ -251,6 +253,11 @@ def update_po_status(conn, po_id: int, status: str) -> dict | None:
             "UPDATE purchase_orders SET status='delivered', grn_status='done' WHERE id=?",
             (po_id,),
         )
+        try:
+            from backend.services import inventory as inv_svc
+            inv_svc.receive_from_po(conn, po_id)
+        except Exception:
+            pass
     elif key == "completed":
         conn.execute(
             "UPDATE purchase_orders SET status='closed', grn_status='done' WHERE id=?",

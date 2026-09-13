@@ -809,12 +809,28 @@ try:
         ok("block delete investor with money")
     else:
         fail("delete investor with money", "should 400")
+    # Set returns start in the future via PUT then try distribute early
+    from datetime import timedelta
+    future = (date.today() + timedelta(days=60)).isoformat()
+    put(f"/api/investors/{iid}", {
+        "name": f"Inv {SUFFIX} Edit", "mobile_number": "03003334444", "status": "active",
+        "returns_start_date": future, "investment_date": date.today().isoformat(),
+        "agreed_amount": 500000,
+    })
+    early_blocked, _ = expect_http_error(
+        f"/api/investors/{iid}/distribute", "POST",
+        {"amount": 1000, "distribution_date": date.today().isoformat()}, 400,
+    )
+    if early_blocked:
+        ok("block distribution before returns start")
+    else:
+        fail("early distribution", "should 400")
     post(f"/api/investors/{iid}/distribute", {
-        "amount": 50000, "distribution_date": date.today().isoformat(),
+        "amount": 50000, "distribution_date": future,
     })
     after = get(f"/api/investors/{iid}")
     if int(after.get("total_return_received") or 0) == 50000:
-        ok("investor distribution")
+        ok("investor distribution on/after returns start")
     else:
         fail("distribution", str(after.get("total_return_received")))
 
@@ -865,7 +881,9 @@ try:
     else:
         fail("transfer", str(xfer.get("customer_id")))
 
-    poss = post(f"/api/units/{unit['id']}/possession", {"possession_date": date.today().isoformat()})
+    poss = post(f"/api/units/{unit['id']}/possession", {
+        "possession_date": date.today().isoformat(), "complete_all": True,
+    })
     st = (poss.get("unit") or poss).get("status") if isinstance(poss, dict) else None
     if st == "delivered" or (poss.get("unit") or {}).get("raw_status") == "possession_delivered":
         ok("mark possession")

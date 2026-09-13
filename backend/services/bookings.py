@@ -224,7 +224,7 @@ def preview_cancel(conn, booking_id: int) -> dict:
 
 
 def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | None = None,
-                    transfer_date: str | None = None) -> dict:
+                    transfer_date: str | None = None, transfer_fee: int | None = 0) -> dict:
     booking = fetch_one(conn, "SELECT * FROM bookings WHERE id=? AND status='active'", (booking_id,))
     if not booking:
         raise ValueError("Active booking not found")
@@ -233,18 +233,25 @@ def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | N
     new_c = fetch_one(conn, "SELECT id, name FROM customers WHERE id=?", (new_customer_id,))
     if not new_c:
         raise ValueError("Customer not found")
+    try:
+        fee = int(transfer_fee or 0)
+    except (TypeError, ValueError):
+        fee = 0
+    if fee < 0:
+        raise ValueError("Transfer fee cannot be negative")
     from_id = booking["customer_id"]
     when = (transfer_date or "").strip() or date.today().isoformat()
     conn.execute("UPDATE bookings SET customer_id=? WHERE id=?", (new_customer_id, booking_id))
     conn.execute("UPDATE installments SET customer_id=? WHERE booking_id=?", (new_customer_id, booking_id))
     conn.execute("UPDATE payments SET customer_id=? WHERE booking_id=?", (new_customer_id, booking_id))
     conn.execute(
-        """INSERT INTO booking_transfers(booking_id, from_customer_id, to_customer_id, transfer_date, notes)
-           VALUES(?,?,?,?,?)""",
-        (booking_id, from_id, new_customer_id, when, (notes or "").strip() or None),
+        """INSERT INTO booking_transfers(
+             booking_id, from_customer_id, to_customer_id, transfer_date, transfer_fee, notes)
+           VALUES(?,?,?,?,?,?)""",
+        (booking_id, from_id, new_customer_id, when, fee, (notes or "").strip() or None),
     )
     audit_svc.log(conn, "booking", booking_id, "transferred", {
-        "from_customer_id": from_id, "to_customer_id": new_customer_id,
+        "from_customer_id": from_id, "to_customer_id": new_customer_id, "transfer_fee": fee,
     })
     return fetch_one(conn, "SELECT * FROM bookings WHERE id=?", (booking_id,))
 

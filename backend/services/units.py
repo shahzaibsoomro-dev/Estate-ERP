@@ -237,7 +237,11 @@ def update_status(conn, unit_id: int, status: str, hold_customer_id: int | None 
     return get_unit(conn, unit_id)
 
 
-def mark_possession(conn, unit_id: int, possession_date: str | None = None) -> dict:
+def mark_possession(conn, unit_id: int, possession_date: str | None = None,
+                    checklist_responses: list[dict] | None = None,
+                    completed_by: str | None = None,
+                    skip_checklist: bool = False,
+                    complete_all: bool = False) -> dict:
     unit = fetch_one(conn, "SELECT * FROM units WHERE id=?", (unit_id,))
     if not unit:
         raise ValueError("Unit not found")
@@ -249,6 +253,32 @@ def mark_possession(conn, unit_id: int, possession_date: str | None = None) -> d
     if not booking:
         raise ValueError("Active booking required for possession")
     when = (possession_date or "").strip() or date.today().isoformat()
+
+    checklist = None
+    if not skip_checklist:
+        from backend.services import possession as poss_svc
+        checklist = poss_svc.start_checklist(conn, unit_id, when, completed_by=completed_by)
+        responses = list(checklist_responses or [])
+        if complete_all and not responses:
+            responses = [
+                {"id": r["id"], "checked": True}
+                for r in (checklist.get("responses") or [])
+            ]
+        if responses:
+            checklist = poss_svc.update_responses(
+                conn, checklist["id"], responses, completed_by=completed_by,
+            )
+        missing = [
+            r["label"] for r in (checklist.get("responses") or [])
+            if r.get("is_required") and not r.get("checked")
+        ]
+        if missing:
+            raise ValueError(
+                "Complete possession checklist first: " + ", ".join(missing[:4])
+                + ("…" if len(missing) > 4 else "")
+            )
+        poss_svc.complete_checklist(conn, checklist["id"], completed_by=completed_by)
+
     conn.execute(
         """UPDATE units SET status='possession_delivered', possession_date=? WHERE id=?""",
         (when, unit_id),
@@ -256,8 +286,12 @@ def mark_possession(conn, unit_id: int, possession_date: str | None = None) -> d
     conn.execute("UPDATE bookings SET possession_date=? WHERE id=?", (when, booking["id"]))
     audit_svc.log(conn, "unit", unit_id, "possession", {
         "booking_id": booking["id"], "possession_date": when,
+        "checklist_id": checklist["id"] if checklist else None,
     })
-    return get_unit_detail(conn, unit_id)
+    detail = get_unit_detail(conn, unit_id)
+    if checklist:
+        detail["possession_checklist"] = checklist
+    return detail
 
 
 def update_unit(conn, unit_id: int, data: dict) -> dict:

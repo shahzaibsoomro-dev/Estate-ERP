@@ -3,6 +3,7 @@ import { api, toast } from '../api.js';
 import { fmt, fmtShort } from '../format.js';
 import { closeModal, openModal } from '../modal.js';
 import { askConfirm } from '../dialog.js';
+import { projectFilterQuery } from '../project-filter.js';
 
 let allInvestors = [];
 
@@ -40,7 +41,7 @@ function syncInvestorFormVisibility() {
 
 export async function loadInvestors() {
   closeModal('imoney-modal');
-  allInvestors = await api('/api/investors');
+  allInvestors = await api(`/api/investors${projectFilterQuery()}`);
   if ($('inv-total')) $('inv-total').textContent = allInvestors.length;
   if ($('inv-kpi-in')) {
     $('inv-kpi-in').textContent = fmtShort(allInvestors.reduce((a, i) => a + (i.investment_amount || 0), 0));
@@ -286,11 +287,24 @@ function openInvestorMoney(inv, kind) {
   $('imoney-date').value = todayISO();
   $('imoney-notes').value = '';
   $('imoney-title').textContent = kind === 'in' ? 'Record contribution' : 'Pay distribution';
+  const start = inv.returns_start_date || '—';
+  const lockNote = kind === 'out'
+    ? `<div class="sum-row"><span class="sum-lbl">Returns start</span><span class="sum-val">${esc(start)}${inv.returns_active ? '' : ' · locked'}</span></div>
+       ${inv.returns_active ? '' : `<div style="font-size:11px;color:var(--danger);margin-top:6px">Cannot pay before ${esc(start)}</div>`}`
+    : '';
+  if (kind === 'out' && inv.returns_start_date && $('imoney-date')) {
+    $('imoney-date').min = inv.returns_start_date;
+    if (($('imoney-date').value || '') < inv.returns_start_date) $('imoney-date').value = inv.returns_start_date;
+  } else if ($('imoney-date')) {
+    $('imoney-date').removeAttribute('min');
+  }
   $('imoney-summary').innerHTML = `
     <div class="bk-dname">${esc(inv.name)}</div>
+    <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(inv.project_name || 'Company')}</span></div>
     <div class="sum-row"><span class="sum-lbl">Contributed</span><span class="sum-val">${fmt(inv.investment_amount)}</span></div>
     <div class="sum-row"><span class="sum-lbl">Distributed</span><span class="sum-val">${fmt(inv.total_return_received)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Return due</span><span class="sum-val">${fmt(inv.return_due || 0)}</span></div>`;
+    <div class="sum-row"><span class="sum-lbl">Return due</span><span class="sum-val">${fmt(inv.return_due || 0)}</span></div>
+    ${lockNote}`;
   closeModal('inv-detail-modal');
   openModal('imoney-modal');
 }

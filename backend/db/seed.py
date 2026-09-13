@@ -265,14 +265,14 @@ def run_seed(conn: sqlite3.Connection) -> None:
         )
 
     vendors = [
-        ("Steel Corp Ltd", "Structural steel supplier", "0321-1110001", "Structural Steel", "active"),
-        ("City Cement Co", "Cement supplier", "0321-2220002", "Cement", "active"),
-        ("Premier Sand", "Aggregates", "0321-3330003", "Aggregates", "active"),
-        ("Pak Electrics", "Electrical", "0321-4440004", "Electrical", "active"),
-        ("Master Tiles", "Tiles & flooring", "0321-5550005", "Tiles", "active"),
+        ("Steel Corp Ltd", "Structural steel supplier", "0321-1110001", "Structural Steel", "1234567-8", "active"),
+        ("City Cement Co", "Cement supplier", "0321-2220002", "Cement", "2345678-9", "active"),
+        ("Premier Sand", "Aggregates", "0321-3330003", "Aggregates", None, "active"),
+        ("Pak Electrics", "Electrical", "0321-4440004", "Electrical", "3456789-1", "active"),
+        ("Master Tiles", "Tiles & flooring", "0321-5550005", "Tiles", None, "active"),
     ]
     conn.executemany(
-        "INSERT INTO vendors(name, description, contact, category, status) VALUES(?,?,?,?,?)",
+        "INSERT INTO vendors(name, description, contact, category, ntn, status) VALUES(?,?,?,?,?,?)",
         vendors,
     )
 
@@ -397,6 +397,7 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
             from_customer_id INTEGER NOT NULL,
             to_customer_id INTEGER NOT NULL,
             transfer_date TEXT NOT NULL,
+            transfer_fee INTEGER DEFAULT 0,
             notes TEXT,
             FOREIGN KEY (booking_id) REFERENCES bookings(id),
             FOREIGN KEY (from_customer_id) REFERENCES customers(id),
@@ -543,6 +544,129 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
         """
     )
     _ensure_column(conn, "agents", "category", "TEXT")
+    _ensure_column(conn, "agents", "bonus_budget", "INTEGER DEFAULT 0")
+    _ensure_column(conn, "vendors", "ntn", "TEXT")
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS agent_bonuses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id INTEGER NOT NULL,
+            amount INTEGER NOT NULL,
+            bonus_date TEXT NOT NULL,
+            reason TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (agent_id) REFERENCES agents(id)
+        );
+        CREATE TABLE IF NOT EXISTS contractors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            cnic TEXT,
+            contact TEXT,
+            ntn TEXT,
+            specialty TEXT,
+            description TEXT,
+            status TEXT DEFAULT 'active'
+        );
+        CREATE TABLE IF NOT EXISTS contractor_assignments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contractor_id INTEGER NOT NULL,
+            project_id INTEGER NOT NULL,
+            role TEXT,
+            contract_amount INTEGER DEFAULT 0,
+            start_date TEXT,
+            end_date TEXT,
+            status TEXT DEFAULT 'active',
+            notes TEXT,
+            FOREIGN KEY (contractor_id) REFERENCES contractors(id),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        );
+        CREATE TABLE IF NOT EXISTS contractor_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contractor_id INTEGER NOT NULL,
+            assignment_id INTEGER,
+            project_id INTEGER,
+            amount INTEGER NOT NULL,
+            payment_date TEXT NOT NULL,
+            payment_method TEXT DEFAULT 'Bank Transfer',
+            reference_number TEXT,
+            notes TEXT,
+            FOREIGN KEY (contractor_id) REFERENCES contractors(id),
+            FOREIGN KEY (assignment_id) REFERENCES contractor_assignments(id),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        );
+        CREATE TABLE IF NOT EXISTS inventory_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sku TEXT,
+            name TEXT NOT NULL,
+            unit TEXT DEFAULT 'pcs',
+            category TEXT,
+            project_id INTEGER,
+            min_stock REAL DEFAULT 0,
+            notes TEXT,
+            status TEXT DEFAULT 'active',
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        );
+        CREATE TABLE IF NOT EXISTS inventory_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER NOT NULL,
+            project_id INTEGER,
+            direction TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit_cost INTEGER DEFAULT 0,
+            reference_type TEXT,
+            reference_id INTEGER,
+            movement_date TEXT NOT NULL,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (item_id) REFERENCES inventory_items(id),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        );
+        CREATE TABLE IF NOT EXISTS possession_checklist_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            is_default INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS possession_checklist_template_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL,
+            sort_order INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            is_required INTEGER DEFAULT 1,
+            FOREIGN KEY (template_id) REFERENCES possession_checklist_templates(id)
+        );
+        CREATE TABLE IF NOT EXISTS possession_checklists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id INTEGER NOT NULL,
+            unit_id INTEGER NOT NULL,
+            template_id INTEGER,
+            possession_date TEXT NOT NULL,
+            status TEXT DEFAULT 'in_progress',
+            completed_at TEXT,
+            completed_by TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (booking_id) REFERENCES bookings(id),
+            FOREIGN KEY (unit_id) REFERENCES units(id),
+            FOREIGN KEY (template_id) REFERENCES possession_checklist_templates(id)
+        );
+        CREATE TABLE IF NOT EXISTS possession_checklist_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            checklist_id INTEGER NOT NULL,
+            item_id INTEGER,
+            label TEXT NOT NULL,
+            is_required INTEGER DEFAULT 1,
+            checked INTEGER DEFAULT 0,
+            notes TEXT,
+            FOREIGN KEY (checklist_id) REFERENCES possession_checklists(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_contractor_assign_project ON contractor_assignments(project_id);
+        CREATE INDEX IF NOT EXISTS idx_inv_mov_item ON inventory_movements(item_id);
+        CREATE INDEX IF NOT EXISTS idx_poss_check_unit ON possession_checklists(unit_id);
+        """
+    )
+    _ensure_default_possession_template(conn)
     for col, decl in (
         ("returns_start_date", "TEXT"),
         ("catch_up_policy", "TEXT DEFAULT 'lump_sum'"),
@@ -550,6 +674,7 @@ def ensure_additive_schema(conn: sqlite3.Connection) -> None:
         ("profit_share_basis", "TEXT"),
     ):
         _ensure_column(conn, "investor_agreements", col, decl)
+    _ensure_column(conn, "booking_transfers", "transfer_fee", "INTEGER DEFAULT 0")
     for col, decl in (
         ("nok_name", "TEXT"),
         ("nok_relationship", "TEXT"),
@@ -608,6 +733,35 @@ def _ensure_column(conn, table: str, column: str, decl: str) -> None:
     cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
+def _ensure_default_possession_template(conn: sqlite3.Connection) -> None:
+    row = conn.execute(
+        "SELECT id FROM possession_checklist_templates WHERE is_default=1 LIMIT 1"
+    ).fetchone()
+    if row:
+        return
+    cur = conn.execute(
+        "INSERT INTO possession_checklist_templates(name, is_default) VALUES(?, 1)",
+        ("Standard possession handover",),
+    )
+    tid = cur.lastrowid
+    items = [
+        "Keys handed over (main + mailbox)",
+        "Electricity meter reading recorded",
+        "Water / gas connection verified",
+        "Fixtures & fittings inspected",
+        "No visible construction defects",
+        "Parking / storage access confirmed",
+        "Customer signed possession certificate",
+        "Snag list (if any) acknowledged",
+    ]
+    for i, label in enumerate(items, start=1):
+        conn.execute(
+            """INSERT INTO possession_checklist_template_items(template_id, sort_order, label, is_required)
+               VALUES(?,?,?,1)""",
+            (tid, i, label),
+        )
 
 
 def init_db(force: bool = False) -> None:

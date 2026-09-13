@@ -24,12 +24,15 @@ def list_cashbook(conn) -> dict:
     hold_in = fetch_all(
         conn,
         """SELECT ht.id AS source_id, ht.txn_date AS entry_date,
-                  'Hold token · ' || COALESCE(c.name,'Customer') || ' · ' || u.unit_no AS narration,
-                  ht.amount AS inflow, 0 AS outflow, 'hold' AS source, NULL AS id
+                  'Hold token · ' || COALESCE(c.name,'Customer') || ' · ' || u.unit_no
+                    || COALESCE(' · ' || hr.receipt_no,'') AS narration,
+                  ht.amount AS inflow, 0 AS outflow, 'hold' AS source, NULL AS id,
+                  hr.receipt_no AS receipt_no
            FROM hold_transactions ht
            JOIN unit_holds h ON h.id=ht.hold_id
            JOIN units u ON u.id=h.unit_id
            LEFT JOIN customers c ON c.id=h.customer_id
+           LEFT JOIN hold_receipts hr ON hr.transaction_id=ht.id
            WHERE ht.direction='in' AND ht.amount > 0""",
     )
     hold_out = fetch_all(
@@ -37,7 +40,8 @@ def list_cashbook(conn) -> dict:
         """SELECT ht.id AS source_id, ht.txn_date AS entry_date,
                   'Hold refund · ' || COALESCE(c.name,'Customer') || ' · ' || u.unit_no
                     || COALESCE(' · ' || ht.voucher_no,'') AS narration,
-                  0 AS inflow, ht.amount AS outflow, 'hold' AS source, NULL AS id
+                  0 AS inflow, ht.amount AS outflow, 'hold' AS source, NULL AS id,
+                  ht.voucher_no AS receipt_no
            FROM hold_transactions ht
            JOIN unit_holds h ON h.id=ht.hold_id
            JOIN units u ON u.id=h.unit_id
@@ -62,6 +66,14 @@ def list_cashbook(conn) -> dict:
            JOIN agent_commissions ac ON ac.id=acp.commission_id
            JOIN agents a ON a.id=ac.agent_id
            LEFT JOIN bookings b ON b.id=ac.booking_id""",
+    )
+    agent_bonus_out = fetch_all(
+        conn,
+        """SELECT ab.id AS source_id, ab.bonus_date AS entry_date,
+                  'Agent bonus · ' || a.name || COALESCE(' · ' || ab.reason,'') AS narration,
+                  0 AS inflow, ab.amount AS outflow, 'agent_bonus' AS source, NULL AS id
+           FROM agent_bonuses ab
+           JOIN agents a ON a.id=ab.agent_id""",
     )
     inv_in = fetch_all(
         conn,
@@ -99,6 +111,19 @@ def list_cashbook(conn) -> dict:
            JOIN partner_agreements a ON a.id=d.agreement_id
            JOIN partners p ON p.id=a.partner_id""",
     )
+    contractor_out = []
+    try:
+        contractor_out = fetch_all(
+            conn,
+            """SELECT cp.id AS source_id, cp.payment_date AS entry_date,
+                      'Contractor · ' || c.name || COALESCE(' · ' || p.name,'') AS narration,
+                      0 AS inflow, cp.amount AS outflow, 'contractor' AS source, NULL AS id
+               FROM contractor_payments cp
+               JOIN contractors c ON c.id=cp.contractor_id
+               LEFT JOIN projects p ON p.id=cp.project_id""",
+        )
+    except Exception:
+        contractor_out = []
     cancel_out = fetch_all(
         conn,
         """SELECT bc.id AS source_id, date(bc.cancelled_at) AS entry_date,
@@ -109,6 +134,21 @@ def list_cashbook(conn) -> dict:
            JOIN customers c ON c.id=b.customer_id
            WHERE bc.refund_amount > 0""",
     )
+    transfer_in = []
+    try:
+        transfer_in = fetch_all(
+            conn,
+            """SELECT bt.id AS source_id, bt.transfer_date AS entry_date,
+                      'Transfer fee · ' || u.unit_no || ' · ' || c.name AS narration,
+                      bt.transfer_fee AS inflow, 0 AS outflow, 'transfer_fee' AS source, NULL AS id
+               FROM booking_transfers bt
+               JOIN bookings b ON b.id=bt.booking_id
+               JOIN units u ON u.id=b.unit_id
+               JOIN customers c ON c.id=bt.to_customer_id
+               WHERE COALESCE(bt.transfer_fee, 0) > 0""",
+        )
+    except Exception:
+        transfer_in = []
     manual = fetch_all(
         conn,
         """SELECT id AS source_id, entry_date, narration,
@@ -118,7 +158,7 @@ def list_cashbook(conn) -> dict:
            FROM ledger_entries""",
     )
     rows = []
-    for group in (inflows, hold_in, hold_out, vendor_out, agent_out, inv_in, inv_out, partner_in, partner_out, cancel_out, manual):
+    for group in (inflows, hold_in, hold_out, vendor_out, agent_out, agent_bonus_out, inv_in, inv_out, partner_in, partner_out, contractor_out, cancel_out, transfer_in, manual):
         rows.extend(group)
     rows.sort(key=lambda r: (r.get("entry_date") or "", r.get("source") or "", r.get("source_id") or 0))
     balance = 0

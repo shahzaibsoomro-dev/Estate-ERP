@@ -36,6 +36,17 @@ def create_category(body: CategoryCreate):
         return svc.create_category(conn, body.name, body.sort_order)
 
 
+@router.delete("/categories/{category_id}")
+def delete_category(category_id: int):
+    with get_db() as conn:
+        try:
+            svc.delete_category(conn, category_id)
+            return {"ok": True}
+        except ValueError as e:
+            from fastapi import HTTPException
+            raise HTTPException(400, str(e)) from e
+
+
 @router.get("/lines")
 def list_lines(project_id: int | None = Query(None)):
     with get_db() as conn:

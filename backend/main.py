@@ -14,14 +14,18 @@ from backend.routers import (
     audit,
     bookings,
     budget,
+    contractors,
     customers,
     dashboard,
+    entities,
     health,
     holds,
+    inventory,
     investors,
     partners,
     payments,
     portal,
+    possession,
     projects,
     recovery,
     settings,
@@ -49,7 +53,8 @@ app.add_middleware(
 
 for mod in (
     health, dashboard, projects, units, customers, bookings, payments,
-    recovery, vendors, budget, site_logs, accounts, agents, investors, partners, settings, portal, audit, stubs,
+    recovery, vendors, budget, site_logs, accounts, agents, investors, partners, entities,
+    contractors, inventory, possession, settings, portal, audit, stubs,
     holds,
 ):
     app.include_router(mod.router)

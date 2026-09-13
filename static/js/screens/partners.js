@@ -3,6 +3,7 @@ import { api, toast } from '../api.js';
 import { fmt, fmtShort } from '../format.js';
 import { closeModal, openModal } from '../modal.js';
 import { askConfirm } from '../dialog.js';
+import { projectFilterQuery } from '../project-filter.js';
 
 let allPartners = [];
 
@@ -38,7 +39,7 @@ function syncPartnerFormVisibility() {
 
 export async function loadPartners() {
   closeModal('pmoney-modal');
-  allPartners = await api('/api/partners');
+  allPartners = await api(`/api/partners${projectFilterQuery()}`);
   if ($('par-total')) $('par-total').textContent = allPartners.length;
   if ($('par-kpi-in')) {
     $('par-kpi-in').textContent = fmtShort(allPartners.reduce((a, i) => a + (i.investment_amount || 0), 0));
@@ -167,7 +168,7 @@ export async function openPartnerDetail(id) {
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button type="button" class="btn" data-par-edit="${p.id}">Edit</button>
       <button type="button" class="btn primary" data-par-in="${p.id}">Record in</button>
-      <button type="button" class="btn" data-par-out="${p.id}">Pay out</button>
+      <button type="button" class="btn" data-par-out="${p.id}" ${p.returns_active ? '' : 'title="Returns start date not reached yet"'}>Pay out</button>
     </div>`;
   $('pd-body').querySelector('[data-par-edit]')?.addEventListener('click', () => openPartnerForm(p.id));
   $('pd-body').querySelector('[data-par-in]')?.addEventListener('click', () => openPartnerMoney(p, 'in'));
@@ -246,6 +247,10 @@ async function submitPartner() {
     toast('Partner name is required', 'error');
     return;
   }
+  if (!payload.project_id) {
+    toast('Select a project for this partner', 'error');
+    return;
+  }
   if (catchUp === 'spread' && (!payload.catch_up_months || payload.catch_up_months < 1)) {
     toast('Enter catch-up months (N)', 'error');
     return;
@@ -285,11 +290,24 @@ function openPartnerMoney(p, kind) {
   $('pmoney-date').value = todayISO();
   $('pmoney-notes').value = '';
   $('pmoney-title').textContent = kind === 'in' ? 'Record contribution' : 'Pay distribution';
+  const start = p.returns_start_date || '—';
+  const lockNote = kind === 'out'
+    ? `<div class="sum-row"><span class="sum-lbl">Returns start</span><span class="sum-val">${esc(start)}${p.returns_active ? '' : ' · locked'}</span></div>
+       ${p.returns_active ? '' : `<div style="font-size:11px;color:var(--danger);margin-top:6px">Cannot pay before ${esc(start)}</div>`}`
+    : '';
+  if (kind === 'out' && p.returns_start_date && $('pmoney-date')) {
+    $('pmoney-date').min = p.returns_start_date;
+    if (($('pmoney-date').value || '') < p.returns_start_date) $('pmoney-date').value = p.returns_start_date;
+  } else if ($('pmoney-date')) {
+    $('pmoney-date').removeAttribute('min');
+  }
   $('pmoney-summary').innerHTML = `
     <div class="bk-dname">${esc(p.name)}</div>
+    <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(p.project_name || '—')}</span></div>
     <div class="sum-row"><span class="sum-lbl">Contributed</span><span class="sum-val">${fmt(p.investment_amount)}</span></div>
     <div class="sum-row"><span class="sum-lbl">Distributed</span><span class="sum-val">${fmt(p.total_return_received)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Return due</span><span class="sum-val">${fmt(p.return_due || 0)}</span></div>`;
+    <div class="sum-row"><span class="sum-lbl">Return due</span><span class="sum-val">${fmt(p.return_due || 0)}</span></div>
+    ${lockNote}`;
   closeModal('par-detail-modal');
   openModal('pmoney-modal');
 }

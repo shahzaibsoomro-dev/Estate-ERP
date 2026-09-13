@@ -43,6 +43,10 @@ class StatusUpdate(BaseModel):
 
 class PossessionBody(BaseModel):
     possession_date: str | None = None
+    checklist_responses: list[dict] | None = None
+    completed_by: str | None = None
+    complete_all: bool = False
+    skip_checklist: bool = False
 
 
 class UnitUpdate(BaseModel):
@@ -129,7 +133,15 @@ def update_status(unit_id: int, body: StatusUpdate):
 def mark_possession(unit_id: int, body: PossessionBody | None = None):
     with get_db() as conn:
         try:
-            return svc.mark_possession(conn, unit_id, body.possession_date if body else None)
+            data = body.model_dump() if body else {}
+            return svc.mark_possession(
+                conn, unit_id,
+                possession_date=data.get("possession_date"),
+                checklist_responses=data.get("checklist_responses"),
+                completed_by=data.get("completed_by"),
+                skip_checklist=bool(data.get("skip_checklist")),
+                complete_all=bool(data.get("complete_all")),
+            )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
 

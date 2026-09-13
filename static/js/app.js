@@ -19,6 +19,13 @@ import { initReportsEvents } from './screens/finance-extra.js';
 import { loadPortal, initPortalEvents } from './screens/portal.js';
 import { loadInvestors, initInvestorEvents } from './screens/investors.js';
 import { loadPartners, initPartnerEvents } from './screens/partners.js';
+import { loadParties, initPartyEvents } from './screens/parties.js';
+import {
+  loadContractors, initContractorEvents,
+  loadInventory, initInventoryEvents,
+  loadBudget, initBudgetEvents,
+  loadPayPlans, initPayPlanEvents,
+} from './screens/ops-extra.js';
 import { loadActivity } from './screens/activity.js';
 
 registerScreen('dashboard', loadDashboard);
@@ -31,11 +38,16 @@ registerScreen('customers', loadCustomers);
 registerScreen('recovery', loadRecovery);
 registerScreen('procurement', loadProcurement);
 registerScreen('vendors', loadVendors);
+registerScreen('contractors', loadContractors);
+registerScreen('inventory', loadInventory);
 registerScreen('site', loadSite);
 registerScreen('accounts', loadAccounts);
+registerScreen('budget', loadBudget);
+registerScreen('payplans', loadPayPlans);
 registerScreen('agents', loadAgents);
 registerScreen('investors', loadInvestors);
 registerScreen('partners', loadPartners);
+registerScreen('parties', loadParties);
 registerScreen('reports', () => {});
 registerScreen('portal', loadPortal);
 
@@ -75,6 +87,11 @@ async function init() {
   safe('portal', initPortalEvents);
   safe('investors', initInvestorEvents);
   safe('partners', initPartnerEvents);
+  safe('parties', initPartyEvents);
+  safe('contractors', initContractorEvents);
+  safe('inventory', initInventoryEvents);
+  safe('budget', initBudgetEvents);
+  safe('payplans', initPayPlanEvents);
   try {
     await refreshProjectSelects();
   } catch (e) {

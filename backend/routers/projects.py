@@ -7,6 +7,12 @@ from backend.services import projects as svc
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
+@router.get("/pay-plans")
+def list_pay_plans():
+    with get_db() as conn:
+        return tmpl_svc.list_pay_plans(conn)
+
+
 class ProjectCreate(BaseModel):
     name: str
     location: str | None = None

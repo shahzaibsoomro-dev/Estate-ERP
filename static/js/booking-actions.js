@@ -49,12 +49,46 @@ export function confirmPossession(unitId, outstanding) {
   possOutstanding = outstanding || 0;
   $('poss-unit-id').value = String(unitId);
   if ($('poss-date')) $('poss-date').value = todayISO();
+  if ($('poss-by')) $('poss-by').value = '';
   $('poss-summary').innerHTML = possOutstanding > 0
     ? `<div class="sum-row"><span class="sum-lbl">Outstanding</span><span class="sum-val td-red">${fmt(possOutstanding)}</span></div>
        <div style="font-size:11px;color:var(--g400);margin-top:8px">Possession can still be recorded while dues remain.</div>`
-    : `<div style="font-size:12px;color:var(--g500)">Mark this unit as possession delivered.</div>`;
+    : `<div style="font-size:12px;color:var(--g500)">Complete the handover checklist, then mark possession delivered.</div>`;
+  if ($('poss-checklist')) {
+    $('poss-checklist').innerHTML = '<div class="loading"><span class="spinner"></span>Loading checklist…</div>';
+  }
   openModal('poss-modal');
+  // Start / load checklist for this unit
+  api(`/api/possession/units/${unitId}/checklist`).then((cl) => {
+    renderPossChecklist(cl);
+  }).catch(async () => {
+    try {
+      const cl = await api(`/api/possession/units/${unitId}/checklist`, {
+        method: 'POST',
+        body: JSON.stringify({ possession_date: $('poss-date')?.value || todayISO() }),
+      });
+      renderPossChecklist(cl);
+    } catch (e) {
+      if ($('poss-checklist')) {
+        $('poss-checklist').innerHTML = `<div class="error-box">${esc(e.message || 'Could not load checklist')}</div>`;
+      }
+    }
+  });
   return new Promise((resolve) => { possResolver = resolve; });
+}
+
+function renderPossChecklist(cl) {
+  const box = $('poss-checklist');
+  if (!box) return;
+  const items = cl.responses || [];
+  box.innerHTML = items.length
+    ? items.map((r) => `
+      <label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;font-size:12.5px">
+        <input type="checkbox" data-poss-item="${r.id}" ${r.checked ? 'checked' : ''}>
+        <span>${esc(r.label)}${r.is_required ? ' <span style="color:var(--danger)">*</span>' : ''}</span>
+      </label>`).join('')
+    : '<div style="color:var(--g400)">No checklist items</div>';
+  box.dataset.checklistId = String(cl.id || '');
 }
 
 export function initCancelPossEvents() {
@@ -89,10 +123,18 @@ export function initCancelPossEvents() {
         title: 'Outstanding balance', confirmLabel: 'Mark possession',
       })) return;
     }
+    const responses = [...document.querySelectorAll('[data-poss-item]')].map((el) => ({
+      id: parseInt(el.dataset.possItem, 10),
+      checked: el.checked,
+    }));
     try {
       await api(`/api/units/${unitId}/possession`, {
         method: 'POST',
-        body: JSON.stringify({ possession_date: $('poss-date')?.value || todayISO() }),
+        body: JSON.stringify({
+          possession_date: $('poss-date')?.value || todayISO(),
+          completed_by: ($('poss-by')?.value || '').trim() || null,
+          checklist_responses: responses,
+        }),
       });
       closeModal('poss-modal');
       toast('Possession recorded');
@@ -169,10 +211,12 @@ export async function openTransferModal({ bookingId, unitId, currentCustomerId, 
   if ($('xfer-cust')) $('xfer-cust').value = '';
   $('xfer-notes').value = '';
   if ($('xfer-date')) $('xfer-date').value = todayISO();
+  if ($('xfer-fee')) $('xfer-fee').value = '0';
   if ($('xfer-q')) $('xfer-q').value = '';
   $('xfer-summary').innerHTML = `
     <div class="bk-dname">${esc(unitNo || 'Unit')}</div>
-    <div class="sum-row"><span class="sum-lbl">Current owner</span><span class="sum-val">${esc(currentName || '—')}</span></div>`;
+    <div class="sum-row"><span class="sum-lbl">Current owner</span><span class="sum-val">${esc(currentName || '—')}</span></div>
+    <div style="font-size:11px;color:var(--g400);margin-top:8px">Transfer fee (if any) is recorded as company income.</div>`;
   try {
     xferCustomers = await api('/api/customers');
   } catch {
@@ -224,6 +268,7 @@ export function initTransferEvents(onDone) {
           customer_id: customerId,
           notes: $('xfer-notes').value.trim() || null,
           transfer_date: $('xfer-date')?.value || todayISO(),
+          transfer_fee: parseInt($('xfer-fee')?.value, 10) || 0,
         }),
       });
       closeModal('xfer-modal');

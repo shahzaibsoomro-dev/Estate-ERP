@@ -23,6 +23,7 @@ class CapitalConfig:
     distribution_table: str
     person_fk: str  # investor_id / partner_id
     type_column: str  # investor_type / partner_type
+    require_project: bool = False
 
 
 INVESTOR = CapitalConfig(
@@ -45,6 +46,7 @@ PARTNER = CapitalConfig(
     distribution_table="partner_distributions",
     person_fk="partner_id",
     type_column="partner_type",
+    require_project=True,
 )
 
 
@@ -199,8 +201,19 @@ def _compute_return_metrics(ag: dict, principal: int, as_of: date | None = None)
     }
 
 
-def list_people(conn, cfg: CapitalConfig) -> list[dict]:
-    people = fetch_all(conn, f"SELECT * FROM {cfg.person_table} ORDER BY name")
+def list_people(conn, cfg: CapitalConfig, project_ids: list[int] | None = None) -> list[dict]:
+    if project_ids:
+        ph = ",".join("?" * len(project_ids))
+        people = fetch_all(
+            conn,
+            f"""SELECT DISTINCT p.* FROM {cfg.person_table} p
+                JOIN {cfg.agreement_table} a ON a.{cfg.person_fk}=p.id
+                WHERE a.project_id IN ({ph})
+                ORDER BY p.name""",
+            tuple(project_ids),
+        )
+    else:
+        people = fetch_all(conn, f"SELECT * FROM {cfg.person_table} ORDER BY name")
     return [_enrich(conn, cfg, p) for p in people]
 
 
@@ -256,6 +269,7 @@ def _enrich(conn, cfg: CapitalConfig, person: dict) -> dict:
     person["investment_amount"] = total_invested
     person["total_return_received"] = total_return
     person["outstanding_return"] = max(total_invested - total_return, 0)
+    person["master_id"] = ("INV" if cfg.entity == "investor" else "PAR") + f"-{person['id']}"
     first = agreements[0] if agreements else {}
     rtype = first.get("return_type") or _normalize_return_type(first.get(cfg.type_column))
     person["return_type"] = rtype
@@ -318,6 +332,8 @@ def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> Non
             project_id = None
         if project_id and not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
             raise ValueError("Project not found")
+    if getattr(cfg, "require_project", False) and not project_id:
+        raise ValueError(f"{cfg.label} must be linked to a project")
     try:
         agreed = int(data.get("agreed_amount") or 0)
     except (TypeError, ValueError):
@@ -445,7 +461,17 @@ def add_distribution(conn, cfg: CapitalConfig, person_id: int, data: dict) -> di
     if amount <= 0:
         raise ValueError("Amount must be greater than 0")
     agreement_id = data.get("agreement_id") or _ensure_agreement(conn, cfg, person_id)
+    ag = fetch_one(conn, f"SELECT * FROM {cfg.agreement_table} WHERE id=?", (agreement_id,))
+    if not ag:
+        raise ValueError("Agreement not found")
     pay_date = _clean(data.get("distribution_date")) or date.today().isoformat()
+    pay = _parse_date(pay_date) or date.today()
+    start = _parse_date(ag.get("returns_start_date")) or _parse_date(ag.get("investment_date"))
+    if start and pay < start:
+        raise ValueError(
+            f"Cannot pay returns before {start.isoformat()} "
+            f"(returns start date - silent period still active)"
+        )
     conn.execute(
         f"""INSERT INTO {cfg.distribution_table}(agreement_id, amount, distribution_date, notes)
            VALUES(?,?,?,?)""",

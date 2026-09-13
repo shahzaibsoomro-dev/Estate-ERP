@@ -12,6 +12,7 @@ class AgentWrite(BaseModel):
     contact: str | None = None
     category: str | None = None
     default_rate_pct: float = 2.0
+    bonus_budget: int | None = 0
     status: str | None = "active"
 
 
@@ -20,6 +21,13 @@ class PayBody(BaseModel):
     payment_date: str | None = None
     notes: str | None = None
     commission_id: int | None = None
+
+
+class BonusBody(BaseModel):
+    amount: int
+    bonus_date: str | None = None
+    reason: str | None = None
+    notes: str | None = None
 
 
 def _http(exc: ValueError) -> HTTPException:
@@ -81,6 +89,17 @@ def pay_agent(agent_id: int, body: PayBody):
         try:
             return svc.pay_commission(
                 conn, agent_id, body.amount, body.payment_date, body.notes, body.commission_id,
+            )
+        except ValueError as e:
+            raise _http(e) from e
+
+
+@router.post("/{agent_id}/bonus")
+def bonus_agent(agent_id: int, body: BonusBody):
+    with get_db() as conn:
+        try:
+            return svc.award_bonus(
+                conn, agent_id, body.amount, body.bonus_date, body.reason, body.notes,
             )
         except ValueError as e:
             raise _http(e) from e

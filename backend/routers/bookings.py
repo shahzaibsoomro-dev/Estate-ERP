@@ -65,6 +65,7 @@ class TransferBody(BaseModel):
     customer_id: int
     notes: str | None = None
     transfer_date: str | None = None
+    transfer_fee: int | None = 0
 
 
 @router.get("")
@@ -121,6 +122,7 @@ def transfer_booking(booking_id: int, body: TransferBody):
         try:
             return svc.transfer_booking(
                 conn, booking_id, body.customer_id, body.notes, body.transfer_date,
+                transfer_fee=body.transfer_fee,
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

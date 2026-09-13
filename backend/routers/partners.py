@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from backend.database import get_db
 from backend.services import partners as svc
@@ -43,10 +43,17 @@ def _http(exc: ValueError) -> HTTPException:
     return HTTPException(400, msg)
 
 
+def _parse_project_ids(raw: str | None) -> list[int] | None:
+    if not raw:
+        return None
+    ids = [int(x) for x in raw.split(",") if x.strip().isdigit()]
+    return ids or None
+
+
 @router.get("")
-def list_partners():
+def list_partners(project_ids: str | None = Query(None)):
     with get_db() as conn:
-        return svc.list_partners(conn)
+        return svc.list_partners(conn, project_ids=_parse_project_ids(project_ids))
 
 
 @router.post("")

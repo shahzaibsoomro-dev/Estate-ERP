@@ -3,8 +3,8 @@ from backend.services import capital as cap
 CFG = cap.PARTNER
 
 
-def list_partners(conn) -> list[dict]:
-    return cap.list_people(conn, CFG)
+def list_partners(conn, project_ids: list[int] | None = None) -> list[dict]:
+    return cap.list_people(conn, CFG, project_ids=project_ids)
 
 
 def get_partner(conn, partner_id: int) -> dict | None:

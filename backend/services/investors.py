@@ -3,8 +3,8 @@ from backend.services import capital as cap
 CFG = cap.INVESTOR
 
 
-def list_investors(conn) -> list[dict]:
-    return cap.list_people(conn, CFG)
+def list_investors(conn, project_ids: list[int] | None = None) -> list[dict]:
+    return cap.list_people(conn, CFG, project_ids=project_ids)
 
 
 def get_investor(conn, investor_id: int) -> dict | None:

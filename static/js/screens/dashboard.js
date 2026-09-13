@@ -15,8 +15,8 @@ export async function loadDashboard() {
     <div class="kpi green"><div class="kpi-lbl">Sold</div><div class="kpi-val">${k.sold}</div><div class="kpi-sub">${soldPct}% of total</div><div class="kpi-ico">✅</div></div>
     <div class="kpi amber"><div class="kpi-lbl">Available</div><div class="kpi-val">${k.available}</div><div class="kpi-sub">${k.hold} on hold</div><div class="kpi-ico">🟢</div></div>
     <div class="kpi navy"><div class="kpi-lbl">Receivable</div><div class="kpi-val">${fmtShort(k.receivable)}</div><div class="kpi-sub">Outstanding dues</div><div class="kpi-ico">📥</div></div>
-    <div class="kpi red"><div class="kpi-lbl">Payable</div><div class="kpi-val">${fmtShort(k.payable)}</div><div class="kpi-sub">Vendor & agent dues</div><div class="kpi-ico">📤</div></div>
-    <div class="kpi purple"><div class="kpi-lbl">Overdue Cases</div><div class="kpi-val">${d.overdue.length}</div><div class="kpi-sub">Need attention</div><div class="kpi-ico">⚠️</div></div>
+    <div class="kpi purple"><div class="kpi-lbl">Collection Rate</div><div class="kpi-val">${k.collection_rate ?? 0}%</div><div class="kpi-sub">${fmtShort(k.collected_total || 0)} collected</div><div class="kpi-ico">📉</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Overdue Cases</div><div class="kpi-val">${d.overdue.length}</div><div class="kpi-sub">Need attention</div><div class="kpi-ico">⚠️</div></div>
   `;
 
   $('overdue-badge').textContent = d.overdue.length;
@@ -52,14 +52,21 @@ export async function loadDashboard() {
     sc.appendChild(w);
   });
 
-  const rcMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May'];
+  if ($('rec-overall')) $('rec-overall').textContent = `${k.collection_rate ?? 0}% overall`;
+  if ($('rec-scope')) $('rec-scope').textContent = `Scope: ${scope} · last 5 months due vs collected`;
+  const rcMonths = (d.recovery_months || []).map((ym) => {
+    const [y, m] = String(ym).split('-');
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return names[parseInt(m, 10) - 1] || ym;
+  });
+  while (rcMonths.length < (d.recovery_chart || []).length) rcMonths.push('—');
   const rcColors = ['var(--blue)', 'var(--blue)', 'var(--success)', 'var(--accent)', 'var(--danger)'];
-  $('rec-chart').innerHTML = d.recovery_chart.map((v, i) => `
+  $('rec-chart').innerHTML = (d.recovery_chart || []).map((v, i) => `
     <div class="rec-row">
-      <span class="rec-lbl">${rcMonths[i]}</span>
-      <div class="rec-bg"><div class="rec-fill" style="width:${v}%;background:${rcColors[i]}"></div></div>
+      <span class="rec-lbl">${rcMonths[i] || '—'}</span>
+      <div class="rec-bg"><div class="rec-fill" style="width:${v}%;background:${rcColors[i % rcColors.length]}"></div></div>
       <span class="rec-pct">${v}%</span>
-    </div>`).join('');
+    </div>`).join('') || '<div style="color:var(--g400);font-size:12px">No collection data</div>';
 
   $('alerts-box').innerHTML = d.alerts.map((a) => `
     <div class="alert-item">

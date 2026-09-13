@@ -67,6 +67,28 @@ def validate_rules(rules: list[dict]) -> list[dict]:
     return cleaned
 
 
+def list_pay_plans(conn) -> list[dict]:
+    """All projects with their active installment template (pay plan) summary."""
+    projects = fetch_all(conn, "SELECT id, name, status FROM projects ORDER BY name")
+    out = []
+    for p in projects:
+        tmpl = get_active_template(conn, p["id"])
+        rules = (tmpl or {}).get("rules") or []
+        out.append({
+            "project_id": p["id"],
+            "project_name": p["name"],
+            "project_status": p.get("status"),
+            "has_template": bool(tmpl),
+            "template_id": (tmpl or {}).get("id"),
+            "template_name": (tmpl or {}).get("name"),
+            "revision": (tmpl or {}).get("revision"),
+            "default_booking_bps": (tmpl or {}).get("default_booking_bps"),
+            "rule_count": len(rules),
+            "rules": rules,
+        })
+    return out
+
+
 def get_active_template(conn, project_id: int) -> dict | None:
     tmpl = fetch_one(
         conn,

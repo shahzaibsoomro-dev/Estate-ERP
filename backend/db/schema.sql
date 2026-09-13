@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS agents (
     contact TEXT,
     category TEXT,
     default_rate_pct REAL DEFAULT 2.0,
+    bonus_budget INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active'
 );
 
@@ -177,6 +178,7 @@ CREATE TABLE IF NOT EXISTS vendors (
     description TEXT,
     contact TEXT,
     category TEXT,
+    ntn TEXT,
     status TEXT DEFAULT 'active'
 );
 
@@ -252,6 +254,17 @@ CREATE TABLE IF NOT EXISTS agent_commission_payments (
     payment_date TEXT NOT NULL,
     notes TEXT,
     FOREIGN KEY (commission_id) REFERENCES agent_commissions(id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_bonuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    bonus_date TEXT NOT NULL,
+    reason TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (agent_id) REFERENCES agents(id)
 );
 
 CREATE TABLE IF NOT EXISTS investors (
@@ -367,6 +380,7 @@ CREATE TABLE IF NOT EXISTS booking_transfers (
     from_customer_id INTEGER NOT NULL,
     to_customer_id INTEGER NOT NULL,
     transfer_date TEXT NOT NULL,
+    transfer_fee INTEGER DEFAULT 0,
     notes TEXT,
     FOREIGN KEY (booking_id) REFERENCES bookings(id),
     FOREIGN KEY (from_customer_id) REFERENCES customers(id),
@@ -494,3 +508,119 @@ CREATE INDEX IF NOT EXISTS idx_unit_holds_status ON unit_holds(status);
 CREATE INDEX IF NOT EXISTS idx_hold_tx_hold ON hold_transactions(hold_id);
 CREATE INDEX IF NOT EXISTS idx_pit_project ON project_installment_templates(project_id);
 CREATE INDEX IF NOT EXISTS idx_pitr_template ON project_installment_template_rules(template_id);
+
+CREATE TABLE IF NOT EXISTS contractors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    cnic TEXT,
+    contact TEXT,
+    ntn TEXT,
+    specialty TEXT,
+    description TEXT,
+    status TEXT DEFAULT 'active'
+);
+
+CREATE TABLE IF NOT EXISTS contractor_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contractor_id INTEGER NOT NULL,
+    project_id INTEGER NOT NULL,
+    role TEXT,
+    contract_amount INTEGER DEFAULT 0,
+    start_date TEXT,
+    end_date TEXT,
+    status TEXT DEFAULT 'active',
+    notes TEXT,
+    FOREIGN KEY (contractor_id) REFERENCES contractors(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS contractor_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contractor_id INTEGER NOT NULL,
+    assignment_id INTEGER,
+    project_id INTEGER,
+    amount INTEGER NOT NULL,
+    payment_date TEXT NOT NULL,
+    payment_method TEXT DEFAULT 'Bank Transfer',
+    reference_number TEXT,
+    notes TEXT,
+    FOREIGN KEY (contractor_id) REFERENCES contractors(id),
+    FOREIGN KEY (assignment_id) REFERENCES contractor_assignments(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT,
+    name TEXT NOT NULL,
+    unit TEXT DEFAULT 'pcs',
+    category TEXT,
+    project_id INTEGER,
+    min_stock REAL DEFAULT 0,
+    notes TEXT,
+    status TEXT DEFAULT 'active',
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    project_id INTEGER,
+    direction TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit_cost INTEGER DEFAULT 0,
+    reference_type TEXT,
+    reference_id INTEGER,
+    movement_date TEXT NOT NULL,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (item_id) REFERENCES inventory_items(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS possession_checklist_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    is_default INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS possession_checklist_template_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    is_required INTEGER DEFAULT 1,
+    FOREIGN KEY (template_id) REFERENCES possession_checklist_templates(id)
+);
+
+CREATE TABLE IF NOT EXISTS possession_checklists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_id INTEGER NOT NULL,
+    unit_id INTEGER NOT NULL,
+    template_id INTEGER,
+    possession_date TEXT NOT NULL,
+    status TEXT DEFAULT 'in_progress',
+    completed_at TEXT,
+    completed_by TEXT,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (booking_id) REFERENCES bookings(id),
+    FOREIGN KEY (unit_id) REFERENCES units(id),
+    FOREIGN KEY (template_id) REFERENCES possession_checklist_templates(id)
+);
+
+CREATE TABLE IF NOT EXISTS possession_checklist_responses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checklist_id INTEGER NOT NULL,
+    item_id INTEGER,
+    label TEXT NOT NULL,
+    is_required INTEGER DEFAULT 1,
+    checked INTEGER DEFAULT 0,
+    notes TEXT,
+    FOREIGN KEY (checklist_id) REFERENCES possession_checklists(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contractor_assign_project ON contractor_assignments(project_id);
+CREATE INDEX IF NOT EXISTS idx_inv_mov_item ON inventory_movements(item_id);
+CREATE INDEX IF NOT EXISTS idx_poss_check_unit ON possession_checklists(unit_id);

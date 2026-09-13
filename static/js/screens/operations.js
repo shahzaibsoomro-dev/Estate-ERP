@@ -52,7 +52,7 @@ function filteredVendors() {
   const q = ($('vendor-search')?.value || '').trim().toLowerCase();
   if (!q) return allVendors;
   return allVendors.filter((v) =>
-    [v.name, v.category, v.contact, v.description].filter(Boolean).join(' ').toLowerCase().includes(q));
+    [v.name, v.category, v.contact, v.ntn, v.description, v.master_id].filter(Boolean).join(' ').toLowerCase().includes(q));
 }
 
 function renderVendors() {
@@ -64,8 +64,9 @@ function renderVendors() {
         const [cls, label] = vendorBadge(v);
         return `
       <tr>
-        <td class="td-b">${esc(v.name)}</td>
+        <td class="td-b">${esc(v.name)}${v.master_id ? `<div style="font-size:11px;color:var(--g400);font-weight:400">${esc(v.master_id)}</div>` : ''}</td>
         <td>${esc(v.category || '—')}</td>
+        <td class="td-mono">${esc(v.ntn || '—')}</td>
         <td>${esc(v.contact || '—')}</td>
         <td>${fmt(v.total_payable)}</td>
         <td class="td-green">${fmt(v.total_paid)}</td>
@@ -78,7 +79,7 @@ function renderVendors() {
         </td>
       </tr>`;
       }).join('')
-    : '<tr><td colspan="8" style="text-align:center;color:var(--g400);padding:20px">No vendors found</td></tr>';
+    : '<tr><td colspan="9" style="text-align:center;color:var(--g400);padding:20px">No vendors found</td></tr>';
 
   tbody.querySelectorAll('[data-v-view]').forEach((b) => {
     b.addEventListener('click', () => openVendorDetail(parseInt(b.dataset.vView, 10)));
@@ -130,7 +131,9 @@ export async function openVendorDetail(id) {
   $('vd-body').innerHTML = `
     <div class="g2" style="margin-bottom:14px">
       <div>
+        <div class="sum-row"><span class="sum-lbl">Master ID</span><span class="sum-val td-mono">${esc(v.master_id || `VEN-${v.id}`)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Category</span><span class="sum-val">${esc(v.category || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">NTN</span><span class="sum-val">${esc(v.ntn || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Contact</span><span class="sum-val">${esc(v.contact || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${cls}">${esc(label)}</span></span></div>
       </div>
@@ -160,7 +163,7 @@ export async function openVendorDetail(id) {
 }
 
 function resetVendorForm() {
-  ['nv-id', 'nv-name', 'nv-category', 'nv-contact', 'nv-description'].forEach((id) => {
+  ['nv-id', 'nv-name', 'nv-category', 'nv-contact', 'nv-ntn', 'nv-description'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
   if ($('nv-status')) $('nv-status').value = 'active';
@@ -180,6 +183,7 @@ export async function openVendorForm(id = null) {
     $('nv-name').value = v.name || '';
     $('nv-category').value = v.category || '';
     $('nv-contact').value = v.contact || '';
+    if ($('nv-ntn')) $('nv-ntn').value = v.ntn || '';
     $('nv-description').value = v.description || '';
     $('nv-status').value = (v.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
     if ($('nv-computed')) {
@@ -200,6 +204,7 @@ async function submitVendor() {
     name: $('nv-name').value.trim(),
     category: $('nv-category').value.trim(),
     contact: $('nv-contact').value.trim(),
+    ntn: ($('nv-ntn')?.value || '').trim(),
     description: $('nv-description').value.trim(),
     status: $('nv-status').value,
   };

@@ -12,6 +12,7 @@ class VendorWrite(BaseModel):
     description: str | None = None
     contact: str | None = None
     category: str | None = None
+    ntn: str | None = None
     status: str | None = "active"
 
 

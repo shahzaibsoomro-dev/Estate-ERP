@@ -55,6 +55,16 @@ def revise_line(conn, line_id: int, planned_amount: int, notes: str | None = Non
     return fetch_one(conn, "SELECT * FROM project_budget_lines WHERE id=?", (cur.lastrowid,))
 
 
+def delete_category(conn, category_id: int) -> None:
+    if not fetch_one(conn, "SELECT id FROM budget_categories WHERE id=?", (category_id,)):
+        raise ValueError("Category not found")
+    if fetch_one(conn, "SELECT id FROM project_budget_lines WHERE category_id=? LIMIT 1", (category_id,)):
+        raise ValueError("Category is used by budget lines")
+    if fetch_one(conn, "SELECT id FROM purchase_orders WHERE budget_category_id=? LIMIT 1", (category_id,)):
+        raise ValueError("Category is used by purchase orders")
+    conn.execute("DELETE FROM budget_categories WHERE id=?", (category_id,))
+
+
 def summary(conn, project_id: int | None = None) -> list[dict]:
     lines = list_lines(conn, project_id)
     result = []

@@ -218,6 +218,7 @@ def wipe() -> dict:
     conn.execute("UPDATE bookings SET agent_id=NULL")
     conn.execute("DELETE FROM agent_commission_payments")
     conn.execute("DELETE FROM agent_commissions")
+    conn.execute("DELETE FROM agent_bonuses")
     conn.execute("DELETE FROM agents")
     conn.execute("DELETE FROM ledger_entries")
     conn.execute(
@@ -511,19 +512,20 @@ def build_world(state):
         state["budget_cats"][name] = cats[name]
 
     invs = [
-        ("khawaja", "Khawaja Capital", "Monthly Return", pid, 25_000_000, "2025-02-01", 1.5, None,
+        ("khawaja", "Khawaja Capital", "Monthly Return", pid, 25_000_000, "2025-02-01", "2025-04-01", 1.5, None,
          "37405-8800001-1", "0321-8001001"),
-        ("crescent", "Crescent Holdings", "Profit Sharing", pid, 40_000_000, "2025-02-01", None, 20.0,
+        ("crescent", "Crescent Holdings", "Profit Sharing", pid, 40_000_000, "2025-02-01", "2025-07-01", None, 20.0,
          "37405-8800002-3", "0321-8001002"),
-        ("metro", "Metro Seed Fund", "Profit Sharing", None, 15_000_000, "2025-02-01", None, 12.0,
+        ("metro", "Metro Seed Fund", "Profit Sharing", None, 15_000_000, "2025-02-01", "2025-02-01", None, 12.0,
          "37405-8800003-5", "0321-8001003"),
     ]
-    for key, name, typ, project_id, agreed, idate, monthly, profit, cnic, phone in invs:
+    for key, name, typ, project_id, agreed, idate, rstart, monthly, profit, cnic, phone in invs:
         inv = post("/api/investors", {
             "name": name, "cnic": cnic, "mobile_number": phone,
             "email": f"{key}@invest.pk", "description": f"{typ} partner",
             "status": "active", "investor_type": typ, "project_id": project_id,
             "agreed_amount": agreed, "investment_date": idate,
+            "returns_start_date": rstart,
             "monthly_return_pct": monthly, "profit_share_pct": profit,
         })
         state["investors"][key] = {"id": inv["id"], "name": name, "agreed": agreed, "type": typ}
@@ -893,13 +895,17 @@ def run_timeline(state):
 
     # Possession Bilal (should be fully/near paid) and Imran (still owing)
     try:
-        post(f"/api/units/{state['units']['GS-G01']['id']}/possession", {"possession_date": "2026-01-20"})
+        post(f"/api/units/{state['units']['GS-G01']['id']}/possession", {
+            "possession_date": "2026-01-20", "complete_all": True,
+        })
         state["neg"]["poss_bilal"] = "ok"
         state["narrative"].append("2026-01-20  Possession delivered GS-G01 Bilal Ahmed")
     except ApiError as e:
         state["neg"]["poss_bilal"] = str(e)
     try:
-        post(f"/api/units/{state['units']['GS-PH1']['id']}/possession", {"possession_date": "2026-03-15"})
+        post(f"/api/units/{state['units']['GS-PH1']['id']}/possession", {
+            "possession_date": "2026-03-15", "complete_all": True,
+        })
         state["neg"]["poss_imran_owing"] = "ALLOWED (no outstanding check)"
         state["narrative"].append("2026-03-15  Possession delivered GS-PH1 while still owing")
     except ApiError as e:
