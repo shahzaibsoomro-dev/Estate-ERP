@@ -8,6 +8,10 @@ import urllib.request
 from datetime import date, timedelta
 
 BASE = os.environ.get("VERIFY_BASE", "http://127.0.0.1:5050")
+
+from backend.script_auth import install_script_auth  # noqa: E402
+
+install_script_auth(BASE)
 DB = "db/haven.db"
 SUFFIX = str(int(time.time()))[-7:]
 passed = []

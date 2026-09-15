@@ -16,7 +16,7 @@ $PYCMD -m pip install -r requirements.txt --quiet --break-system-packages 2>/dev
   || $PYCMD -m pip install -r requirements.txt --quiet
 
 echo "  Starting FastAPI on http://localhost:5050 ..."
-$PYCMD -m uvicorn backend.main:app --host 0.0.0.0 --port 5050 > server.log 2>&1 &
+$PYCMD -m uvicorn backend.main:app --host "${ERP_HOST:-127.0.0.1}" --port 5050 > server.log 2>&1 &
 echo $! > .server.pid
 sleep 3
 
@@ -24,4 +24,8 @@ URL="http://localhost:5050"
 if [[ "$OSTYPE" == "darwin"* ]]; then open "$URL"
 else xdg-open "$URL" 2>/dev/null || sensible-browser "$URL" 2>/dev/null; fi
 
-echo "  Running. Stop with: kill \$(cat .server.pid)"
+echo "  Running. Stop with: ./stop.sh"
+if grep -q "First-time setup" server.log 2>/dev/null; then
+  echo ""
+  echo "  First run: finish setup in the browser at http://localhost:5050/setup"
+fi

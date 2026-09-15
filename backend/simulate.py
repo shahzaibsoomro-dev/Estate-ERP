@@ -14,6 +14,8 @@ from pathlib import Path
 from backend.config import BASE_DIR, DB_PATH
 
 BASE = os.environ.get("VERIFY_BASE", "http://127.0.0.1:5050")
+
+from backend.script_auth import install_script_auth  # noqa: E402
 STATE_PATH = os.path.join(BASE_DIR, "db", "simulation_state.json")
 REPORT_PATH = os.path.join(BASE_DIR, "SIMULATION_REPORT.md")
 BACKUP_PATH = os.path.join(BASE_DIR, "db", "haven.pre-sim.db")
@@ -1523,6 +1525,7 @@ def cmd_assert():
 
 
 def main(argv=None):
+    install_script_auth(BASE)
     argv = list(argv or sys.argv[1:])
     cmd = (argv[0] if argv else "help").lower()
     if cmd == "wipe":

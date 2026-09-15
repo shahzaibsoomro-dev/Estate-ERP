@@ -1,6 +1,24 @@
 from backend.database import fetch_all, fetch_one
 from backend.services import installments as inst_svc
+from datetime import date
+
 from backend.services.project_filter import sql_in
+
+_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _last_12_months(by_ym: dict) -> list[dict]:
+    """Zero-filled series for the 12 calendar months ending with the current one."""
+    today = date.today()
+    out = []
+    for back in range(11, -1, -1):
+        y, m = today.year, today.month - back
+        while m <= 0:
+            m += 12
+            y -= 1
+        ym = f"{y:04d}-{m:02d}"
+        out.append({"ym": ym, "label": _MONTHS[m - 1], "year": y, "amount": by_ym.get(ym, 0) or 0})
+    return out
 
 
 OVERDUE_SQL = """
@@ -98,11 +116,11 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
         ph = ",".join("?" * len(project_ids))
         sales_chart = fetch_all(
             conn,
-            f"""SELECT strftime('%m', p.payment_date) AS m,
+            f"""SELECT strftime('%Y-%m', p.payment_date) AS ym,
                       COALESCE(SUM(p.amount),0) AS v
                FROM payments p
                JOIN bookings b ON b.id=p.booking_id
-               WHERE p.payment_date >= date('now','-12 months')
+               WHERE p.payment_date >= date('now','start of month','-11 months')
                  AND b.project_id IN ({ph})
                GROUP BY strftime('%Y-%m', p.payment_date)
                ORDER BY p.payment_date""",
@@ -111,17 +129,15 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
     else:
         sales_chart = fetch_all(
             conn,
-            """SELECT strftime('%m', payment_date) AS m,
+            """SELECT strftime('%Y-%m', payment_date) AS ym,
                       COALESCE(SUM(amount),0) AS v
                FROM payments
-               WHERE payment_date >= date('now','-12 months')
+               WHERE payment_date >= date('now','start of month','-11 months')
                GROUP BY strftime('%Y-%m', payment_date)
                ORDER BY payment_date""",
         )
-    chart_vals = [int(r["v"] / 100000) for r in sales_chart] if sales_chart else []
-    while len(chart_vals) < 12:
-        chart_vals.insert(0, 0)
-    chart_vals = chart_vals[-12:]
+    sales_series = _last_12_months({r["ym"]: r["v"] for r in sales_chart})
+    chart_vals = [int(m["amount"] / 100000) for m in sales_series]
 
     # Collection rate: due installments vs collections in each of last 5 months (project-scoped)
     due_filt, due_params = sql_in("u.project_id", project_ids)
@@ -221,6 +237,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
         "overdue": overdue,
         "alerts": _alerts(conn, project_ids),
         "sales_chart": chart_vals or [0] * 12,
+        "sales_series": sales_series,
         "recovery_chart": rec_pcts,
         "recovery_months": months,
     }

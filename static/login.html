@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Sign in · Haven Builders</title>
+<meta name="theme-color" content="#061a2c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/css/public.css">
+</head>
+<body>
+<div class="auth">
+  <aside class="auth-side">
+    <a class="brand" href="/"><span class="brand-mark" data-icon="building"></span><span><span class="brand-name">Haven Builders</span><br><span class="brand-sub">ERP & owner portal</span></span></a>
+    <h2>One secure sign-in for your team — and every owner.</h2>
+    <p>Your account decides what you see. Sessions expire automatically and every sign-in is logged.</p>
+    <ul class="role-list">
+      <li><span class="ri" data-icon="dashboard"></span><span><b>Company admins</b><span>Run the full ERP for your company and decide what each employee can see and do.</span></span></li>
+      <li><span class="ri" data-icon="users_cog"></span><span><b>Employees</b><span>Sales, recovery, accounts and site teams — only the pages and projects you've been given.</span></span></li>
+      <li><span class="ri" data-icon="user"></span><span><b>Owners</b><span>Customers — payment plan, receipts and documents for your own units.</span></span></li>
+    </ul>
+    <small>© Haven Builders · Authorised users only</small>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card">
+      <a class="brand auth-mobile-brand" href="/"><span class="brand-mark" data-icon="building"></span><span class="brand-name">Haven Builders</span></a>
+
+      <!-- Sign in -->
+      <form id="login-form" novalidate>
+        <h1>Welcome back</h1>
+        <p class="sub">Sign in to continue.</p>
+        <div class="alert alert-info" id="login-note" hidden></div>
+        <div class="alert alert-error" id="login-error" role="alert" hidden></div>
+        <div class="field">
+          <label for="identifier">Email or CNIC</label>
+          <input class="input" id="identifier" name="username" autocomplete="username" inputmode="email" required autofocus placeholder="you@example.com or 35202-1234567-1">
+          <span class="hint">Owners can use the CNIC on their booking.</span>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+            <button type="button" class="input-btn" data-toggle="password" aria-label="Show password" data-icon="eye"></button>
+          </div>
+          <span class="hint" id="caps" hidden>Caps Lock is on</span>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" id="login-btn">Sign in</button>
+        <p class="auth-foot">Forgot your password? Contact your administrator or our sales office to get a reset.</p>
+      </form>
+
+      <!-- Change password (first login or reset) -->
+      <form id="pw-form" novalidate hidden>
+        <h1>Set a new password</h1>
+        <p class="sub" id="pw-sub">For your security, choose a new password before continuing.</p>
+        <div class="alert alert-error" id="pw-error" role="alert" hidden></div>
+        <input type="text" name="username" id="pw-username" autocomplete="username" hidden>
+        <div class="field">
+          <label for="current">Current or temporary password</label>
+          <div class="input-wrap">
+            <input class="input" id="current" type="password" autocomplete="current-password" required>
+            <button type="button" class="input-btn" data-toggle="current" aria-label="Show password" data-icon="eye"></button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="new-password">New password</label>
+          <div class="input-wrap">
+            <input class="input" id="new-password" type="password" autocomplete="new-password" required>
+            <button type="button" class="input-btn" data-toggle="new-password" aria-label="Show password" data-icon="eye"></button>
+          </div>
+          <div class="meter"><span id="meter"></span></div>
+          <ul class="rules" id="rules">
+            <li data-rule="len">At least 10 characters</li>
+            <li data-rule="mix">Letters and numbers</li>
+            <li data-rule="diff">Different from your current password</li>
+          </ul>
+        </div>
+        <div class="field">
+          <label for="confirm">Confirm new password</label>
+          <input class="input" id="confirm" type="password" autocomplete="new-password" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit" id="pw-btn">Save and continue</button>
+        <p class="auth-foot"><a href="#" id="pw-cancel">Sign out instead</a></p>
+      </form>
+    </div>
+  </main>
+</div>
+<script type="module" src="/static/js/login.js"></script>
+</body>
+</html>

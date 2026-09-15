@@ -25,7 +25,7 @@ echo  Checking dependencies...
 %PYCMD% -m pip install -r requirements.txt --quiet
 
 echo  Starting FastAPI backend on http://localhost:5050 ...
-start /min "Haven ERP Server" %PYCMD% -m uvicorn backend.main:app --host 0.0.0.0 --port 5050
+start /min "Haven ERP Server" %PYCMD% -m uvicorn backend.main:app --host 127.0.0.1 --port 5050
 
 timeout /t 3 /nobreak >nul
 
@@ -46,5 +46,6 @@ if exist %CHROME% (
 echo.
 echo  ERP is running at http://localhost:5050
 echo  Close the "Haven ERP Server" window to stop.
+echo  First run? The browser opens the setup page to create your accounts.
 echo.
 timeout /t 5

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Haven Builders — Homes & commercial spaces across Pakistan</title>
+<meta name="description" content="Haven Builders develops residential and commercial projects in Lahore, Karachi and Islamabad. Explore projects and track your payment plan in the owner portal.">
+<meta name="theme-color" content="#061a2c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/css/public.css">
+</head>
+<body>
+
+<header class="site-nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="brand-mark" data-icon="building"></span>
+      <span><span class="brand-name" data-company>Haven Builders</span><br><span class="brand-sub">Real estate developers</span></span>
+    </a>
+    <nav aria-label="Main">
+      <a href="#projects">Projects</a>
+      <a href="#why">Why Haven</a>
+      <a href="#owners">For owners</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="/login?next=/portal">Owner portal</a>
+      <a class="btn btn-primary btn-sm" href="/login">Sign in</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Open menu" data-icon="menu"></button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow"><i></i> Now booking in <span id="hero-cities">Lahore & Karachi</span></span>
+      <h1>Homes built right,<br><em>payments kept clear.</em></h1>
+      <p class="lead">Residential and commercial projects delivered on schedule — with a transparent owner portal where every installment, receipt and document is one tap away.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#projects">Explore projects <span data-icon="arrow"></span></a>
+        <a class="btn btn-ghost" href="/login?next=/portal">View my payment plan</a>
+      </div>
+      <div class="hero-trust">
+        <span><span data-icon="shield" data-size="16"></span> Secure owner accounts</span>
+        <span><span data-icon="file" data-size="16"></span> Statements on demand</span>
+        <span><span data-icon="clock" data-size="16"></span> Live construction progress</span>
+      </div>
+    </div>
+    <div class="hero-card" aria-hidden="true">
+      <div class="hc-top">
+        <div><div class="hc-title">Your payment plan</div><div class="hc-sub">Unit A-204 · Sample</div></div>
+        <span class="badge b-green">On track</span>
+      </div>
+      <div class="hc-row"><span><i class="dot" style="background:#34D399"></i>Booking amount</span><b>PKR 2,000,000</b></div>
+      <div class="hc-row"><span><i class="dot" style="background:#34D399"></i>Installment 1–8</span><b>PKR 6,400,000</b></div>
+      <div class="hc-row"><span><i class="dot" style="background:#60A5FA"></i>Next due · 10 Oct</span><b>PKR 800,000</b></div>
+      <div class="hc-row"><span><i class="dot" style="background:#94A3B8"></i>On possession</span><b>PKR 1,800,000</b></div>
+      <div class="hc-bar"><span style="width:62%"></span></div>
+      <div class="hc-sub">62% paid · Construction 72% complete</div>
+    </div>
+  </div>
+</section>
+
+<section class="stats" aria-label="Key figures">
+  <div class="wrap">
+    <div class="stat"><b id="st-projects">—</b><span>Active & delivered projects</span></div>
+    <div class="stat"><b id="st-units">—</b><span>Homes & shops</span></div>
+    <div class="stat"><b id="st-cities">—</b><span>Cities</span></div>
+    <div class="stat"><b>24/7</b><span>Owner portal access</span></div>
+  </div>
+</section>
+
+<section class="section" id="projects">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Our projects</div>
+      <h2>Find your next home or storefront</h2>
+      <p>Live availability straight from our inventory system.</p>
+    </div>
+    <div class="filters" id="proj-filters" style="margin-bottom:20px"></div>
+    <div class="proj-grid" id="proj-grid">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="why">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">Why Haven</div>
+      <h2>Built on transparency</h2>
+      <p>From booking to possession, you always know where your project and your payments stand.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><div class="feat-ico" data-icon="payplans"></div><h3>Flexible payment plans</h3><p>Monthly, quarterly or milestone-linked installments tailored to your booking.</p></div>
+      <div class="feat"><div class="feat-ico" data-icon="site"></div><h3>Construction milestones</h3><p>Milestone installments only fall due when construction actually reaches that stage.</p></div>
+      <div class="feat"><div class="feat-ico" data-icon="shield"></div><h3>Verified ownership</h3><p>CNIC-verified bookings, allotment letters and transfer records you can rely on.</p></div>
+      <div class="feat"><div class="feat-ico" data-icon="file"></div><h3>Documents on demand</h3><p>Allotment letters, statements and payment schedules, ready to print or save as PDF.</p></div>
+      <div class="feat"><div class="feat-ico" data-icon="whatsapp"></div><h3>Timely reminders</h3><p>Friendly reminders before due dates so nothing slips through the cracks.</p></div>
+      <div class="feat"><div class="feat-ico" data-icon="key"></div><h3>Smooth possession</h3><p>A clear checklist and handover process when your unit is ready.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="owners">
+  <div class="wrap split">
+    <div>
+      <div class="sec-kicker">Owner portal</div>
+      <h2 style="font-size:clamp(26px,3.4vw,38px);letter-spacing:-.03em;line-height:1.15;margin:8px 0 10px">Your unit, your payments — in one place</h2>
+      <p style="color:var(--g500);font-size:16.5px">Every Haven owner gets a secure account. Sign in with your email or CNIC.</p>
+      <ul class="checks">
+        <li><span data-icon="check"></span><span><b>Full payment plan</b> — paid, upcoming and overdue installments at a glance</span></li>
+        <li><span data-icon="check"></span><span><b>Payment history</b> — every receipt against your booking</span></li>
+        <li><span data-icon="check"></span><span><b>Documents</b> — allotment letters and statements issued to you</span></li>
+        <li><span data-icon="check"></span><span><b>Private by design</b> — you only ever see your own records</span></li>
+      </ul>
+      <a class="btn btn-primary" href="/login?next=/portal">Sign in to the owner portal</a>
+      <p class="hint" style="margin-top:10px">Don't have an account yet? Ask our sales office to activate portal access.</p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-hd"><i></i><i></i><i></i></div>
+      <div class="mock-bd">
+        <table>
+          <thead><tr><th>Installment</th><th>Due</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Booking</td><td>12 Feb</td><td>2,000,000</td><td><span class="badge b-green">Paid</span></td></tr>
+            <tr><td>Monthly 1</td><td>12 Mar</td><td>800,000</td><td><span class="badge b-green">Paid</span></td></tr>
+            <tr><td>Monthly 2</td><td>12 Apr</td><td>800,000</td><td><span class="badge b-orange">Partly paid</span></td></tr>
+            <tr><td>Monthly 3</td><td>12 May</td><td>800,000</td><td><span class="badge b-grey">Upcoming</span></td></tr>
+            <tr><td>Grey structure</td><td>Milestone</td><td>1,500,000</td><td><span class="badge b-blue">On milestone</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-kicker">How it works</div><h2>From enquiry to keys</h2></div>
+    <div class="steps">
+      <div class="step"><h4>Choose a unit</h4><p>Pick a project and a unit that fits your needs and budget.</p></div>
+      <div class="step"><h4>Book & agree a plan</h4><p>Pay the booking amount and agree on an installment schedule.</p></div>
+      <div class="step"><h4>Track online</h4><p>Follow payments and documents in your owner portal.</p></div>
+      <div class="step"><h4>Take possession</h4><p>Complete the handover checklist and move in.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="contact">
+  <div class="wrap">
+    <div class="cta-band">
+      <div><h2>Ready to visit a site?</h2><p>Talk to our sales team about availability and payment plans.</p></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-primary" id="cta-phone" href="#contact"><span data-icon="phone" data-size="16"></span> <span>Contact sales</span></a>
+        <a class="btn btn-ghost" href="/login?next=/portal">Owner portal</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="brand"><span class="brand-mark" data-icon="building"></span><span class="brand-name" data-company>Haven Builders</span></div>
+    <div>© <span id="year"></span> <span data-company>Haven Builders</span> · <a href="/login">Staff sign in</a></div>
+  </div>
+</footer>
+
+<script type="module" src="/static/js/home.js"></script>
+</body>
+</html>

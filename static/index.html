@@ -4,66 +4,51 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Haven Builders ERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<meta name="theme-color" content="#061a2c">
 </head>
 <body>
 
-<aside class="sb">
+<aside class="sb" id="sidebar" aria-label="Main navigation">
   <div class="sb-logo">
-    <div class="sb-logo-ico">🏗️</div>
-    <div><div class="sb-logo-name">Haven Builders</div><div class="sb-logo-sub">ERP v4.0 · FastAPI</div></div>
+    <div class="sb-logo-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg></div>
+    <div class="sb-logo-text"><div class="sb-logo-name">Haven Builders</div><div class="sb-logo-sub">Real Estate ERP</div></div>
+    <button type="button" class="sb-collapse" id="sb-collapse" title="Collapse sidebar" aria-label="Collapse sidebar"></button>
   </div>
-  <div class="sb-sec">Core</div>
-  <nav class="nav">
-    <div class="ni active" data-s="dashboard"><span class="ni-ico">📊</span>Dashboard</div>
-    <div class="ni" data-s="projects"><span class="ni-ico">🏙️</span>Projects</div>
-    <div class="ni" data-s="units"><span class="ni-ico">🏠</span>Unit Inventory</div>
-    <div class="ni" data-s="activity"><span class="ni-ico">📜</span>Activity</div>
-  </nav>
-  <div class="sb-sec">Sales</div>
-  <nav class="nav">
-    <div class="ni" data-s="booking"><span class="ni-ico">📋</span>New Booking</div>
-    <div class="ni" data-s="demand"><span class="ni-ico">📄</span>Demand Notices</div>
-    <div class="ni" data-s="customers"><span class="ni-ico">👥</span>Customers</div>
-    <div class="ni" data-s="recovery"><span class="ni-ico">💰</span>Recovery<span class="ni-badge" id="overdue-badge">…</span></div>
-  </nav>
-  <div class="sb-sec">Operations</div>
-  <nav class="nav">
-    <div class="ni" data-s="procurement"><span class="ni-ico">🛒</span>Procurement</div>
-    <div class="ni" data-s="vendors"><span class="ni-ico">🏭</span>Vendors</div>
-    <div class="ni" data-s="contractors"><span class="ni-ico">👷</span>Contractors</div>
-    <div class="ni" data-s="inventory"><span class="ni-ico">📦</span>Inventory</div>
-    <div class="ni" data-s="site"><span class="ni-ico">⛏️</span>Site Management</div>
-  </nav>
-  <div class="sb-sec">Finance</div>
-  <nav class="nav">
-    <div class="ni" data-s="accounts"><span class="ni-ico">📒</span>Accounts</div>
-    <div class="ni" data-s="budget"><span class="ni-ico">📐</span>Budget</div>
-    <div class="ni" data-s="payplans"><span class="ni-ico">📅</span>Pay Plans</div>
-    <div class="ni" data-s="agents"><span class="ni-ico">🤝</span>Agents</div>
-    <div class="ni" data-s="investors"><span class="ni-ico">💼</span>Investors</div>
-    <div class="ni" data-s="partners"><span class="ni-ico">🏛️</span>Partners</div>
-    <div class="ni" data-s="parties"><span class="ni-ico">🪪</span>Parties</div>
-    <div class="ni" data-s="reports"><span class="ni-ico">📈</span>Reports</div>
-  </nav>
-  <div class="sb-sec">Portal</div>
-  <nav class="nav">
-    <div class="ni" data-s="portal"><span class="ni-ico">🌐</span>Customer Portal</div>
-  </nav>
+  <div class="sb-search-wrap">
+    <input type="search" id="sb-search" class="sb-search" placeholder="Find a page…" autocomplete="off" aria-label="Filter navigation">
+  </div>
+  <div class="sb-scroll" id="sb-nav"></div>
   <div class="sb-bot">
-    <div class="ucard">
-      <div class="uav">SA</div>
-      <div><div class="uname">Salman Arif</div><div class="urole">Administrator</div></div>
+    <div class="ucard-wrap">
+      <button type="button" class="ucard" id="ucard" aria-haspopup="true" aria-expanded="false" title="Account">
+        <div class="uav" id="u-av">…</div>
+        <div class="ucard-text"><div class="uname" id="u-name">Signed in</div><div class="urole" id="u-role"></div></div>
+      </button>
+      <div class="umenu" id="umenu" hidden>
+        <div class="umenu-who"><b id="um-name"></b><span id="um-email"></span></div>
+        <a href="/" target="_blank" rel="noopener">View public website</a>
+        <a href="/account/password">Change password</a>
+        <button type="button" id="btn-logout">Sign out</button>
+      </div>
     </div>
   </div>
 </aside>
+<div class="sb-backdrop" id="sb-backdrop"></div>
 
 <div class="main">
+  <div class="app-banner" id="app-banner" hidden></div>
   <div class="topbar">
-    <div>
-      <div class="tb-title" id="tb-title">Dashboard</div>
+    <button type="button" class="tb-icon-btn tb-menu" id="tb-menu" aria-label="Open menu"></button>
+    <div class="tb-heading">
       <div class="tb-crumb" id="tb-crumb">Home / Overview</div>
+      <div class="tb-title" id="tb-title">Dashboard</div>
     </div>
+    <button type="button" class="tb-search" id="tb-search" aria-label="Search pages"><span class="tb-search-ico"></span><span class="tb-search-txt">Search pages, actions…</span><kbd>Ctrl K</kbd></button>
     <div class="tb-right">
       <div id="proj-filter-wrap" class="proj-filter-wrap" hidden>
         <button type="button" class="proj-filter-btn" id="proj-filter-btn">All Projects ▾</button>
@@ -86,15 +71,17 @@
   <div class="row">
     <div class="col" style="flex:2">
       <div class="card">
-        <div class="card-hd"><span class="card-title">📊 Monthly Sales Revenue</span></div>
+        <div class="card-hd">
+          <div><div class="card-title">Collections</div><div class="card-sub" id="sales-sub">Customer payments received · last 12 months</div></div>
+          <div class="chart-total-wrap"><div class="chart-total" id="sales-total">—</div><div class="card-sub">12-month total</div></div>
+        </div>
         <div class="card-bd"><div class="bar-chart" id="salesChart"></div></div>
       </div>
     </div>
     <div class="col">
-      <div class="card" style="height:100%">
-        <div class="card-hd"><span class="card-title">📉 Collection Rate</span><span class="badge bg-blue" id="rec-overall">—</span></div>
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">Collection rate</div><div class="card-sub" id="rec-scope">Due vs collected</div></div><span class="badge bg-blue" id="rec-overall">—</span></div>
         <div class="card-bd">
-          <div style="font-size:11px;color:var(--g400);margin-bottom:8px" id="rec-scope">Project filter applies</div>
           <div id="rec-chart"><div class="loading"><span class="spinner"></span></div></div>
         </div>
       </div>
@@ -103,19 +90,22 @@
   <div class="row">
     <div class="col" style="flex:2">
       <div class="card">
-        <div class="card-hd"><span class="card-title">⚠️ Overdue Installments</span><span class="badge bg-red" id="overdue-count-badge">…</span></div>
+        <div class="card-hd">
+          <div><div class="card-title">Overdue installments</div><div class="card-sub">Oldest first · top 10</div></div>
+          <div style="display:flex;gap:8px;align-items:center"><span class="badge bg-red" id="overdue-count-badge">…</span><button type="button" class="btn sm" data-goto="recovery">Open Recovery →</button></div>
+        </div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Customer</th><th>Unit</th><th>Project</th><th>Amount</th><th>Days Overdue</th><th>Phone</th><th>Action</th></tr></thead>
-            <tbody id="overdue-tbody"><tr><td colspan="7" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+            <thead><tr><th>Customer</th><th>Unit</th><th style="text-align:right">Amount</th><th>Overdue</th><th></th></tr></thead>
+            <tbody id="overdue-tbody"><tr><td colspan="5" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
     <div class="col">
       <div class="card">
-        <div class="card-hd"><span class="card-title">🚨 System Alerts</span></div>
-        <div class="card-bd" id="alerts-box"><div class="loading"><span class="spinner"></span></div></div>
+        <div class="card-hd"><div class="card-title">Alerts</div><span class="badge bg-grey" id="alerts-count">—</span></div>
+        <div class="card-bd" id="alerts-box" style="padding-top:4px;padding-bottom:4px"><div class="loading"><span class="spinner"></span></div></div>
       </div>
     </div>
   </div>
@@ -123,47 +113,44 @@
 
 <div class="screen" id="s-projects">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Project Management</div></div>
+    <div><div class="pg-title">Project Management</div></div>
     <button class="btn primary" id="btn-new-project">+ New Project</button>
   </div>
   <div id="projects-list"><div class="loading"><span class="spinner"></span>Loading projects…</div></div>
 </div>
 
 <div class="screen" id="s-units">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Unit Inventory</div><div style="font-size:11px;color:var(--g400);margin-top:2px" id="units-scope"></div></div>
-    <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-      <select id="u-proj" style="font-size:11.5px;padding:6px 10px;border-radius:7px;border:1.5px solid var(--g200);min-width:160px" title="Filter by project">
-        <option value="">All Projects</option>
-      </select>
-      <select id="u-floor" style="font-size:11.5px;padding:6px 10px;border-radius:7px;border:1.5px solid var(--g200)">
-        <option value="">All Floors</option>
+  <div class="card filter-card">
+    <div class="toolbar">
+      <div class="bk-combo" id="u-tag-combo">
+        <div class="bk-combo-field">
+          <span class="bk-search-ico" aria-hidden="true"></span>
+          <input id="u-search" type="search" placeholder="Search unit no. or tag…" autocomplete="off">
+          <span class="bk-chevron" aria-hidden="true"></span>
+        </div>
+        <div id="u-search-menu" class="bk-menu" hidden></div>
+      </div>
+      <select id="u-proj" title="Filter by project"><option value="">All projects</option></select>
+      <select id="u-floor" title="Filter by floor">
+        <option value="">All floors</option>
         <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
         <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
       </select>
-      <select id="u-status" style="font-size:11.5px;padding:6px 10px;border-radius:7px;border:1.5px solid var(--g200)">
-        <option value="">All Status</option>
+      <select id="u-status" title="Filter by status">
+        <option value="">All statuses</option>
         <option value="available">Available</option>
         <option value="hold">Hold</option>
         <option value="booked">Booked</option>
         <option value="delivered">Delivered</option>
       </select>
-      <div class="bk-combo" id="u-tag-combo" style="min-width:200px">
-        <div class="bk-combo-field">
-          <span class="bk-search-ico" aria-hidden="true"></span>
-          <input id="u-search" type="search" placeholder="Unit or tag…" autocomplete="off" style="font-size:11.5px;padding:6px 10px 6px 34px;border-radius:7px;border:1.5px solid var(--g200);width:200px">
-          <span class="bk-chevron" aria-hidden="true"></span>
-        </div>
-        <div id="u-search-menu" class="bk-menu" hidden></div>
+      <div class="toolbar-end">
+        <button type="button" class="btn" id="btn-bulk-units" title="Coming soon">Bulk CSV upload</button>
+        <button type="button" class="btn primary" id="btn-add-unit">+ Add unit</button>
       </div>
-      <button type="button" class="btn sm primary" id="btn-add-unit">+ Add Unit</button>
-      <button type="button" class="btn sm" id="btn-bulk-units" title="Coming soon">📤 Bulk CSV Upload</button>
-      <div style="display:flex;gap:6px;font-size:11px;align-items:center">
-        <span style="color:var(--success);font-weight:700">●</span>Available
-        <span style="color:var(--accent);font-weight:700">●</span>Hold
-        <span style="color:var(--blue);font-weight:700">●</span>Booked
-        <span style="color:#475569;font-weight:700">●</span>Delivered
-      </div>
+    </div>
+    <div class="filter-foot">
+      <span id="units-scope" class="card-sub"></span>
+      <div class="legend"><span><i style="background:#34D399"></i>Available</span><span><i style="background:#FBBF24"></i>Hold</span><span><i style="background:#60A5FA"></i>Booked</span><span><i style="background:#94A3B8"></i>Delivered</span></div>
     </div>
   </div>
   <div class="g4" style="margin-bottom:14px">
@@ -177,7 +164,7 @@
 
 <div class="screen" id="s-booking">
   <div style="margin-bottom:16px">
-    <div style="font-size:16px;font-weight:900">New Booking</div>
+    <div class="pg-title">New Booking</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start">
     <div>
@@ -300,7 +287,7 @@
 
 <div class="screen" id="s-demand">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Demand Notices</div></div>
+    <div><div class="pg-title">Demand Notices</div></div>
     <div style="font-size:12px;color:var(--g400);max-width:360px;text-align:right">Preview only — WhatsApp, email and PDF are not connected yet</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -323,7 +310,7 @@
 
 <div class="screen" id="s-customers">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div style="font-size:16px;font-weight:900">Customers</div></div>
+    <div><div class="pg-title">Customers</div></div>
     <div style="display:flex;gap:8px">
       <input type="search" placeholder="Search…" id="cust-search" style="width:220px">
       <button type="button" class="btn primary" id="btn-add-customer">+ Add Customer</button>
@@ -347,7 +334,7 @@
 
 <div class="screen" id="s-recovery">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Recovery</div></div>
+    <div><div class="pg-title">Recovery</div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="rec-search" style="width:200px">
       <button type="button" class="btn primary" id="btn-rec-pay">+ Record Payment</button>
@@ -403,7 +390,7 @@
 
 <div class="screen" id="s-procurement">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Procurement</div></div>
+    <div><div class="pg-title">Procurement</div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="po-search" style="width:200px">
       <button type="button" class="btn primary" id="btn-new-po">+ New PO</button>
@@ -427,7 +414,7 @@
 
 <div class="screen" id="s-vendors">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Vendors</div></div>
+    <div><div class="pg-title">Vendors</div></div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="vendor-search" style="width:200px">
       <button type="button" class="btn primary" id="btn-add-vendor">+ Add Vendor</button>
@@ -450,7 +437,7 @@
 
 <div class="screen" id="s-contractors">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Contractors</div>
+    <div><div class="pg-title">Contractors</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Site contractors assigned to projects — contracts and payments</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -475,7 +462,7 @@
 
 <div class="screen" id="s-inventory">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Material Inventory</div>
+    <div><div class="pg-title">Material Inventory</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Stock on hand — GRN from procurement posts receipts automatically</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -500,7 +487,7 @@
 
 <div class="screen" id="s-budget">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Project Budget</div>
+    <div><div class="pg-title">Project Budget</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Categories and planned vs actual (from purchase orders)</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -532,7 +519,7 @@
 
 <div class="screen" id="s-payplans">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Pay Plans</div>
+    <div><div class="pg-title">Pay Plans</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Installment templates per project — used on booking (must total 100% of financed balance)</div>
     </div>
   </div>
@@ -548,7 +535,7 @@
 
 <div class="screen" id="s-site">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Site Management</div></div>
+    <div><div class="pg-title">Site Management</div></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="site-f-proj" style="min-width:160px"><option value="">All (top filter)</option></select>
       <input type="date" id="site-from" title="From">
@@ -567,7 +554,7 @@
 <div class="screen" id="s-accounts">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div>
-      <div style="font-size:16px;font-weight:900">Accounts</div>
+      <div class="pg-title">Accounts</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Company-wide cash movement (all projects) — collections, vendors, agents, investors, partners</div>
     </div>
     <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
@@ -585,7 +572,7 @@
 
 <div class="screen" id="s-agents">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Agents</div>
+    <div><div class="pg-title">Agents</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Commissions plus performance bonuses from each agent's bonus budget</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -610,7 +597,7 @@
 
 <div class="screen" id="s-parties">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Parties / Master IDs</div>
+    <div><div class="pg-title">Parties / Master IDs</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Look up any customer, vendor, agent, investor or partner and see all related records</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -638,7 +625,7 @@
 
 <div class="screen" id="s-investors">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Investors</div>
+    <div><div class="pg-title">Investors</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Returns start on a set date; catch-up can be lump sum or spread</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -667,7 +654,7 @@
 
 <div class="screen" id="s-partners">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div style="font-size:16px;font-weight:900">Partners</div>
+    <div><div class="pg-title">Partners</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Project-linked early capital — returns start after the silent period</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -695,7 +682,7 @@
 </div>
 
 <div class="screen" id="s-activity">
-  <div style="margin-bottom:16px"><div style="font-size:16px;font-weight:900">Activity</div>
+  <div style="margin-bottom:16px"><div class="pg-title">Activity</div>
     <div style="font-size:12px;color:var(--g400);margin-top:2px">Recent changes across bookings, units, payments and more</div>
   </div>
   <div class="card">
@@ -709,7 +696,7 @@
 </div>
 
 <div class="screen" id="s-reports">
-  <div style="margin-bottom:16px"><div style="font-size:16px;font-weight:900">Reports</div></div>
+  <div style="margin-bottom:16px"><div class="pg-title">Reports</div></div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
     <div class="rep-tile" data-report="ageing"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">1–30 / 31–60 / 60+ overdue</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
     <div class="rep-tile" data-report="sales"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise bookings & DP</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
@@ -718,10 +705,93 @@
   <div id="report-output" style="margin-top:16px"></div>
 </div>
 
+
+<div class="screen" id="s-documents">
+  <div class="doc-tabs" role="tablist">
+    <button type="button" class="doc-tab active" data-dtab="issued">Issued documents</button>
+    <button type="button" class="doc-tab" data-dtab="templates">Templates</button>
+  </div>
+  <div id="dtab-issued">
+    <div class="card filter-card">
+      <div class="toolbar">
+        <input type="search" id="doc-q" placeholder="Search by customer, unit or document no.">
+        <select id="doc-f-vis"><option value="">All documents</option><option value="1">Visible to customer</option><option value="0">Staff only</option><option value="revoked">Revoked</option></select>
+        <div class="toolbar-end"><button type="button" class="btn primary" id="btn-gen-doc">+ Generate document</button></div>
+      </div>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Document</th><th>Customer</th><th>Unit</th><th>Created</th><th>Customer can see</th><th>Actions</th></tr></thead>
+      <tbody id="doc-tbody"><tr><td colspan="6" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+    </table></div></div>
+  </div>
+  <div id="dtab-templates" hidden>
+    <div class="page-hd"><div><p>Templates use placeholders like <code>{{customer.name}}</code>. Values are filled in from the booking when a document is generated.</p></div>
+      <button type="button" class="btn primary" id="btn-new-tmpl">+ New template</button></div>
+    <div class="tmpl-grid" id="tmpl-grid"></div>
+    <div class="card company-card" style="margin-top:18px">
+      <div class="card-hd"><div><div class="card-title">Company details on documents</div><div class="card-sub">Used by the {{company.*}} fields in every template.</div></div>
+        <button type="button" class="btn primary sm" id="btn-save-company">Save details</button></div>
+      <div class="card-bd">
+        <div class="form-row">
+          <div class="fg"><label>Company name</label><input id="co-name" maxlength="120"></div>
+          <div class="fg"><label>Address</label><input id="co-address" maxlength="250"></div>
+        </div>
+        <div class="form-row">
+          <div class="fg"><label>Phone</label><input id="co-phone" maxlength="40"></div>
+          <div class="fg"><label>Email</label><input id="co-email" type="email" maxlength="120"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-access">
+  <div class="doc-tabs" role="tablist">
+    <button type="button" class="doc-tab active" data-atab="customers">Customer portal logins</button>
+    <button type="button" class="doc-tab" data-atab="activity" data-admin-only>Sign-in activity</button>
+  </div>
+  <div id="atab-customers">
+    <div class="g4" style="margin-bottom:16px" id="acc-stats"></div>
+    <div class="card filter-card">
+      <div class="toolbar">
+        <input type="search" id="acc-q" placeholder="Search customer name, CNIC or email">
+        <select id="acc-f"><option value="">All customers</option><option value="active">Portal active</option><option value="none">No login yet</option><option value="disabled">Disabled</option></select>
+      </div>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Customer</th><th>CNIC</th><th>Bookings</th><th>Portal login</th><th>Last sign-in</th><th>Actions</th></tr></thead>
+      <tbody id="acc-tbody"><tr><td colspan="6" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+    </table></div></div>
+  </div>
+  <div id="atab-activity" hidden>
+    <div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>When</th><th>Event</th><th>Account</th><th>IP address</th><th>Details</th></tr></thead>
+      <tbody id="activity-auth-tbody"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+
+<div class="screen" id="s-employees">
+  <div class="page-hd">
+    <div><p>Employees sign in with their own account and only see the pages, actions and projects you allow.</p></div>
+    <button type="button" class="btn primary" id="btn-new-emp">+ Add employee</button>
+  </div>
+  <div class="g4" style="margin-bottom:16px" id="emp-stats"></div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Name</th><th>Role</th><th>Page access</th><th>Projects</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead>
+    <tbody id="emp-tbody"><tr><td colspan="7" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+  </table></div></div>
+</div>
+
+<div class="screen" id="s-subscription">
+  <div id="sub-view"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+</div>
+
 <div class="screen" id="s-portal">
   <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;gap:10px">
     <div>
-      <div style="font-size:16px;font-weight:900">Customer Portal</div>
+      <div class="pg-title">Customer Portal</div>
       <div style="font-size:12px;color:var(--g400);margin-top:2px">Preview what a booked customer sees — schedule, unit, receipts</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1669,6 +1739,129 @@
   </div>
 </div>
 
+
+<div class="modal-bg" id="gen-doc-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title"><span>Generate document</span><button type="button" class="modal-close" data-close-modal="gen-doc-modal">✕</button></div>
+    <div class="fg"><label>Customer *</label><select id="gd-customer"></select></div>
+    <div class="fg"><label>Booking</label><select id="gd-booking"><option value="">— Select customer first —</option></select></div>
+    <div class="fg"><label>Template *</label><select id="gd-template"></select><span class="fg-hint" id="gd-tmpl-desc"></span></div>
+    <div class="fg"><label>Title (optional)</label><input id="gd-title" maxlength="160" placeholder="Defaults to the template name"></div>
+    <label class="check-row"><input type="checkbox" id="gd-visible" checked> Show in the customer's portal</label>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="btn-gd-preview">Preview</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-close-modal="gen-doc-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-gd-save">Generate</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="tmpl-modal">
+  <div class="modal modal-wide" style="max-width:1180px">
+    <div class="modal-title"><span id="tmpl-modal-title">Template</span><button type="button" class="modal-close" data-close-modal="tmpl-modal">✕</button></div>
+    <input type="hidden" id="tm-id">
+    <div class="form-row-3">
+      <div class="fg"><label>Name *</label><input id="tm-name" maxlength="120"></div>
+      <div class="fg"><label>Type</label><select id="tm-kind"><option value="payment_plan">Payment plan</option><option value="statement">Statement</option><option value="letter">Letter</option><option value="notice">Notice</option><option value="general">General</option></select></div>
+      <div class="fg"><label>Status</label><select id="tm-active"><option value="1">Active</option><option value="0">Inactive</option></select></div>
+    </div>
+    <div class="fg"><label>Description</label><input id="tm-desc" maxlength="500"></div>
+    <label class="check-row"><input type="checkbox" id="tm-booking" checked> Requires a booking (needed for unit, payment and table fields)</label>
+    <div class="tmpl-editor">
+      <div>
+        <div class="fg" style="margin-bottom:6px"><label>Template HTML</label></div>
+        <textarea id="tm-body" spellcheck="false"></textarea>
+        <div class="fg-hint">Scripts, forms, frames and event handlers are blocked. Inline styles and the classes <code>doc-head, doc-grid, doc-box, doc-sign, doc-foot, doc-muted</code> are available.</div>
+      </div>
+      <div class="tmpl-side">
+        <div class="fg" style="margin-bottom:6px"><label>Insert field</label></div>
+        <input type="search" id="tm-field-q" placeholder="Filter fields">
+        <div class="field-list" id="tm-fields"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <select id="tm-preview-cust" style="max-width:280px"></select>
+      <button type="button" class="btn" id="btn-tm-preview">Preview with this customer</button>
+      <span style="flex:1"></span>
+      <button type="button" class="btn" data-close-modal="tmpl-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-tm-save">Save template</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="doc-preview-modal">
+  <div class="modal modal-wide" style="max-width:900px">
+    <div class="modal-title"><span>Preview</span><button type="button" class="modal-close" data-close-modal="doc-preview-modal">✕</button></div>
+    <iframe id="doc-preview-frame" class="doc-frame" sandbox="" title="Document preview"></iframe>
+  </div>
+</div>
+
+<div class="modal-bg" id="emp-modal">
+  <div class="modal modal-wide" style="max-width:1000px">
+    <div class="modal-title"><span id="emp-modal-title">Add employee</span><button type="button" class="modal-close" data-close-modal="emp-modal">✕</button></div>
+    <input type="hidden" id="emp-id">
+    <div class="form-row-3">
+      <div class="fg"><label>Full name *</label><input id="emp-name" maxlength="120" autocomplete="off"></div>
+      <div class="fg"><label>Work email *</label><input id="emp-email" type="email" maxlength="254" autocomplete="off"></div>
+      <div class="fg"><label>Job title</label><input id="emp-title" maxlength="80" placeholder="e.g. Sales officer"></div>
+    </div>
+    <div class="perm-section">
+      <div class="perm-hd">
+        <div><b>Projects</b><span class="fg-hint">Employees only see units, bookings, customers and figures from these projects.</span></div>
+      </div>
+      <label class="check-row"><input type="radio" name="emp-scope" value="all" checked> All projects (including future ones)</label>
+      <label class="check-row"><input type="radio" name="emp-scope" value="some"> Only selected projects</label>
+      <div class="proj-picks" id="emp-projects" hidden></div>
+    </div>
+    <div class="perm-section">
+      <div class="perm-hd">
+        <div><b>Page access</b><span class="fg-hint">Tick what this person may do on each page. Add, edit or delete also grants view.</span></div>
+        <div class="preset-row"><span class="fg-hint" style="margin:0">Start from:</span><div id="emp-presets" class="preset-btns"></div></div>
+      </div>
+      <div class="perm-table-wrap"><table class="perm-table">
+        <thead><tr><th>Page</th><th>View</th><th>Add</th><th>Edit</th><th>Delete</th></tr></thead>
+        <tbody id="emp-perms"></tbody>
+      </table></div>
+    </div>
+    <p class="fg-hint" id="emp-new-hint">A one-time password is generated. The employee must choose their own password at first sign-in.</p>
+    <div class="modal-actions"><span style="flex:1"></span>
+      <button type="button" class="btn" data-close-modal="emp-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-emp-save">Save employee</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="portal-enable-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>Enable portal access</span><button type="button" class="modal-close" data-close-modal="portal-enable-modal">✕</button></div>
+    <input type="hidden" id="pe-cid">
+    <p style="margin-bottom:12px">Create an owner-portal login for <b id="pe-name"></b>. They can sign in with this email or their CNIC.</p>
+    <div class="fg"><label>Login email *</label><input id="pe-email" type="email" maxlength="254" autocomplete="off"></div>
+    <div class="modal-actions"><span style="flex:1"></span>
+      <button type="button" class="btn" data-close-modal="portal-enable-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-pe-save">Create login</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="temp-pw-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span>One-time password</span><button type="button" class="modal-close" data-close-modal="temp-pw-modal">✕</button></div>
+    <p id="tp-intro" style="margin-bottom:12px"></p>
+    <div class="temp-pw"><code id="tp-value"></code><button type="button" class="btn sm" id="btn-tp-copy">Copy</button></div>
+    <ul class="tp-notes">
+      <li>This password is shown <b>only once</b>. Share it privately (in person, phone or WhatsApp).</li>
+      <li>They will be asked to set their own password at first sign-in.</li>
+      <li id="tp-login-hint"></li>
+    </ul>
+    <div class="modal-actions"><span style="flex:1"></span>
+      <button type="button" class="btn" id="btn-tp-wa" hidden>Send via WhatsApp</button>
+      <button type="button" class="btn primary" data-close-modal="temp-pw-modal">Done</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="app-dialog">
   <div class="modal">
     <div class="modal-title"><span id="app-dialog-title">Please confirm</span></div>
@@ -1682,6 +1875,14 @@
 
 <div id="toast"></div>
 
-<script type="module" src="/static/js/app.js?v=cap1"></script>
+<div class="cmdk-bg" id="cmdk" hidden>
+  <div class="cmdk" role="dialog" aria-label="Command palette">
+    <input type="text" id="cmdk-input" placeholder="Jump to a page or action…" autocomplete="off">
+    <div class="cmdk-list" id="cmdk-list"></div>
+    <div class="cmdk-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>
+  </div>
+</div>
+
+<script type="module" src="/static/js/app.js?v=saas1"></script>
 </body>
 </html>

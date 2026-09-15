@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Owner portal · Haven Builders</title>
+<meta name="theme-color" content="#061a2c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/css/public.css">
+</head>
+<body class="pt-body">
+<header class="pt-top">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="brand-mark" data-icon="building"></span><span><span class="brand-name">Haven Builders</span><br><span class="brand-sub">Owner portal</span></span></a>
+    <div class="pt-user">
+      <button type="button" class="pt-user-btn" id="user-btn" aria-haspopup="true" aria-expanded="false">
+        <span class="av" id="user-av">…</span><span id="user-first">Account</span>
+      </button>
+      <div class="pt-menu" id="user-menu" hidden>
+        <div class="who"><b id="menu-name"></b><span id="menu-email"></span></div>
+        <a href="/account/password"><span data-icon="lock" data-size="16"></span> Change password</a>
+        <button type="button" id="logout"><span data-icon="logout" data-size="16"></span> Sign out</button>
+      </div>
+    </div>
+  </div>
+</header>
+<nav class="pt-tabs" aria-label="Portal sections">
+  <div class="wrap">
+    <a href="#overview" data-tab="overview">Overview</a>
+    <a href="#plan" data-tab="plan">Payment plan</a>
+    <a href="#payments" data-tab="payments">Payments</a>
+    <a href="#documents" data-tab="documents">Documents</a>
+  </div>
+</nav>
+
+<main class="pt-main">
+  <div class="wrap">
+    <div class="pt-greet">
+      <div><h1 id="greet">Welcome</h1><p id="greet-sub">Loading your account…</p></div>
+      <select class="bk-switch" id="bk-switch" aria-label="Choose booking" hidden></select>
+    </div>
+    <div id="view"><div class="card"><div class="empty">Loading…</div></div></div>
+  </div>
+</main>
+
+<script type="module" src="/static/js/portal-app.js"></script>
+</body>
+</html>

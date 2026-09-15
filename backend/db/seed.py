@@ -8,18 +8,20 @@ from backend.config import DB_PATH, DEFAULT_SETTINGS, SCHEMA_PATH, SCHEMA_VERSIO
 _DIR = os.path.dirname(__file__)
 
 
-def _connect() -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+def _connect(path: str | None = None) -> sqlite3.Connection:
+    path = path or DB_PATH
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = sqlite3.connect(path)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
-def needs_init() -> bool:
-    if not os.path.exists(DB_PATH) or os.path.getsize(DB_PATH) < 500:
+def needs_init(path: str | None = None) -> bool:
+    path = path or DB_PATH
+    if not os.path.exists(path) or os.path.getsize(path) < 500:
         return True
     try:
-        conn = _connect()
+        conn = _connect(path)
         row = conn.execute(
             "SELECT value FROM schema_meta WHERE key='version'"
         ).fetchone()
@@ -375,6 +377,12 @@ def run_seed(conn: sqlite3.Connection) -> None:
 
 def ensure_additive_schema(conn: sqlite3.Connection) -> None:
     """Tables added after SCHEMA_VERSION freeze — never wipe haven.db."""
+    _ensure_legacy_additive(conn)
+    from backend.auth.schema import ensure_tenant_schema
+    ensure_tenant_schema(conn)
+
+
+def _ensure_legacy_additive(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS site_logs (
@@ -764,19 +772,24 @@ def _ensure_default_possession_template(conn: sqlite3.Connection) -> None:
         )
 
 
-def init_db(force: bool = False) -> None:
-    if force or needs_init():
-        if os.path.exists(DB_PATH):
-            os.remove(DB_PATH)
-        conn = _connect()
+def init_db(force: bool = False, path: str | None = None, seed: bool = True) -> None:
+    """Create/upgrade a company database. `seed=False` gives an empty company (settings + templates only)."""
+    path = path or DB_PATH
+    if force or needs_init(path):
+        if os.path.exists(path):
+            os.remove(path)
+        conn = _connect(path)
         init_schema(conn)
         ensure_additive_schema(conn)
-        run_seed(conn)
+        if seed:
+            run_seed(conn)
+        else:
+            seed_settings(conn)
         conn.commit()
         conn.close()
-        print(f"Database initialized: {DB_PATH}")
+        print(f"Database initialized: {path}")
         return
-    conn = _connect()
+    conn = _connect(path)
     ensure_additive_schema(conn)
     conn.commit()
     conn.close()

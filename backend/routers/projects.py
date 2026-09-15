@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import Request, APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.database import get_db
 from backend.services import installment_templates as tmpl_svc
@@ -63,8 +63,20 @@ def get_project(project_id: int):
 
 
 @router.post("")
-def create_project(body: ProjectCreate):
+def create_project(body: ProjectCreate, request: Request):
+    sess = getattr(request.state, "session", None)
+    if sess and sess.get("project_ids") is not None:
+        raise HTTPException(403, "Only staff with access to all projects can create projects")
     with get_db() as conn:
+        if sess and sess.get("company"):
+            from backend.database import platform_db
+            from backend.saas.service import check_limit
+            count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+            with platform_db() as pconn:
+                try:
+                    check_limit(pconn, sess["company"]["id"], "projects", count)
+                except ValueError as e:
+                    raise HTTPException(400, str(e)) from e
         return svc.create_project(conn, body.model_dump())
 
 
