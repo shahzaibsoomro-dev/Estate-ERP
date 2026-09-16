@@ -1,0 +1,1346 @@
+diff --git a/backend/auth/permissions.py b/backend/auth/permissions.py
+index 5d9701f..9ce636c 100644
+--- a/backend/auth/permissions.py
++++ b/backend/auth/permissions.py
+@@ -167,7 +167,7 @@ _R = [
+     ("DELETE", r"/api/budget/categories/\d+", ("budget",), "delete"),
+     ("POST", r"/api/budget/lines", ("budget",), "add"),
+     ("POST", r"/api/budget/lines/\d+/revise", ("budget",), "edit"),
+-    ("GET", r"/api/reports/(ageing|sales)", ("reports",), "view"),
++    ("GET", r"/api/reports/[a-z-]+", ("reports",), "view"),
+     # --- stakeholders
+     ("GET", r"/api/agents/\d+", ("agents",), "view"),
+     ("POST", r"/api/agents", ("agents",), "add"),
+diff --git a/backend/main.py b/backend/main.py
+index cc62a03..d649e41 100644
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -38,6 +38,7 @@ from backend.routers import (
+     projects,
+     public,
+     recovery,
++    reports,
+     settings,
+     setup,
+     site_logs,
+@@ -71,7 +72,7 @@ for mod in (
+     health, public, setup, auth, console, company, portal_access, me, documents,
+     dashboard, projects, units, customers, bookings, payments,
+     recovery, vendors, budget, site_logs, accounts, agents, investors, partners, entities,
+-    contractors, inventory, possession, settings, portal, audit, stubs,
++    contractors, inventory, possession, settings, portal, audit, reports, stubs,
+     holds,
+ ):
+     app.include_router(mod.router)
+diff --git a/backend/routers/reports.py b/backend/routers/reports.py
+new file mode 100644
+index 0000000..bcd11bd
+--- /dev/null
++++ b/backend/routers/reports.py
+@@ -0,0 +1,414 @@
++"""Management reports. All accept optional `project_ids` (comma list); period reports accept
++`date_from` / `date_to` (YYYY-MM-DD). Company-wide by nature, so employees need all-project access."""
++from datetime import date
++
++from fastapi import APIRouter, HTTPException, Query
++
++from backend.database import fetch_all, fetch_one, get_db
++from backend.services import budget as budget_svc
++from backend.services import installments as inst_svc
++from backend.services.project_filter import parse_project_ids, sql_in
++
++router = APIRouter(prefix="/api/reports", tags=["reports"])
++
++OPEN_STATUSES = "('pending','partial','overdue')"
++
++
++def _period(date_from: str | None, date_to: str | None) -> tuple[str, str]:
++    try:
++        start = date.fromisoformat(date_from) if date_from else date(1900, 1, 1)
++        end = date.fromisoformat(date_to) if date_to else date(2999, 12, 31)
++    except ValueError as e:
++        raise HTTPException(400, "Dates must be YYYY-MM-DD") from e
++    if start > end:
++        raise HTTPException(400, "Start date is after end date")
++    return start.isoformat(), end.isoformat()
++
++
++def _ids(project_ids: str | None) -> list[int] | None:
++    try:
++        return parse_project_ids(project_ids)
++    except ValueError as e:
++        raise HTTPException(400, "Invalid project filter") from e
++
++
++def _bucket(days: int) -> str:
++    if days <= 30:
++        return "1–30 days"
++    if days <= 60:
++        return "31–60 days"
++    if days <= 90:
++        return "61–90 days"
++    return "90+ days"
++
++
++BUCKETS = ["1–30 days", "31–60 days", "61–90 days", "90+ days"]
++
++
++# ---------------------------------------------------------------- overview
++@router.get("/overview")
++def overview(project_ids: str | None = Query(None), date_from: str | None = None, date_to: str | None = None):
++    ids = _ids(project_ids)
++    start, end = _period(date_from, date_to)
++    pf_b, pp_b = sql_in("b.project_id", ids)
++    pf_u, pp_u = sql_in("u.project_id", ids)
++    with get_db() as conn:
++        inst_svc.refresh_statuses(conn)
++        sales = fetch_one(conn, f"""SELECT COUNT(*) n, COALESCE(SUM(b.final_sale_price),0) v FROM bookings b
++                                    WHERE b.status='active' AND b.booking_date BETWEEN ? AND ?{pf_b}""", (start, end, *pp_b))
++        coll = fetch_one(conn, f"""SELECT COUNT(*) n, COALESCE(SUM(p.amount),0) v FROM payments p
++                                   JOIN bookings b ON b.id=p.booking_id
++                                   WHERE p.payment_date BETWEEN ? AND ?{pf_b}""", (start, end, *pp_b))
++        recv = fetch_one(conn, f"""SELECT COALESCE(SUM(i.remaining_amount),0) v FROM installments i JOIN units u ON u.id=i.unit_id
++                                   JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
++                                   WHERE i.status IN {OPEN_STATUSES}{pf_u}""", pp_u)
++        overdue = fetch_one(conn, f"""SELECT COUNT(*) n, COALESCE(SUM(i.remaining_amount),0) v FROM installments i
++                                      JOIN units u ON u.id=i.unit_id
++                                      JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
++                                      WHERE i.status IN ('overdue','partial') AND i.remaining_amount>0
++                                        AND i.due_date < date('now'){pf_u}""", pp_u)
++        avail = fetch_one(conn, f"""SELECT COUNT(*) n, COALESCE(SUM(u.base_sale_price),0) v FROM units u
++                                    WHERE u.status='available'{pf_u}""", pp_u)
++        cancelled = fetch_one(conn, f"""SELECT COUNT(*) n FROM bookings b WHERE b.status='cancelled'
++                                        AND b.booking_date BETWEEN ? AND ?{pf_b}""", (start, end, *pp_b))
++    return {
++        "bookings": sales["n"], "sales_value": sales["v"],
++        "collections": coll["v"], "collection_count": coll["n"],
++        "receivable": recv["v"], "overdue": overdue["v"], "overdue_count": overdue["n"],
++        "available_units": avail["n"], "available_value": avail["v"],
++        "cancelled_bookings": cancelled["n"],
++    }
++
++
++# ---------------------------------------------------------------- receivables ageing
++@router.get("/ageing")
++def ageing(project_ids: str | None = Query(None)):
++    ids = _ids(project_ids)
++    pf, pp = sql_in("u.project_id", ids)
++    with get_db() as conn:
++        inst_svc.refresh_statuses(conn)
++        items = fetch_all(
++            conn,
++            f"""SELECT i.id, i.booking_id, i.customer_id, i.due_date, i.remaining_amount AS amount,
++                       i.status, i.type, i.installment_no,
++                       c.name AS customer_name, c.contact_number AS phone, u.unit_no,
++                       p.id AS project_id, p.name AS project_name, b.booking_no,
++                       CAST(julianday('now') - julianday(i.due_date) AS INTEGER) AS days_overdue
++                FROM installments i
++                JOIN customers c ON c.id=i.customer_id
++                JOIN units u ON u.id=i.unit_id
++                JOIN projects p ON p.id=u.project_id
++                JOIN bookings b ON b.id=i.booking_id AND b.status='active'
++                WHERE i.status IN ('overdue','partial') AND i.remaining_amount > 0
++                  AND i.due_date < date('now'){pf}
++                ORDER BY days_overdue DESC, c.name""",
++            pp,
++        )
++    d30 = d60 = d90 = 0
++    buckets = {b: {"bucket": b, "amount": 0, "count": 0} for b in BUCKETS}
++    by_project: dict[int, dict] = {}
++    by_customer: dict[int, dict] = {}
++    for r in items:
++        days = r.get("days_overdue") or 0
++        amt = r.get("amount") or 0
++        r["bucket"] = _bucket(days)
++        # legacy fields kept for existing callers
++        if days <= 30:
++            d30 += amt
++        elif days <= 60:
++            d60 += amt
++        else:
++            d90 += amt
++        buckets[r["bucket"]]["amount"] += amt
++        buckets[r["bucket"]]["count"] += 1
++        p = by_project.setdefault(r["project_id"], {"project_id": r["project_id"], "project_name": r["project_name"], "amount": 0, "count": 0,
++                                                     **{b: 0 for b in BUCKETS}})
++        p["amount"] += amt
++        p["count"] += 1
++        p[r["bucket"]] += amt
++        cust = by_customer.setdefault(r["customer_id"], {
++            "customer_id": r["customer_id"], "customer_name": r["customer_name"], "phone": r["phone"],
++            "amount": 0, "count": 0, "oldest_days": 0, "units": set()})
++        cust["amount"] += amt
++        cust["count"] += 1
++        cust["oldest_days"] = max(cust["oldest_days"], days)
++        cust["units"].add(r["unit_no"])
++    customers = sorted(by_customer.values(), key=lambda c: -c["amount"])
++    for c in customers:
++        c["units"] = ", ".join(sorted(c["units"]))
++    return {
++        "d30": d30, "d60": d60, "d90": d90, "items": items,
++        "total": sum(b["amount"] for b in buckets.values()),
++        "buckets": list(buckets.values()),
++        "by_project": sorted(by_project.values(), key=lambda x: -x["amount"]),
++        "by_customer": customers,
++    }
++
++
++# ---------------------------------------------------------------- sales
++@router.get("/sales")
++def sales_legacy():
++    """Kept for existing callers: active bookings per project (all time)."""
++    with get_db() as conn:
++        return fetch_all(
++            conn,
++            """SELECT p.name AS project_name, COUNT(b.id) AS bookings,
++                      COALESCE(SUM(b.final_sale_price),0) AS total_sales,
++                      COALESCE(SUM(b.booking_amount),0) AS collected_dp
++               FROM bookings b JOIN projects p ON p.id=b.project_id
++               WHERE b.status='active' GROUP BY b.project_id""",
++        )
++
++
++@router.get("/sales-summary")
++def sales_summary(project_ids: str | None = Query(None), date_from: str | None = None, date_to: str | None = None):
++    ids = _ids(project_ids)
++    start, end = _period(date_from, date_to)
++    pf, pp = sql_in("b.project_id", ids)
++    with get_db() as conn:
++        by_project = fetch_all(
++            conn,
++            f"""SELECT p.id AS project_id, p.name AS project_name,
++                       COUNT(b.id) AS bookings,
++                       COALESCE(SUM(b.final_sale_price),0) AS sales_value,
++                       COALESCE(SUM(b.booking_amount),0) AS booking_amounts,
++                       COALESCE(AVG(b.final_sale_price),0) AS avg_price,
++                       COALESCE(SUM(b.base_sale_price - b.final_sale_price),0) AS discounts,
++                       SUM(CASE WHEN b.agent_id IS NOT NULL THEN 1 ELSE 0 END) AS via_agent
++                FROM bookings b JOIN projects p ON p.id=b.project_id
++                WHERE b.status='active' AND b.booking_date BETWEEN ? AND ?{pf}
++                GROUP BY p.id ORDER BY sales_value DESC""",
++            (start, end, *pp),
++        )
++        for row in by_project:
++            paid = fetch_one(conn, """SELECT COALESCE(SUM(py.amount),0) v FROM payments py JOIN bookings b ON b.id=py.booking_id
++                                      WHERE b.project_id=? AND b.status='active' AND b.booking_date BETWEEN ? AND ?""",
++                             (row["project_id"], start, end))["v"]
++            row["collected"] = paid
++            row["outstanding"] = max(row["sales_value"] - paid, 0)
++            row["collected_pct"] = round(paid / row["sales_value"] * 100) if row["sales_value"] else 0
++            row["avg_price"] = round(row["avg_price"])
++        monthly = fetch_all(
++            conn,
++            f"""SELECT strftime('%Y-%m', b.booking_date) AS month, COUNT(*) AS bookings,
++                       COALESCE(SUM(b.final_sale_price),0) AS sales_value
++                FROM bookings b WHERE b.status='active' AND b.booking_date BETWEEN ? AND ?{pf}
++                GROUP BY month ORDER BY month""",
++            (start, end, *pp),
++        )
++        by_type = fetch_all(
++            conn,
++            f"""SELECT COALESCE(u.unit_type,'Other') AS unit_type, COUNT(*) AS bookings,
++                       COALESCE(SUM(b.final_sale_price),0) AS sales_value
++                FROM bookings b JOIN units u ON u.id=b.unit_id
++                WHERE b.status='active' AND b.booking_date BETWEEN ? AND ?{pf}
++                GROUP BY unit_type ORDER BY sales_value DESC""",
++            (start, end, *pp),
++        )
++        bookings = fetch_all(
++            conn,
++            f"""SELECT b.id, b.booking_no, b.booking_date, b.final_sale_price, b.booking_amount, b.project_id,
++                       c.name AS customer_name, u.unit_no, u.unit_type, p.name AS project_name,
++                       COALESCE(a.name,'Direct') AS agent_name
++                FROM bookings b JOIN customers c ON c.id=b.customer_id JOIN units u ON u.id=b.unit_id
++                JOIN projects p ON p.id=b.project_id LEFT JOIN agents a ON a.id=b.agent_id
++                WHERE b.status='active' AND b.booking_date BETWEEN ? AND ?{pf}
++                ORDER BY b.booking_date DESC""",
++            (start, end, *pp),
++        )
++        cancelled = fetch_one(conn, f"""SELECT COUNT(*) n FROM bookings b WHERE b.status='cancelled'
++                                        AND b.booking_date BETWEEN ? AND ?{pf}""", (start, end, *pp))["n"]
++    return {"by_project": by_project, "monthly": monthly, "by_type": by_type, "bookings": bookings,
++            "cancelled": cancelled}
++
++
++# ---------------------------------------------------------------- collections
++@router.get("/collections")
++def collections(project_ids: str | None = Query(None), date_from: str | None = None, date_to: str | None = None):
++    ids = _ids(project_ids)
++    start, end = _period(date_from, date_to)
++    pf, pp = sql_in("b.project_id", ids)
++    base = f"""FROM payments py JOIN bookings b ON b.id=py.booking_id
++               JOIN projects p ON p.id=b.project_id
++               WHERE py.payment_date BETWEEN ? AND ?{pf}"""
++    params = (start, end, *pp)
++    with get_db() as conn:
++        monthly = fetch_all(conn, f"""SELECT strftime('%Y-%m', py.payment_date) AS month, COUNT(*) AS count,
++                                             SUM(py.amount) AS amount {base} GROUP BY month ORDER BY month""", params)
++        by_method = fetch_all(conn, f"""SELECT COALESCE(py.payment_method,'Other') AS method, COUNT(*) AS count,
++                                               SUM(py.amount) AS amount {base} GROUP BY method ORDER BY amount DESC""", params)
++        by_project = fetch_all(conn, f"""SELECT p.name AS project_name, COUNT(*) AS count, SUM(py.amount) AS amount
++                                         {base} GROUP BY p.id ORDER BY amount DESC""", params)
++        rows = fetch_all(conn, f"""SELECT py.id, py.payment_date, py.amount, py.payment_method, py.reference_number,
++                                          py.booking_id, b.project_id, r.receipt_no, c.name AS customer_name,
++                                          u.unit_no, p.name AS project_name, COALESCE(i.type,'General') AS against
++                                   FROM payments py JOIN bookings b ON b.id=py.booking_id
++                                   JOIN projects p ON p.id=b.project_id
++                                   JOIN customers c ON c.id=py.customer_id
++                                   JOIN units u ON u.id=b.unit_id
++                                   LEFT JOIN receipts r ON r.payment_id=py.id
++                                   LEFT JOIN installments i ON i.id=py.installment_id
++                                   WHERE py.payment_date BETWEEN ? AND ?{pf}
++                                   ORDER BY py.payment_date DESC, py.id DESC""", params)
++        due = fetch_one(conn, f"""SELECT COALESCE(SUM(i.amount),0) v FROM installments i JOIN bookings b ON b.id=i.booking_id
++                                  WHERE i.status!='cancelled' AND i.due_date BETWEEN ? AND ?
++                                    AND i.due_date <= date('now'){pf}""", params)["v"]
++    total = sum(r["amount"] for r in rows)
++    return {"total": total, "count": len(rows), "due_in_period": due,
++            "collection_rate": round(total / due * 100) if due else None,
++            "monthly": monthly, "by_method": by_method, "by_project": by_project, "payments": rows}
++
++
++# ---------------------------------------------------------------- inventory
++@router.get("/inventory")
++def inventory(project_ids: str | None = Query(None)):
++    ids = _ids(project_ids)
++    pf, pp = sql_in("p.id", ids)
++    with get_db() as conn:
++        rows = fetch_all(
++            conn,
++            f"""SELECT p.id AS project_id, p.name AS project_name, p.status AS project_status,
++                       p.current_progress AS progress,
++                       COUNT(u.id) AS total,
++                       SUM(CASE WHEN u.status='available' THEN 1 ELSE 0 END) AS available,
++                       SUM(CASE WHEN u.status='hold' THEN 1 ELSE 0 END) AS hold,
++                       SUM(CASE WHEN u.status IN ('booked','sold') THEN 1 ELSE 0 END) AS booked,
++                       SUM(CASE WHEN u.status='possession_delivered' THEN 1 ELSE 0 END) AS delivered,
++                       COALESCE(SUM(CASE WHEN u.status='available' THEN u.base_sale_price END),0) AS available_value,
++                       COALESCE(SUM(CASE WHEN u.status='hold' THEN u.base_sale_price END),0) AS hold_value
++                FROM projects p LEFT JOIN units u ON u.project_id=p.id
++                WHERE 1=1{pf}
++                GROUP BY p.id HAVING total > 0 ORDER BY p.name""",
++            pp,
++        )
++        for r in rows:
++            r["sold_pct"] = round((r["booked"] + r["delivered"]) / r["total"] * 100) if r["total"] else 0
++        pf_u, pp_u = sql_in("u.project_id", ids)
++        by_type = fetch_all(
++            conn,
++            f"""SELECT COALESCE(u.unit_type,'Other') AS unit_type, COUNT(*) AS total,
++                       SUM(CASE WHEN u.status='available' THEN 1 ELSE 0 END) AS available,
++                       COALESCE(MIN(CASE WHEN u.status='available' THEN u.base_sale_price END),0) AS min_price,
++                       COALESCE(MAX(CASE WHEN u.status='available' THEN u.base_sale_price END),0) AS max_price
++                FROM units u WHERE 1=1{pf_u} GROUP BY unit_type ORDER BY total DESC""",
++            pp_u,
++        )
++        holds = fetch_all(
++            conn,
++            f"""SELECT h.id, u.unit_no, u.project_id, p.name AS project_name, c.name AS customer_name,
++                       h.hold_until, h.token_amount,
++                       CAST(julianday(h.hold_until) - julianday('now') AS INTEGER) AS days_left
++                FROM unit_holds h JOIN units u ON u.id=h.unit_id JOIN projects p ON p.id=u.project_id
++                LEFT JOIN customers c ON c.id=h.customer_id
++                WHERE h.status='active'{pf_u} ORDER BY h.hold_until""",
++            pp_u,
++        )
++    return {"by_project": rows, "by_type": by_type, "holds": holds}
++
++
++# ---------------------------------------------------------------- customer balances
++@router.get("/customer-balances")
++def customer_balances(project_ids: str | None = Query(None)):
++    ids = _ids(project_ids)
++    pf, pp = sql_in("b.project_id", ids)
++    with get_db() as conn:
++        inst_svc.refresh_statuses(conn)
++        rows = fetch_all(
++            conn,
++            f"""SELECT c.id AS customer_id, c.name AS customer_name, c.cnic, c.contact_number AS phone,
++                       COUNT(DISTINCT b.id) AS bookings,
++                       GROUP_CONCAT(DISTINCT u.unit_no) AS units
++                FROM customers c JOIN bookings b ON b.customer_id=c.id AND b.status='active'
++                JOIN units u ON u.id=b.unit_id
++                WHERE 1=1{pf}
++                GROUP BY c.id""",
++            pp,
++        )
++        for r in rows:
++            agg = fetch_one(
++                conn,
++                f"""SELECT COALESCE(SUM(b.final_sale_price),0) sale,
++                           (SELECT COALESCE(SUM(py.amount),0) FROM payments py JOIN bookings bb ON bb.id=py.booking_id
++                             WHERE bb.customer_id=? AND bb.status='active'{pf.replace('b.', 'bb.')}) paid,
++                           (SELECT COALESCE(SUM(i.remaining_amount),0) FROM installments i JOIN bookings bb ON bb.id=i.booking_id
++                             WHERE bb.customer_id=? AND bb.status='active' AND i.status IN ('overdue','partial')
++                               AND i.due_date < date('now'){pf.replace('b.', 'bb.')}) overdue,
++                           (SELECT MAX(py.payment_date) FROM payments py WHERE py.customer_id=?) last_payment
++                    FROM bookings b WHERE b.customer_id=? AND b.status='active'{pf}""",
++                (r["customer_id"], *pp, r["customer_id"], *pp, r["customer_id"], r["customer_id"], *pp),
++            )
++            r.update(sale_value=agg["sale"], paid=agg["paid"], overdue=agg["overdue"], last_payment=agg["last_payment"],
++                     outstanding=max(agg["sale"] - agg["paid"], 0))
++            r["paid_pct"] = round(agg["paid"] / agg["sale"] * 100) if agg["sale"] else 0
++            r["status"] = "Overdue" if r["overdue"] > 0 else ("Cleared" if r["outstanding"] == 0 else "On track")
++    rows.sort(key=lambda x: (-x["overdue"], -x["outstanding"]))
++    return {"customers": rows,
++            "totals": {k: sum(r[k] for r in rows) for k in ("sale_value", "paid", "outstanding", "overdue")}}
++
++
++# ---------------------------------------------------------------- payables
++@router.get("/payables")
++def payables(project_ids: str | None = Query(None)):
++    ids = _ids(project_ids)
++    pf, pp = sql_in("po.project_id", ids)
++    with get_db() as conn:
++        vendors = fetch_all(
++            conn,
++            f"""SELECT v.id AS vendor_id, v.name AS vendor_name, v.category, v.contact,
++                       COUNT(po.id) AS orders, COALESCE(SUM(po.total),0) AS ordered,
++                       COALESCE(SUM((SELECT COALESCE(SUM(vp.amount),0) FROM vendor_payments vp
++                                     WHERE vp.purchase_order_id=po.id)),0) AS paid,
++                       MAX(po.order_date) AS last_order
++                FROM vendors v JOIN purchase_orders po ON po.vendor_id=v.id AND po.status!='cancelled'
++                WHERE 1=1{pf}
++                GROUP BY v.id""",
++            pp,
++        )
++        for v in vendors:
++            v["balance"] = max(v["ordered"] - v["paid"], 0)
++        agents = fetch_all(
++            conn,
++            """SELECT a.id AS agent_id, a.name AS agent_name, COUNT(ac.id) AS deals,
++                      COALESCE(SUM(ac.commission_amount),0) AS earned, COALESCE(SUM(ac.paid_amount),0) AS paid
++               FROM agents a JOIN agent_commissions ac ON ac.agent_id=a.id AND ac.status!='reversed'
++               GROUP BY a.id""",
++        ) if not ids else fetch_all(
++            conn,
++            f"""SELECT a.id AS agent_id, a.name AS agent_name, COUNT(ac.id) AS deals,
++                       COALESCE(SUM(ac.commission_amount),0) AS earned, COALESCE(SUM(ac.paid_amount),0) AS paid
++                FROM agents a JOIN agent_commissions ac ON ac.agent_id=a.id AND ac.status!='reversed'
++                JOIN bookings b ON b.id=ac.booking_id
++                WHERE 1=1{sql_in('b.project_id', ids)[0]}
++                GROUP BY a.id""",
++            sql_in("b.project_id", ids)[1],
++        )
++        for a in agents:
++            a["balance"] = max(a["earned"] - a["paid"], 0)
++    vendors.sort(key=lambda x: -x["balance"])
++    agents.sort(key=lambda x: -x["balance"])
++    return {
++        "vendors": vendors, "agents": agents,
++        "totals": {"vendor_balance": sum(v["balance"] for v in vendors),
++                   "agent_balance": sum(a["balance"] for a in agents),
++                   "vendor_ordered": sum(v["ordered"] for v in vendors),
++                   "vendor_paid": sum(v["paid"] for v in vendors)},
++    }
++
++
++# ---------------------------------------------------------------- budget
++@router.get("/budget")
++def budget(project_ids: str | None = Query(None)):
++    ids = _ids(project_ids)
++    with get_db() as conn:
++        rows = budget_svc.summary(conn)
++    if ids:
++        rows = [r for r in rows if r["project_id"] in ids]
++    by_project: dict[int, dict] = {}
++    for r in rows:
++        p = by_project.setdefault(r["project_id"], {"project_name": r["project_name"], "planned": 0, "spent": 0})
++        p["planned"] += r["planned_amount"]
++        p["spent"] += r["actual_spent"]
++    for p in by_project.values():
++        p["variance"] = p["planned"] - p["spent"]
++        p["pct_used"] = round(p["spent"] / p["planned"] * 100) if p["planned"] else 0
++    return {"lines": rows, "by_project": sorted(by_project.values(), key=lambda x: -x["pct_used"])}
+diff --git a/backend/routers/stubs.py b/backend/routers/stubs.py
+index 2808e66..f95dbe7 100644
+--- a/backend/routers/stubs.py
++++ b/backend/routers/stubs.py
+@@ -1,51 +1,3 @@
+ from fastapi import APIRouter
+-from backend.database import fetch_all, fetch_one, get_db
+-from backend.services import installments as inst_svc
+ 
+ router = APIRouter(prefix="/api", tags=["stubs"])
+-
+-
+-@router.get("/reports/ageing")
+-def report_ageing():
+-    with get_db() as conn:
+-        inst_svc.refresh_statuses(conn)
+-        items = fetch_all(
+-            conn,
+-            """SELECT i.id, i.booking_id, i.customer_id, i.due_date, i.remaining_amount AS amount,
+-                      i.status, i.type,
+-                      c.name AS customer_name, u.unit_no, p.name AS project_name,
+-                      CAST(julianday('now') - julianday(i.due_date) AS INTEGER) AS days_overdue
+-               FROM installments i
+-               JOIN customers c ON c.id=i.customer_id
+-               JOIN units u ON u.id=i.unit_id
+-               JOIN projects p ON p.id=u.project_id
+-               WHERE i.status IN ('overdue','partial') AND i.remaining_amount > 0
+-                 AND i.due_date < date('now')
+-               ORDER BY days_overdue DESC, c.name""",
+-        )
+-        d30 = d60 = d90 = 0
+-        for r in items:
+-            days = r.get("days_overdue") or 0
+-            amt = r.get("amount") or 0
+-            if days <= 30:
+-                d30 += amt
+-            elif days <= 60:
+-                d60 += amt
+-            else:
+-                d90 += amt
+-        return {"d30": d30, "d60": d60, "d90": d90, "items": items}
+-
+-
+-@router.get("/reports/sales")
+-def report_sales():
+-    with get_db() as conn:
+-        return fetch_all(
+-            conn,
+-            """SELECT p.name AS project_name, COUNT(b.id) AS bookings,
+-                      COALESCE(SUM(b.final_sale_price),0) AS total_sales,
+-                      COALESCE(SUM(b.booking_amount),0) AS collected_dp
+-               FROM bookings b
+-               JOIN projects p ON p.id=b.project_id
+-               WHERE b.status='active'
+-               GROUP BY b.project_id""",
+-        )
+diff --git a/static/css/theme.css b/static/css/theme.css
+index 93e2743..c0c9505 100644
+--- a/static/css/theme.css
++++ b/static/css/theme.css
+@@ -505,3 +505,82 @@ a.btn,a.btn:hover{text-decoration:none}
+ 
+ td.cell-md{min-width:200px;max-width:280px}
+ td.cell-sm{min-width:140px;max-width:200px}
++
++/* ---------- Report centre ---------- */
++.rp-tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:6px;scrollbar-width:thin}
++.rp-tab{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid var(--g200);background:#fff;border-radius:999px;color:var(--g500);font:600 12.5px var(--font);cursor:pointer;white-space:nowrap;transition:var(--tr)}
++.rp-tab:hover{color:var(--navy);border-color:var(--g300)}
++.rp-tab.active{background:var(--navy);border-color:var(--navy);color:#fff}
++.rp-filters{margin-bottom:14px}
++.rp-filters .toolbar{flex-wrap:wrap;gap:10px;align-items:center}
++.rp-period{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
++.rp-period select,.rp-period input{min-width:0}
++.rp-scope{font-size:12px;color:var(--g500);background:var(--g100);border-radius:999px;padding:4px 10px}
++.rp-scope:empty{display:none}
++.rp-head{margin:4px 0 14px}
++.rp-head h2{font-size:19px;font-weight:700;letter-spacing:-.2px}
++.rp-head p{color:var(--g500);margin-top:3px}
++.rp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
++.rp-kpi{background:#fff;border:1px solid var(--g200);border-radius:var(--r);padding:13px 15px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:3px;min-width:0}
++.rp-kpi span{font-size:11px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.5px}
++.rp-kpi b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
++.rp-kpi small{font-size:11.5px;color:var(--g500)}
++.rp-kpi.bad{border-left:3px solid var(--danger)}
++.rp-kpi.bad b{color:var(--danger)}
++.rp-kpi.good{border-left:3px solid var(--success)}
++.rp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
++.rp-card{margin-bottom:14px;min-width:0}
++.rp-grid .rp-card{margin-bottom:0}
++.rp-chart{height:210px}
++.rp-hbars{display:flex;flex-direction:column;gap:10px}
++.rp-hbar{display:grid;grid-template-columns:minmax(90px,34%) 1fr 92px;align-items:center;gap:10px}
++.rp-hbar-lbl{font-weight:600;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
++.rp-hbar-lbl small{display:block;font-weight:400;font-size:11px;color:var(--g500)}
++.rp-hbar-track{height:10px;background:var(--g100);border-radius:999px;overflow:hidden}
++.rp-hbar-track span{display:block;height:100%;border-radius:999px;transition:width .5s var(--ease)}
++.rp-hbar-val{font-weight:600;font-size:12.5px;font-variant-numeric:tabular-nums;text-align:right;min-width:52px}
++.rp-stack{display:flex;height:12px;gap:2px;border-radius:999px;overflow:hidden;background:var(--g100)}
++.rp-stack span{display:block;height:100%}
++.rp-stacks{display:flex;flex-direction:column;gap:10px}
++.rp-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:12px;font-size:12px;color:var(--g700)}
++.rp-legend span{display:inline-flex;align-items:center;gap:6px}
++.rp-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
++.rp-tbl-tools{padding:10px 16px 0}
++.rp-search{width:100%;max-width:280px;border:1px solid var(--g200);border-radius:var(--r2);padding:7px 10px;font:inherit}
++.rp-table{width:100%;border-collapse:collapse}
++.rp-table th{cursor:pointer;user-select:none;white-space:nowrap}
++.rp-table th.r,.rp-table td.r{text-align:right}
++.rp-table td.r{font-variant-numeric:tabular-nums;white-space:nowrap}
++.rp-table th:hover{color:var(--navy)}
++.rp-table th{position:relative}
++.sort-ind{position:absolute;margin-left:3px;font-size:10px;color:var(--blue)}
++.rp-sub{font-size:11px;color:var(--g500);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:1px;white-space:nowrap}
++.rp-table td.wrap{white-space:normal;min-width:90px;max-width:160px}
++.rp-table tfoot td{font-weight:700;background:var(--g50);border-top:2px solid var(--g200)}
++@media (max-width:900px){
++  .rp-grid{grid-template-columns:1fr}
++  .rp-hbar{grid-template-columns:minmax(80px,38%) 1fr 76px}
++  .rp-filters .toolbar-end{margin-left:0;width:100%}
++}
++@media (max-width:560px){
++  .rp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
++  .rp-kpi b{font-size:16px}
++  .rp-search{max-width:none}
++}
++@media print{
++  body{background:#fff}
++  .sb,.sb-backdrop,.tb,.topbar,.rp-tabs,.rp-filters,.rp-tbl-tools,.app-banner,#toast,.toast{display:none !important}
++  .main{margin:0 !important;width:100% !important}
++  .screen{display:none !important}
++  #s-reports.screen{display:block !important;padding:0 !important}
++  .rp-card,.rp-kpi{box-shadow:none;break-inside:avoid}
++  .chart-tip{display:none}
++  .tbl-wrap{overflow:visible !important;max-height:none !important}
++  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
++}
++.rp-chart .chart-col{padding-bottom:32px}
++.rp-chart .chart-lbl{bottom:2px;white-space:nowrap;text-align:center;line-height:1.25}
++.rp-chart .chart-lbl small{display:block;font-size:10px;color:var(--g400)}
++.rp-chart .chart-grid{bottom:32px}
++.tbl-wrap .rp-table th:last-child{position:static;box-shadow:none}
++.tbl-wrap .rp-table td:last-child{position:static;box-shadow:none;background:transparent}
+diff --git a/static/index.html b/static/index.html
+index 656f5f7..75d9cdb 100644
+--- a/static/index.html
++++ b/static/index.html
+@@ -695,15 +695,7 @@
+   </div>
+ </div>
+ 
+-<div class="screen" id="s-reports">
+-  <div style="margin-bottom:16px"><div class="pg-title">Reports</div></div>
+-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+-    <div class="rep-tile" data-report="ageing"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">1–30 / 31–60 / 60+ overdue</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
+-    <div class="rep-tile" data-report="sales"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise bookings & DP</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
+-    <div class="rep-tile is-soon"><div class="rep-ico">📋</div><div class="rep-name">More reports</div><div class="rep-desc">Statements, schedules, trial balance — later</div></div>
+-  </div>
+-  <div id="report-output" style="margin-top:16px"></div>
+-</div>
++<div class="screen" id="s-reports"></div>
+ 
+ 
+ <div class="screen" id="s-documents">
+diff --git a/static/js/app.js b/static/js/app.js
+index e367712..e3d4c89 100644
+--- a/static/js/app.js
++++ b/static/js/app.js
+@@ -23,7 +23,7 @@ import { loadProcurement, loadVendors, initOperationsEvents } from './screens/op
+ import { loadSite, initSiteEvents } from './screens/site.js';
+ import { loadAccounts, initAccountsEvents } from './screens/finance.js';
+ import { loadAgents, initAgentEvents } from './screens/agents.js';
+-import { initReportsEvents } from './screens/finance-extra.js';
++import { initReportsEvents, loadReports } from './screens/finance-extra.js';
+ import { loadPortal, initPortalEvents } from './screens/portal.js';
+ import { loadInvestors, initInvestorEvents } from './screens/investors.js';
+ import { loadPartners, initPartnerEvents } from './screens/partners.js';
+@@ -56,7 +56,7 @@ registerScreen('agents', loadAgents);
+ registerScreen('investors', loadInvestors);
+ registerScreen('partners', loadPartners);
+ registerScreen('parties', loadParties);
+-registerScreen('reports', () => {});
++registerScreen('reports', loadReports);
+ registerScreen('portal', loadPortal);
+ registerScreen('documents', loadDocuments);
+ registerScreen('access', loadAccess);
+diff --git a/static/js/project-filter.js b/static/js/project-filter.js
+index f6dba8a..ef928f3 100644
+--- a/static/js/project-filter.js
++++ b/static/js/project-filter.js
+@@ -3,10 +3,10 @@ import { state } from './state.js';
+ import { getCurrentScreen, reloadCurrentScreen } from './nav.js';
+ 
+ /** Screens that show the project multi-select filter */
+-export const FILTER_SCREENS = new Set(['dashboard', 'recovery', 'demand', 'site', 'procurement', 'budget', 'inventory', 'contractors', 'partners', 'investors']);
++export const FILTER_SCREENS = new Set(['dashboard', 'reports', 'recovery', 'demand', 'site', 'procurement', 'budget', 'inventory', 'contractors', 'partners', 'investors']);
+ 
+ /** Screens that show + New Booking in top bar */
+-export const BOOKING_CTA_SCREENS = new Set(['dashboard', 'units']);
++export const BOOKING_CTA_SCREENS = new Set(['dashboard', 'reports', 'units']);
+ 
+ let menuOpen = false;
+ 
+diff --git a/static/js/screens/finance-extra.js b/static/js/screens/finance-extra.js
+index 9f8db20..107073b 100644
+--- a/static/js/screens/finance-extra.js
++++ b/static/js/screens/finance-extra.js
+@@ -1,53 +1,583 @@
++/* Reports centre: period + project filters, KPI tiles, charts with hover, sortable tables, CSV export, print. */
+ import { $, esc } from '../dom.js';
+-import { api } from '../api.js';
++import { api, toast } from '../api.js';
+ import { fmt, fmtShort } from '../format.js';
++import { projectFilterQuery, filterLabelShort } from '../project-filter.js';
++import { icon } from '../icons.js';
+ 
+-export async function loadAgeing() {
+-  const d = await api('/api/reports/ageing');
+-  const items = d.items || [];
+-  const rows = items.length
+-    ? items.map((r) => `
+-      <tr>
+-        <td class="td-b">${esc(r.customer_name)}</td>
+-        <td>${esc(r.unit_no)}</td>
+-        <td>${esc(r.project_name)}</td>
+-        <td>${esc(r.due_date)}</td>
+-        <td>${r.days_overdue || 0}d</td>
+-        <td class="td-red">${fmt(r.amount)}</td>
+-        <td>${esc(r.status)}</td>
+-      </tr>`).join('')
+-    : '<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:20px">No overdue installments</td></tr>';
+-  $('report-output').innerHTML = `
+-    <div class="card"><div class="card-hd"><span class="card-title">Ageing Report</span></div>
+-    <div class="g3">
+-      <div class="sm"><div class="sm-v" style="color:var(--accent)">${fmtShort(d.d30 || 0)}</div><div class="sm-l">1–30 Days</div></div>
+-      <div class="sm"><div class="sm-v" style="color:var(--warn)">${fmtShort(d.d60 || 0)}</div><div class="sm-l">31–60 Days</div></div>
+-      <div class="sm"><div class="sm-v" style="color:var(--danger)">${fmtShort(d.d90 || 0)}</div><div class="sm-l">60+ Days</div></div>
+-    </div>
+-    <div class="tbl-wrap" style="margin-top:14px"><table>
+-      <thead><tr><th>Customer</th><th>Unit</th><th>Project</th><th>Due</th><th>Days</th><th>Remaining</th><th>Status</th></tr></thead>
+-      <tbody>${rows}</tbody>
+-    </table></div></div>`;
+-}
+-
+-export async function loadSalesReport() {
+-  const data = await api('/api/reports/sales');
+-  $('report-output').innerHTML = `
+-    <div class="card"><div class="card-hd"><span class="card-title">Sales Report</span></div>
+-    <div class="tbl-wrap"><table><thead><tr><th>Project</th><th>Bookings</th><th>Total Sales</th><th>DP Collected</th></tr></thead>
+-    <tbody>${(data || []).length ? data.map((r) => `
+-      <tr><td class="td-b">${esc(r.project_name)}</td><td>${r.bookings}</td>
+-      <td class="td-green">${fmt(r.total_sales)}</td><td>${fmt(r.collected_dp)}</td></tr>`).join('')
+-    : '<tr><td colspan="4" style="text-align:center;color:var(--g400);padding:20px">No sales yet</td></tr>'}
+-    </tbody></table></div></div>`;
+-}
+-
+-export function initReportsEvents() {
+-  document.querySelectorAll('[data-report]').forEach((el) => {
+-    el.addEventListener('click', () => {
+-      const type = el.dataset.report;
+-      if (type === 'ageing') loadAgeing();
+-      else if (type === 'sales') loadSalesReport();
++// Validated categorical slots (light surface) — see dataviz palette check.
++const C = { blue: '#2a78d6', aqua: '#1baf7a', yellow: '#eda100', violet: '#4a3aa7' };
++// Ordinal one-hue ramp for ageing buckets (lightest step still clears 2:1).
++const AGE_RAMP = ['#86b6ef', '#3987e5', '#1c5cab', '#0d366b'];
++
++const REPORTS = [
++  { key: 'overview', label: 'Overview', ico: 'dashboard', period: true, desc: 'Headline figures for the selected period' },
++  { key: 'sales', label: 'Sales', ico: 'booking', period: true, desc: 'Bookings, sales value and collection by project' },
++  { key: 'collections', label: 'Collections', ico: 'wallet', period: true, desc: 'Customer payments received' },
++  { key: 'ageing', label: 'Receivables ageing', ico: 'clock', period: false, desc: 'Overdue installments by age' },
++  { key: 'customers', label: 'Customer balances', ico: 'customers', period: false, desc: 'Sale value, paid, outstanding and overdue per customer' },
++  { key: 'inventory', label: 'Inventory', ico: 'units', period: false, desc: 'Unit status and unsold stock value' },
++  { key: 'payables', label: 'Payables', ico: 'procurement', period: false, desc: 'What we owe vendors and agents' },
++  { key: 'budget', label: 'Budget vs actual', ico: 'budget', period: false, desc: 'Planned vs spent per project and category' },
++];
++
++const PERIODS = [
++  ['this_month', 'This month'], ['last_month', 'Last month'], ['this_quarter', 'This quarter'],
++  ['this_year', 'This year'], ['last_12', 'Last 12 months'], ['all', 'All time'], ['custom', 'Custom range'],
++];
++
++let current = 'overview';
++let period = 'last_12';
++let exportable = null; // { name, columns, rows }
++
++// ------------------------------------------------------------------ helpers
++const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
++
++function periodRange() {
++  const t = new Date();
++  const y = t.getFullYear();
++  const m = t.getMonth();
++  switch (period) {
++    case 'this_month': return [iso(new Date(y, m, 1)), iso(t)];
++    case 'last_month': return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
++    case 'this_quarter': return [iso(new Date(y, Math.floor(m / 3) * 3, 1)), iso(t)];
++    case 'this_year': return [iso(new Date(y, 0, 1)), iso(t)];
++    case 'last_12': return [iso(new Date(y, m - 11, 1)), iso(t)];
++    case 'custom': return [$('rp-from').value || '', $('rp-to').value || ''];
++    default: return ['', ''];
++  }
++}
++
++function periodLabel() {
++  if (period === 'custom') {
++    const [a, b] = periodRange();
++    return `${a ? fdate(a) : 'start'} – ${b ? fdate(b) : 'today'}`;
++  }
++  return PERIODS.find(([k]) => k === period)?.[1] || '';
++}
++
++function query(withPeriod) {
++  const extra = {};
++  if (withPeriod) {
++    const [from, to] = periodRange();
++    extra.date_from = from;
++    extra.date_to = to;
++  }
++  return projectFilterQuery(extra);
++}
++
++const fdate = (s) => {
++  if (!s) return '—';
++  const d = new Date(`${String(s).slice(0, 10)}T00:00:00`);
++  return Number.isNaN(d.getTime()) ? String(s) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
++};
++const monthLabel = (ym) => {
++  const [y, m] = String(ym).split('-');
++  return new Date(+y, +m - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
++};
++/** Fill empty months so the time axis is continuous. */
++function fillMonths(rows, zero) {
++  const have = new Map(rows.map((r) => [String(r.month).slice(0, 7), r]));
++  let [from, to] = periodRange();
++  const keys = [...have.keys()].sort();
++  if (!from) from = keys[0] || '';
++  if (!to) to = keys[keys.length - 1] || '';
++  if (!from || !to) return rows;
++  let [y, m] = from.slice(0, 7).split('-').map(Number);
++  const [ty, tm] = to.slice(0, 7).split('-').map(Number);
++  const out = [];
++  while ((y < ty || (y === ty && m <= tm)) && out.length < 120) {
++    const k = `${y}-${String(m).padStart(2, '0')}`;
++    out.push(have.get(k) || { month: k, ...zero });
++    m += 1; if (m > 12) { m = 1; y += 1; }
++  }
++  return out;
++}
++const plural = (n, word) => `${Number(n).toLocaleString('en-PK')} ${word}${Number(n) === 1 ? '' : 's'}`;
++const pct = (v) => (v == null ? '—' : `${v}%`);
++
++function fmtCell(v, type) {
++  if (v == null || v === '') return '<span class="muted">—</span>';
++  if (type === 'money') return fmt(v);
++  if (type === 'date') return esc(fdate(v));
++  if (type === 'pct') return pct(v);
++  if (type === 'num') return Number(v).toLocaleString('en-PK');
++  return esc(v);
++}
++
++function kpis(items) {
++  return `<div class="rp-kpis">${items.map((k) => `
++    <div class="rp-kpi ${k.tone || ''}">
++      <span>${esc(k.label)}</span>
++      <b>${k.value}</b>
++      ${k.sub ? `<small>${k.sub}</small>` : ''}
++    </div>`).join('')}</div>`;
++}
++
++function card(title, sub, body, actions = '') {
++  return `<div class="card rp-card"><div class="card-hd"><div><div class="card-title">${esc(title)}</div>${sub ? `<div class="card-sub">${sub}</div>` : ''}</div>${actions}</div>${body}</div>`;
++}
++
++function empty(text) {
++  return `<div class="empty">${icon('reports', 28)}<b>Nothing to show</b>${esc(text)}</div>`;
++}
++
++// ------------------------------------------------------------------ charts
++function niceMax(v) {
++  if (v <= 0) return 4;
++  const raw = v / 4;
++  const p = 10 ** Math.floor(Math.log10(raw));
++  const n = raw / p;
++  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
++  return step * p * 4;
++}
++const axis = (n) => (n >= 1e7 ? `${+(n / 1e7).toFixed(1)}Cr` : n >= 1e5 ? `${+(n / 1e5).toFixed(1)}L` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
++
++function tick(label, i, n) {
++  const [mon, yr] = String(label).split(' ');
++  const every = n > 24 ? 6 : n > 13 ? 3 : 1;
++  if (!yr) return esc(label);
++  if (i % every) return '';
++  return `${esc(mon)}${i === 0 || mon === 'Jan' ? `<small>${esc(yr)}</small>` : ''}`;
++}
++
++/** Single-series column chart (one hue), hover tooltip per column. */
++function columns(points, { money = true, color = C.blue, label = 'value' } = {}) {
++  if (!points.some((p) => p.value)) return empty('No data in this period.');
++  const max = niceMax(Math.max(...points.map((p) => p.value), 0));
++  return `<div class="card-bd"><div class="chart rp-chart" role="img" aria-label="${esc(label)} by month">
++    <div class="chart-grid">${[1, 0.75, 0.5, 0.25, 0].map((t) => `<div><span>${money ? axis(max * t) : Math.round(max * t)}</span></div>`).join('')}</div>
++    ${points.map((p, i) => `<div class="chart-col">
++      <div class="chart-bar" style="height:${(p.value / max) * 100}%;background:${color}">
++        <div class="chart-tip">${money ? fmt(p.value) : p.value}<small>${esc(p.tip ? `${p.label} · ${p.tip}` : p.label)}</small></div>
++      </div>
++      <div class="chart-lbl">${tick(p.label, i, points.length)}</div></div>`).join('')}
++  </div></div>`;
++}
++
++/** Horizontal bars for a breakdown; values printed beside each bar. */
++function hbars(rows, { money = true, color = C.blue, colors = null } = {}) {
++  if (!rows.length) return empty('No data.');
++  const max = Math.max(...rows.map((r) => r.value), 1);
++  return `<div class="card-bd rp-hbars">${rows.map((r, i) => `
++    <div class="rp-hbar" title="${esc(r.label)}: ${money ? fmt(r.value) : r.value}">
++      <div class="rp-hbar-lbl">${esc(r.label)}${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</div>
++      <div class="rp-hbar-track"><span style="width:${Math.max((r.value / max) * 100, r.value ? 1.5 : 0)}%;background:${colors ? colors[i % colors.length] : color}"></span></div>
++      <div class="rp-hbar-val">${money ? fmtShort(r.value) : r.value.toLocaleString('en-PK')}</div>
++    </div>`).join('')}</div>`;
++}
++
++/** Stacked horizontal bar per row (inventory), legend always present. */
++function stacked(rows, parts) {
++  if (!rows.length) return empty('No units.');
++  const legend = `<div class="rp-legend">${parts.map((p) => `<span><i style="background:${p.color}"></i>${esc(p.label)}</span>`).join('')}</div>`;
++  return `<div class="card-bd">${legend}<div class="rp-stacks">${rows.map((r) => {
++    const total = parts.reduce((a, p) => a + (r[p.key] || 0), 0) || 1;
++    return `<div class="rp-hbar">
++      <div class="rp-hbar-lbl">${esc(r.label)}<small>${plural(total, 'unit')}</small></div>
++      <div class="rp-stack">${parts.map((p) => (r[p.key] ? `<span style="width:${(r[p.key] / total) * 100}%;background:${p.color}" title="${esc(p.label)}: ${r[p.key]}"></span>` : '')).join('')}</div>
++      <div class="rp-hbar-val">${r.valueLabel || ''}</div>
++    </div>`;
++  }).join('')}</div></div>`;
++}
++
++// ------------------------------------------------------------------ tables
++const tables = {};
++
++function table(id, columnsDef, rows, { search = true, name = 'report', primary = false, footer = null } = {}) {
++  const shown = columnsDef.filter((c) => !c.hide);
++  tables[id] = { columns: shown, all: columnsDef, rows, sortKey: null, dir: 1, q: '' };
++  if (primary) exportable = { name, columns: columnsDef, rows };
++  return `${search ? `<div class="rp-tbl-tools"><input type="search" class="rp-search" data-tbl="${id}" placeholder="Search ${rows.length} rows…"></div>` : ''}
++    <div class="tbl-wrap"><table class="rp-table" id="${id}">
++      <thead><tr>${shown.map((c) => `<th data-sort="${c.key}" class="${['money', 'num', 'pct'].includes(c.type) ? 'r' : ''}" tabindex="0">${esc(c.label)}<span class="sort-ind"></span></th>`).join('')}</tr></thead>
++      <tbody></tbody>${footer ? `<tfoot><tr>${footer}</tr></tfoot>` : ''}
++    </table></div>`;
++}
++
++function drawTable(id) {
++  const t = tables[id];
++  const el = $(id);
++  if (!t || !el) return;
++  let rows = t.rows;
++  if (t.q) {
++    const q = t.q.toLowerCase();
++    rows = rows.filter((r) => t.all.some((c) => String(r[c.key] ?? '').toLowerCase().includes(q)));
++  }
++  if (t.sortKey) {
++    const col = t.columns.find((c) => c.key === t.sortKey);
++    const numeric = ['money', 'num', 'pct'].includes(col?.type);
++    rows = [...rows].sort((a, b) => {
++      const x = a[t.sortKey]; const y = b[t.sortKey];
++      if (numeric) return ((Number(x) || 0) - (Number(y) || 0)) * t.dir;
++      return String(x ?? '').localeCompare(String(y ?? '')) * t.dir;
+     });
++  }
++  el.querySelector('tbody').innerHTML = rows.length ? rows.slice(0, 500).map((r) => `<tr>${t.columns.map((c) => {
++    const cls = ['money', 'num', 'pct'].includes(c.type) ? 'r num' : '';
++    const html = c.render ? c.render(r) : fmtCell(r[c.key], c.type);
++    return `<td class="${cls} ${c.cls || ''}">${html}</td>`;
++  }).join('')}</tr>`).join('')
++    : `<tr><td colspan="${t.columns.length}"><div class="empty">No matching rows</div></td></tr>`;
++  if (rows.length > 500) {
++    el.querySelector('tbody').insertAdjacentHTML('beforeend', `<tr><td colspan="${t.columns.length}" class="muted">Showing 500 of ${rows.length} rows — export CSV for all.</td></tr>`);
++  }
++  el.querySelectorAll('th[data-sort]').forEach((th) => {
++    const ind = th.querySelector('.sort-ind');
++    ind.textContent = th.dataset.sort === t.sortKey ? (t.dir > 0 ? ' ▲' : ' ▼') : '';
++    th.setAttribute('aria-sort', th.dataset.sort === t.sortKey ? (t.dir > 0 ? 'ascending' : 'descending') : 'none');
+   });
+ }
++
++function wireTables(root) {
++  Object.keys(tables).forEach((id) => {
++    const el = $(id);
++    if (!el) { delete tables[id]; return; }
++    el.querySelectorAll('th[data-sort]').forEach((th) => {
++      const sort = () => {
++        const t = tables[id];
++        if (t.sortKey === th.dataset.sort) t.dir *= -1; else { t.sortKey = th.dataset.sort; t.dir = -1; }
++        drawTable(id);
++      };
++      th.addEventListener('click', sort);
++      th.addEventListener('keydown', (e) => { if (e.key === 'Enter') sort(); });
++    });
++    drawTable(id);
++  });
++  root.querySelectorAll('.rp-search').forEach((inp) => inp.addEventListener('input', () => {
++    tables[inp.dataset.tbl].q = inp.value.trim();
++    drawTable(inp.dataset.tbl);
++  }));
++}
++
++function exportCsv() {
++  if (!exportable || !exportable.rows.length) { toast('Nothing to export', 'error'); return; }
++  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
++  const lines = [exportable.columns.map((c) => q(c.label)).join(',')];
++  exportable.rows.forEach((r) => lines.push(exportable.columns.map((c) => q(c.csv ? c.csv(r) : r[c.key])).join(',')));
++  const blob = new Blob([`﻿${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
++  const a = document.createElement('a');
++  a.href = URL.createObjectURL(blob);
++  a.download = `${exportable.name}-${iso(new Date())}.csv`;
++  document.body.appendChild(a);
++  a.click();
++  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
++}
++
++const statusBadge = (s) => {
++  const cls = { Overdue: 'bg-red', Cleared: 'bg-green', 'On track': 'bg-blue', Exceeded: 'bg-red', 'Near Limit': 'bg-yellow', 'Within Budget': 'bg-green', overdue: 'bg-red', partial: 'bg-orange' }[s] || 'bg-grey';
++  return `<span class="badge ${cls}">${esc(s)}</span>`;
++};
++
++// ------------------------------------------------------------------ reports
++async function rOverview() {
++  const d = await api(`/api/reports/overview${query(true)}`);
++  const s = await api(`/api/reports/sales-summary${query(true)}`);
++  const c = await api(`/api/reports/collections${query(true)}`);
++  return kpis([
++    { label: 'Bookings', value: d.bookings.toLocaleString('en-PK'), sub: `${d.cancelled_bookings} cancelled in period` },
++    { label: 'Sales value', value: fmtShort(d.sales_value), sub: 'Active bookings' },
++    { label: 'Collected', value: fmtShort(d.collections), sub: `${plural(d.collection_count, 'payment')}${c.collection_rate != null ? ` · ${c.collection_rate}% of due` : ''}` },
++    { label: 'Receivable now', value: fmtShort(d.receivable), sub: 'Open installments' },
++    { label: 'Overdue now', value: fmtShort(d.overdue), sub: `${plural(d.overdue_count, 'installment')}`, tone: d.overdue ? 'bad' : '' },
++    { label: 'Unsold stock', value: fmtShort(d.available_value), sub: `${d.available_units} available units` },
++  ]) + `<div class="rp-grid">
++      ${card('Collections by month', esc(periodLabel()), columns(fillMonths(c.monthly, { amount: 0, count: 0 }).map((m) => ({ label: monthLabel(m.month), value: m.amount, tip: `${plural(m.count, 'payment')}` })), { label: 'Collections' }))}
++      ${card('Sales by month', esc(periodLabel()), columns(fillMonths(s.monthly, { sales_value: 0, bookings: 0 }).map((m) => ({ label: monthLabel(m.month), value: m.sales_value, tip: `${plural(m.bookings, 'booking')}` })), { label: 'Sales' }))}
++    </div>
++    <div class="rp-grid">
++      ${card('Sales by project', '', hbars(s.by_project.map((p) => ({ label: p.project_name, value: p.sales_value, sub: `${plural(p.bookings, 'booking')}` }))))}
++      ${card('Collections by method', '', hbars(c.by_method.map((p) => ({ label: p.method, value: p.amount, sub: `${plural(p.count, 'payment')}` }))))}
++    </div>`;
++}
++
++async function rSales() {
++  const d = await api(`/api/reports/sales-summary${query(true)}`);
++  const t = d.by_project.reduce((a, p) => ({ v: a.v + p.sales_value, n: a.n + p.bookings, c: a.c + p.collected }), { v: 0, n: 0, c: 0 });
++  return kpis([
++    { label: 'Bookings', value: t.n, sub: `${d.cancelled} cancelled` },
++    { label: 'Sales value', value: fmtShort(t.v) },
++    { label: 'Collected on these', value: fmtShort(t.c), sub: t.v ? `${Math.round((t.c / t.v) * 100)}% of value` : '' },
++    { label: 'Average sale', value: fmtShort(t.n ? t.v / t.n : 0) },
++  ]) + `<div class="rp-grid">
++      ${card('Sales value by month', esc(periodLabel()), columns(fillMonths(d.monthly, { sales_value: 0, bookings: 0 }).map((m) => ({ label: monthLabel(m.month), value: m.sales_value, tip: `${plural(m.bookings, 'booking')}` })), { label: 'Sales' }))}
++      ${card('By unit type', '', hbars(d.by_type.map((x) => ({ label: x.unit_type, value: x.sales_value, sub: `${plural(x.bookings, 'booking')}` }))))}
++    </div>
++    ${card('By project', '', table('rt-sales-proj', [
++      { key: 'project_name', label: 'Project', cls: 'td-b' },
++      { key: 'bookings', label: 'Bookings', type: 'num' },
++      { key: 'sales_value', label: 'Sales value', type: 'money' },
++      { key: 'avg_price', label: 'Avg price', type: 'money' },
++      { key: 'discounts', label: 'Discounts', type: 'money' },
++      { key: 'collected', label: 'Collected', type: 'money' },
++      { key: 'outstanding', label: 'Outstanding', type: 'money' },
++      { key: 'collected_pct', label: 'Collected %', type: 'pct' },
++      { key: 'via_agent', label: 'Via agent', type: 'num' },
++    ], d.by_project, { search: false }))}
++    ${card('Bookings in period', `${plural(d.bookings.length, 'booking')}`, table('rt-sales', [
++      { key: 'booking_date', label: 'Date', type: 'date' },
++      { key: 'booking_no', label: 'Booking', cls: 'td-mono' },
++      { key: 'customer_name', label: 'Customer', cls: 'td-b' },
++      { key: 'project_name', label: 'Project' },
++      { key: 'unit_no', label: 'Unit' },
++      { key: 'unit_type', label: 'Type' },
++      { key: 'agent_name', label: 'Agent' },
++      { key: 'final_sale_price', label: 'Sale price', type: 'money' },
++      { key: 'booking_amount', label: 'Booking amount', type: 'money' },
++    ], d.bookings, { name: 'sales', primary: true }))}`;
++}
++
++async function rCollections() {
++  const d = await api(`/api/reports/collections${query(true)}`);
++  return kpis([
++    { label: 'Collected', value: fmtShort(d.total), sub: `${plural(d.count, 'payment')}` },
++    { label: 'Due in period', value: fmtShort(d.due_in_period), sub: 'Installments due up to today' },
++    { label: 'Collection rate', value: pct(d.collection_rate), tone: d.collection_rate != null && d.collection_rate < 60 ? 'bad' : '' },
++    { label: 'Average payment', value: fmtShort(d.count ? d.total / d.count : 0) },
++  ]) + `${card('Collections by month', esc(periodLabel()), columns(fillMonths(d.monthly, { amount: 0, count: 0 }).map((m) => ({ label: monthLabel(m.month), value: m.amount, tip: `${plural(m.count, 'payment')}` })), { label: 'Collections' }))}
++    <div class="rp-grid">
++      ${card('By payment method', '', hbars(d.by_method.map((x) => ({ label: x.method, value: x.amount, sub: `${plural(x.count, 'payment')}` }))))}
++      ${card('By project', '', hbars(d.by_project.map((x) => ({ label: x.project_name, value: x.amount, sub: `${plural(x.count, 'payment')}` }))))}
++    </div>
++    ${card('Payments', `${d.payments.length} received`, table('rt-coll', [
++      { key: 'payment_date', label: 'Date', type: 'date' },
++      { key: 'receipt_no', label: 'Receipt', cls: 'td-mono' },
++      { key: 'customer_name', label: 'Customer', cls: 'td-b' },
++      { key: 'project_name', label: 'Project' },
++      { key: 'unit_no', label: 'Unit' },
++      { key: 'against', label: 'Against' },
++      { key: 'payment_method', label: 'Method' },
++      { key: 'reference_number', label: 'Reference' },
++      { key: 'amount', label: 'Amount', type: 'money', cls: 'td-b' },
++    ], d.payments, { name: 'collections', primary: true }))}`;
++}
++
++async function rAgeing() {
++  const d = await api(`/api/reports/ageing${query(false)}`);
++  const buckets = d.buckets || [];
++  return kpis([
++    { label: 'Total overdue', value: fmtShort(d.total), sub: `${plural(d.items.length, 'installment')} · ${plural(d.by_customer.length, 'customer')}`, tone: d.total ? 'bad' : '' },
++    ...buckets.map((b) => ({ label: b.bucket, value: fmtShort(b.amount), sub: `${plural(b.count, 'installment')}` })),
++  ]) + `<div class="rp-grid">
++      ${card('Overdue by age', 'Older debt is harder to recover', hbars(buckets.map((b) => ({ label: b.bucket, value: b.amount, sub: `${plural(b.count, 'item')}` })), { colors: AGE_RAMP }))}
++      ${card('By project', '', table('rt-age-proj', [
++        { key: 'project_name', label: 'Project', cls: 'td-b' },
++        ...buckets.map((b) => ({ key: b.bucket, label: b.bucket, type: 'money' })),
++        { key: 'amount', label: 'Total', type: 'money', cls: 'td-b' },
++      ], d.by_project, { search: false }))}
++    </div>
++    ${card('Customers to follow up', 'Largest overdue first', table('rt-age-cust', [
++      { key: 'customer_name', label: 'Customer', cls: 'td-b' },
++      { key: 'phone', label: 'Phone', cls: 'td-mono' },
++      { key: 'units', label: 'Units' },
++      { key: 'count', label: 'Installments', type: 'num' },
++      { key: 'oldest_days', label: 'Oldest (days)', type: 'num' },
++      { key: 'amount', label: 'Overdue', type: 'money', cls: 'td-red' },
++    ], d.by_customer, { name: 'overdue-customers' }))}
++    ${card('All overdue installments', '', table('rt-age', [
++      { key: 'customer_name', label: 'Customer', cls: 'td-b' },
++      { key: 'project_name', label: 'Project' },
++      { key: 'unit_no', label: 'Unit' },
++      { key: 'booking_no', label: 'Booking', cls: 'td-mono' },
++      { key: 'type', label: 'Installment' },
++      { key: 'due_date', label: 'Due', type: 'date' },
++      { key: 'days_overdue', label: 'Days late', type: 'num' },
++      { key: 'bucket', label: 'Bucket' },
++      { key: 'status', label: 'Status', render: (r) => statusBadge(r.status) },
++      { key: 'amount', label: 'Remaining', type: 'money', cls: 'td-red' },
++    ], d.items, { name: 'ageing', primary: true }))}`;
++}
++
++async function rCustomers() {
++  const d = await api(`/api/reports/customer-balances${query(false)}`);
++  const t = d.totals;
++  const counts = d.customers.reduce((a, c) => ({ ...a, [c.status]: (a[c.status] || 0) + 1 }), {});
++  return kpis([
++    { label: 'Customers with bookings', value: d.customers.length, sub: `${counts.Overdue || 0} overdue · ${counts.Cleared || 0} cleared` },
++    { label: 'Total sale value', value: fmtShort(t.sale_value) },
++    { label: 'Received', value: fmtShort(t.paid), sub: t.sale_value ? `${Math.round((t.paid / t.sale_value) * 100)}% of value` : '' },
++    { label: 'Outstanding', value: fmtShort(t.outstanding) },
++    { label: 'Overdue', value: fmtShort(t.overdue), tone: t.overdue ? 'bad' : '' },
++  ]) + card('Customer balances', 'Overdue customers first', table('rt-cust', [
++    { key: 'customer_name', label: 'Customer', render: (r) => `<b>${esc(r.customer_name)}</b><div class="rp-sub">${esc([r.cnic, r.phone].filter(Boolean).join(' · ') || '—')}</div>` },
++    { key: 'cnic', label: 'CNIC', hide: true },
++    { key: 'phone', label: 'Phone', hide: true },
++    { key: 'units', label: 'Units' },
++    { key: 'sale_value', label: 'Sale value', type: 'money' },
++    { key: 'paid', label: 'Paid', type: 'money' },
++    { key: 'paid_pct', label: 'Paid %', type: 'pct' },
++    { key: 'outstanding', label: 'Outstanding', type: 'money' },
++    { key: 'overdue', label: 'Overdue', type: 'money', render: (r) => `<span class="${r.overdue > 0 ? 'td-red' : ''}">${fmt(r.overdue)}</span>` },
++    { key: 'last_payment', label: 'Last payment', type: 'date' },
++    { key: 'status', label: 'Status', render: (r) => statusBadge(r.status) },
++  ], d.customers, { name: 'customer-balances', primary: true }));
++}
++
++async function rInventory() {
++  const d = await api(`/api/reports/inventory${query(false)}`);
++  const sum = (k) => d.by_project.reduce((a, p) => a + (p[k] || 0), 0);
++  const total = sum('total');
++  return kpis([
++    { label: 'Total units', value: total.toLocaleString('en-PK'), sub: `${d.by_project.length} projects` },
++    { label: 'Available', value: sum('available'), sub: fmtShort(sum('available_value')) },
++    { label: 'On hold', value: sum('hold'), sub: `${d.holds.length} active holds` },
++    { label: 'Booked / sold', value: sum('booked'), sub: total ? `${Math.round(((sum('booked') + sum('delivered')) / total) * 100)}% sold incl. delivered` : '' },
++    { label: 'Possession delivered', value: sum('delivered') },
++  ]) + card('Unit status by project', '', stacked(d.by_project.map((p) => ({ ...p, label: p.project_name, valueLabel: `${p.sold_pct}% sold` })), [
++    { key: 'available', label: 'Available', color: C.aqua },
++    { key: 'hold', label: 'Hold', color: C.yellow },
++    { key: 'booked', label: 'Booked / sold', color: C.blue },
++    { key: 'delivered', label: 'Delivered', color: C.violet },
++  ])) + card('By project', '', table('rt-inv', [
++    { key: 'project_name', label: 'Project', cls: 'td-b' },
++    { key: 'progress', label: 'Construction', type: 'pct' },
++    { key: 'total', label: 'Units', type: 'num' },
++    { key: 'available', label: 'Available', type: 'num' },
++    { key: 'hold', label: 'Hold', type: 'num' },
++    { key: 'booked', label: 'Booked', type: 'num' },
++    { key: 'delivered', label: 'Delivered', type: 'num' },
++    { key: 'sold_pct', label: 'Sold %', type: 'pct' },
++    { key: 'available_value', label: 'Unsold value', type: 'money' },
++  ], d.by_project, { name: 'inventory', primary: true, search: false })) + `<div class="rp-grid">
++    ${card('By unit type', 'Available price range', table('rt-inv-type', [
++      { key: 'unit_type', label: 'Type', cls: 'td-b' },
++      { key: 'total', label: 'Units', type: 'num' },
++      { key: 'available', label: 'Available', type: 'num' },
++      { key: 'min_price', label: 'From', type: 'money' },
++      { key: 'max_price', label: 'To', type: 'money' },
++    ], d.by_type, { search: false }))}
++    ${card('Active holds', 'Expiring soonest first', table('rt-holds', [
++      { key: 'unit_no', label: 'Unit', cls: 'td-b' },
++      { key: 'project_name', label: 'Project' },
++      { key: 'customer_name', label: 'Customer' },
++      { key: 'hold_until', label: 'Until', type: 'date' },
++      { key: 'days_left', label: 'Days left', type: 'num' },
++      { key: 'token_amount', label: 'Token', type: 'money' },
++    ], d.holds, { search: false }))}
++  </div>`;
++}
++
++async function rPayables() {
++  const d = await api(`/api/reports/payables${query(false)}`);
++  const t = d.totals;
++  return kpis([
++    { label: 'Total payable', value: fmtShort(t.vendor_balance + t.agent_balance), tone: 'bad' },
++    { label: 'Vendors', value: fmtShort(t.vendor_balance), sub: `${fmtShort(t.vendor_paid)} paid of ${fmtShort(t.vendor_ordered)}` },
++    { label: 'Agent commission due', value: fmtShort(t.agent_balance), sub: `${d.agents.length} agents` },
++  ]) + card('Vendor balances', 'Largest balance first', table('rt-vendors', [
++    { key: 'vendor_name', label: 'Vendor', cls: 'td-b' },
++    { key: 'category', label: 'Category' },
++    { key: 'contact', label: 'Contact' },
++    { key: 'orders', label: 'POs', type: 'num' },
++    { key: 'last_order', label: 'Last order', type: 'date' },
++    { key: 'ordered', label: 'Ordered', type: 'money' },
++    { key: 'paid', label: 'Paid', type: 'money' },
++    { key: 'balance', label: 'Balance', type: 'money', render: (r) => `<span class="${r.balance > 0 ? 'td-red' : ''}">${fmt(r.balance)}</span>` },
++  ], d.vendors, { name: 'vendor-payables', primary: true, search: false })) + card('Agent commissions', '', table('rt-agents', [
++    { key: 'agent_name', label: 'Agent', cls: 'td-b' },
++    { key: 'deals', label: 'Deals', type: 'num' },
++    { key: 'earned', label: 'Earned', type: 'money' },
++    { key: 'paid', label: 'Paid', type: 'money' },
++    { key: 'balance', label: 'Due', type: 'money', render: (r) => `<span class="${r.balance > 0 ? 'td-red' : ''}">${fmt(r.balance)}</span>` },
++  ], d.agents, { search: false }));
++}
++
++async function rBudget() {
++  const d = await api(`/api/reports/budget${query(false)}`);
++  const planned = d.lines.reduce((a, l) => a + l.planned_amount, 0);
++  const spent = d.lines.reduce((a, l) => a + l.actual_spent, 0);
++  const exceeded = d.lines.filter((l) => l.status === 'Exceeded').length;
++  return kpis([
++    { label: 'Planned', value: fmtShort(planned), sub: `${d.lines.length} budget lines` },
++    { label: 'Spent', value: fmtShort(spent), sub: planned ? `${Math.round((spent / planned) * 100)}% used` : '' },
++    { label: 'Remaining', value: fmtShort(planned - spent), tone: planned - spent < 0 ? 'bad' : '' },
++    { label: 'Lines over budget', value: exceeded, tone: exceeded ? 'bad' : '' },
++  ]) + card('By project', '', `<div class="card-bd rp-hbars">${d.by_project.length ? d.by_project.map((p) => `
++    <div class="rp-hbar" title="${esc(p.project_name)}: ${p.pct_used}% used">
++      <div class="rp-hbar-lbl">${esc(p.project_name)}<small>${fmtShort(p.spent)} of ${fmtShort(p.planned)}</small></div>
++      <div class="rp-hbar-track rp-budget"><span style="width:${Math.min(p.pct_used, 100)}%;background:${p.pct_used > 100 ? 'var(--danger)' : p.pct_used >= 85 ? 'var(--accent)' : C.blue}"></span></div>
++      <div class="rp-hbar-val">${p.pct_used}%</div>
++    </div>`).join('') : empty('No budget lines yet.')}</div>`)
++    + card('Budget lines', '', table('rt-budget', [
++      { key: 'project_name', label: 'Project', cls: 'td-b' },
++      { key: 'category_name', label: 'Category' },
++      { key: 'planned_amount', label: 'Planned', type: 'money' },
++      { key: 'actual_spent', label: 'Spent', type: 'money' },
++      { key: 'variance', label: 'Variance', type: 'money', render: (r) => `<span class="${r.variance < 0 ? 'td-red' : ''}">${fmt(r.variance)}</span>` },
++      { key: 'pct_used', label: '% used', type: 'pct' },
++      { key: 'status', label: 'Status', render: (r) => statusBadge(r.status) },
++    ], [...d.lines].sort((a, b) => (b.pct_used || 0) - (a.pct_used || 0)), { name: 'budget', primary: true }));
++}
++
++const RENDER = { overview: rOverview, sales: rSales, collections: rCollections, ageing: rAgeing, customers: rCustomers, inventory: rInventory, payables: rPayables, budget: rBudget };
++
++// ------------------------------------------------------------------ shell
++function renderShell() {
++  const host = $('s-reports');
++  if (host.dataset.ready) return;
++  host.dataset.ready = '1';
++  host.innerHTML = `
++    <div class="rp-tabs" role="tablist">${REPORTS.map((r) => `
++      <button type="button" role="tab" class="rp-tab" data-rp="${r.key}" title="${esc(r.desc)}">${icon(r.ico, 16)}<span>${esc(r.label)}</span></button>`).join('')}
++    </div>
++    <div class="card filter-card rp-filters">
++      <div class="toolbar">
++        <div class="rp-period" id="rp-period-wrap">
++          <label class="fg-hint" for="rp-period" style="margin:0">Period</label>
++          <select id="rp-period">${PERIODS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
++          <span id="rp-custom" hidden><input type="date" id="rp-from" aria-label="From"> <input type="date" id="rp-to" aria-label="To"></span>
++        </div>
++        <span class="rp-scope" id="rp-scope"></span>
++        <div class="toolbar-end">
++          <button type="button" class="btn" id="rp-csv" data-perm="view">${icon('download', 15)} Export CSV</button>
++          <button type="button" class="btn" id="rp-print" data-perm="view">${icon('file', 15)} Print / PDF</button>
++        </div>
++      </div>
++    </div>
++    <div class="rp-head"><h2 id="rp-title"></h2><p id="rp-desc"></p></div>
++    <div id="report-output"></div>`;
++  host.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => { current = b.dataset.rp; loadReports(); }));
++  $('rp-period').value = period;
++  $('rp-period').addEventListener('change', () => {
++    period = $('rp-period').value;
++    $('rp-custom').hidden = period !== 'custom';
++    if (period !== 'custom') loadReports();
++  });
++  ['rp-from', 'rp-to'].forEach((id) => $(id).addEventListener('change', () => loadReports()));
++  $('rp-csv').addEventListener('click', exportCsv);
++  $('rp-print').addEventListener('click', () => window.print());
++}
++
++let seq = 0;
++export async function loadReports() {
++  renderShell();
++  const def = REPORTS.find((r) => r.key === current);
++  document.querySelectorAll('.rp-tab').forEach((b) => {
++    b.classList.toggle('active', b.dataset.rp === current);
++    b.setAttribute('aria-selected', String(b.dataset.rp === current));
++  });
++  $('rp-period-wrap').hidden = !def.period;
++  $('rp-title').textContent = def.label;
++  $('rp-desc').textContent = def.desc;
++  $('rp-scope').innerHTML = `${icon('projects', 14)} ${esc(filterLabelShort())}${def.period ? ` · ${esc(periodLabel())}` : ' · as of today'}`;
++  const out = $('report-output');
++  out.innerHTML = '<div class="loading"><span class="spinner"></span>Building report…</div>';
++  exportable = null;
++  Object.keys(tables).forEach((k) => delete tables[k]);
++  const my = ++seq;
++  try {
++    const html = await RENDER[current]();
++    if (my !== seq) return; // a newer request replaced this one
++    out.innerHTML = html;
++    wireTables(out);
++    $('rp-csv').disabled = !exportable;
++  } catch (e) {
++    if (my === seq) out.innerHTML = `<div class="empty"><b>Could not build this report</b>${esc(e.message)}</div>`;
++  }
++}
++
++export function initReportsEvents() { /* shell is built lazily on first open */ }
++
++// Legacy names kept for any old callers.
++export const loadAgeing = () => { current = 'ageing'; return loadReports(); };
++export const loadSalesReport = () => { current = 'sales'; return loadReports(); };
+diff --git a/tests/test_reports.py b/tests/test_reports.py
+new file mode 100644
+index 0000000..5afd5d7
+--- /dev/null
++++ b/tests/test_reports.py
+@@ -0,0 +1,48 @@
++"""Report centre endpoints."""
++import pytest
++
++ENDPOINTS = ["overview", "ageing", "sales", "sales-summary", "collections", "inventory",
++             "customer-balances", "payables", "budget"]
++
++
++@pytest.mark.parametrize("name", ENDPOINTS)
++def test_reports_load_for_admin(as_role, name):
++    admin = as_role("admin")
++    r = admin.get(f"/api/reports/{name}")
++    assert r.status_code == 200, r.text
++    r = admin.get(f"/api/reports/{name}?date_from=2024-01-01&date_to=2030-12-31")
++    assert r.status_code == 200, r.text
++
++
++def test_invalid_dates_rejected(as_role):
++    admin = as_role("admin")
++    assert admin.get("/api/reports/collections?date_from=15-01-2026").status_code == 400
++
++
++def test_project_filter_narrows_results(as_role, world):
++    admin = as_role("admin")
++    p = world["scoped_project"]
++    inv = admin.get(f"/api/reports/inventory?project_ids={p}").json()
++    assert [row["project_id"] for row in inv["by_project"]] == [p]
++    ageing = admin.get(f"/api/reports/ageing?project_ids={p}").json()
++    assert all(row["project_id"] == p for row in ageing["by_project"])
++
++
++def test_ageing_buckets_add_up(as_role):
++    d = as_role("admin").get("/api/reports/ageing").json()
++    assert round(sum(b["amount"] for b in d["buckets"]), 2) == round(d["total"], 2)
++    assert round(sum(i["amount"] for i in d["items"]), 2) == round(d["total"], 2)
++
++
++def test_reports_permissions(as_role):
++    # A read-only employee with every project can see reports.
++    assert as_role("employee_all").get("/api/reports/overview").status_code == 200
++    # Company-wide reports need all-project access and the reports right.
++    assert as_role("employee_scoped").get("/api/reports/overview").status_code == 403
++    assert as_role("customer").get("/api/reports/overview").status_code == 403
++    assert as_role(None).get("/api/reports/overview").status_code == 401
++
++
++def test_reports_are_company_isolated(as_role):
++    d = as_role("admin_b").get("/api/reports/overview").json()
++    assert d["bookings"] == 0 and d["collections"] == 0

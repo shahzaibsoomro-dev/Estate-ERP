@@ -157,7 +157,8 @@ try:
         bk = post("/api/bookings", {
             "unit_id": u["id"], "project_id": 1, "customer_id": cu["id"],
             "sale_price": 7000000, "down_payment": 1000000, "booking_date": "2025-06-15",
-            "installments": [{"amount": 1000000, "due_date": "2025-06-15", "type": "Booking"}],
+            "installments": [{"amount": 1000000, "due_date": "2025-06-15", "type": "Booking"},
+                             {"amount": 6000000, "due_date": "2026-06-15", "type": "Balance"}],
         })
         try:
             post("/api/bookings", {
@@ -255,7 +256,8 @@ try:
         bk = post("/api/bookings", {
             "unit_id": u["id"], "project_id": 1, "customer_id": cu["id"],
             "sale_price": 6000000, "down_payment": 1800000, "booking_date": "2025-06-01",
-            "installments": [{"amount": 1800000, "due_date": "2025-06-01", "type": "Booking"}],
+            "installments": [{"amount": 1800000, "due_date": "2025-06-01", "type": "Booking"},
+                             {"amount": 4200000, "due_date": "2026-06-01", "type": "Balance"}],
         })
         bk_id = bk["booking_id"]
         unit_id = u["id"]

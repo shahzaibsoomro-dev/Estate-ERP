@@ -28,6 +28,7 @@ OVERDUE_SQL = """
            u.unit_no, p.name AS project_name, u.project_id,
            CAST(julianday('now') - julianday(i.due_date) AS INT) AS days_overdue
     FROM installments i
+    JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
     JOIN customers c ON c.id=i.customer_id
     JOIN units u ON u.id=i.unit_id
     JOIN projects p ON p.id=u.project_id
@@ -68,6 +69,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
             f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS v
                 FROM installments i
                 JOIN units u ON u.id=i.unit_id
+                JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
                 WHERE i.status IN ('pending','partial','overdue')
                   AND u.project_id IN ({ph})""",
             tuple(project_ids),
@@ -75,7 +77,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
     else:
         recv = fetch_one(
             conn,
-            "SELECT COALESCE(SUM(remaining_amount),0) AS v FROM installments WHERE status IN ('pending','partial','overdue')",
+            "SELECT COALESCE(SUM(i.remaining_amount),0) AS v FROM installments i JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active' WHERE i.status IN ('pending','partial','overdue')",
         )
 
     if project_ids:
@@ -200,6 +202,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
             conn,
             f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS v
                 FROM installments i JOIN units u ON u.id=i.unit_id
+                JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
                 WHERE i.status IN ('pending','partial','overdue','paid')
                   AND u.project_id IN ({ph})""",
             tuple(project_ids),
@@ -214,8 +217,9 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
         )
         overall_remain = fetch_one(
             conn,
-            """SELECT COALESCE(SUM(remaining_amount),0) AS v FROM installments
-               WHERE status IN ('pending','partial','overdue','paid')""",
+            """SELECT COALESCE(SUM(i.remaining_amount),0) AS v FROM installments i
+               JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+               WHERE i.status IN ('pending','partial','overdue','paid')""",
         )
     coll_total = int(overall_coll["v"] if overall_coll else 0)
     remain_total = int(overall_remain["v"] if overall_remain else 0)
@@ -247,7 +251,7 @@ def _alerts(conn, project_ids: list[int] | None = None) -> list[dict]:
     alerts = []
     overdue_count = fetch_one(
         conn,
-        "SELECT COUNT(*) AS n FROM installments WHERE status='overdue'",
+        "SELECT COUNT(*) AS n FROM installments i JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active' WHERE i.status='overdue'",
     )
     if overdue_count and overdue_count["n"] > 0:
         alerts.append({

@@ -65,10 +65,41 @@ def create_booking(conn, data: dict) -> dict:
         "template_revision": data.get("template_revision"),
         "template_name": data.get("template_name"),
     }
+    if not sale_price or sale_price <= 0:
+        raise ValueError("Sale price must be greater than 0")
+    if booking_amount < 0 or booking_amount > sale_price:
+        raise ValueError("Booking amount must be between 0 and the sale price")
+    booking_date = data.get("booking_date") or date.today().isoformat()
+    try:
+        date.fromisoformat(str(booking_date))
+    except ValueError as e:
+        raise ValueError("Booking date must be YYYY-MM-DD") from e
+    data["booking_date"] = booking_date
     installments = data.get("installments") or []
+    if plan_source != "template":
+        if not installments:
+            raise ValueError("Add at least one installment, or use the project's plan template")
+        for inst in installments:
+            if int(inst.get("amount") or 0) <= 0:
+                raise ValueError("Every installment needs an amount greater than 0")
+            due = inst.get("due_date") or inst.get("forecast_due_date")
+            if due:
+                try:
+                    date.fromisoformat(str(due))
+                except ValueError as e:
+                    raise ValueError(f"Installment due date '{due}' must be YYYY-MM-DD") from e
+        plan_total = sum(int(i.get("amount") or 0) for i in installments)
+        # The plan may include the booking amount as its first row, or leave it to be paid separately.
+        if plan_total != sale_price and plan_total + booking_amount != sale_price:
+            short = sale_price - plan_total
+            raise ValueError(
+                f"Payment plan totals PKR {plan_total:,} but the sale price is PKR {sale_price:,} "
+                f"({'short' if short > 0 else 'over'} by PKR {abs(short):,})"
+            )
     if plan_source == "template":
         preview = tmpl_svc.preview_for_booking(
             conn, project_id, sale_price, booking_amount, data.get("template_id"),
+            booking_date=booking_date,
         )
         installments = preview["installments"]
         template_meta.update({
@@ -162,7 +193,8 @@ def cancel_booking(conn, booking_id: int, reason: str | None = None) -> dict:
     )
     total_paid = paid_row["total"] if paid_row else 0
     forfeit_pct = settings_svc.get_float(conn, "cancellation_forfeit_pct", 30.0)
-    forfeit = int(booking["booking_amount"] * forfeit_pct / 100)
+    # Forfeit a share of the booking amount, but never more than was actually received.
+    forfeit = min(int(booking["booking_amount"] * forfeit_pct / 100), total_paid)
     refund = max(total_paid - forfeit, 0)
 
     conn.execute("UPDATE bookings SET status='cancelled' WHERE id=?", (booking_id,))
@@ -211,7 +243,8 @@ def preview_cancel(conn, booking_id: int) -> dict:
     )
     total_paid = paid_row["total"] if paid_row else 0
     forfeit_pct = settings_svc.get_float(conn, "cancellation_forfeit_pct", 30.0)
-    forfeit = int(booking["booking_amount"] * forfeit_pct / 100)
+    # Forfeit a share of the booking amount, but never more than was actually received.
+    forfeit = min(int(booking["booking_amount"] * forfeit_pct / 100), total_paid)
     return {
         "booking_id": booking_id,
         "booking_no": booking["booking_no"],

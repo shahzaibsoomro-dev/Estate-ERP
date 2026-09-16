@@ -167,7 +167,7 @@ _R = [
     ("DELETE", r"/api/budget/categories/\d+", ("budget",), "delete"),
     ("POST", r"/api/budget/lines", ("budget",), "add"),
     ("POST", r"/api/budget/lines/\d+/revise", ("budget",), "edit"),
-    ("GET", r"/api/reports/(ageing|sales)", ("reports",), "view"),
+    ("GET", r"/api/reports/[a-z-]+", ("reports",), "view"),
     # --- stakeholders
     ("GET", r"/api/agents/\d+", ("agents",), "view"),
     ("POST", r"/api/agents", ("agents",), "add"),

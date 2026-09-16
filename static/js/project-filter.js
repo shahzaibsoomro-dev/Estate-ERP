@@ -3,10 +3,10 @@ import { state } from './state.js';
 import { getCurrentScreen, reloadCurrentScreen } from './nav.js';
 
 /** Screens that show the project multi-select filter */
-export const FILTER_SCREENS = new Set(['dashboard', 'recovery', 'demand', 'site', 'procurement', 'budget', 'inventory', 'contractors', 'partners', 'investors']);
+export const FILTER_SCREENS = new Set(['dashboard', 'reports', 'recovery', 'demand', 'site', 'procurement', 'budget', 'inventory', 'contractors', 'partners', 'investors']);
 
 /** Screens that show + New Booking in top bar */
-export const BOOKING_CTA_SCREENS = new Set(['dashboard', 'units']);
+export const BOOKING_CTA_SCREENS = new Set(['dashboard', 'reports', 'units']);
 
 let menuOpen = false;
 

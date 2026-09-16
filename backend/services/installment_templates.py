@@ -192,8 +192,16 @@ def _split_amounts(financed: int, rules: list[dict]) -> list[int]:
     return amounts
 
 
+def _add_months(d: date, months: int) -> date:
+    y, m = divmod(d.month - 1 + months, 12)
+    y += d.year
+    m += 1
+    last = [31, 29 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]
+    return date(y, m, min(d.day, last))
+
+
 def preview_plan(conn, project_id: int, sale_price: int, booking_amount: int,
-                 template_id: int | None = None) -> dict:
+                 template_id: int | None = None, booking_date: str | None = None) -> dict:
     sale_price = _int(sale_price)
     booking_amount = max(_int(booking_amount), 0)
     if sale_price <= 0:
@@ -213,30 +221,41 @@ def preview_plan(conn, project_id: int, sale_price: int, booking_amount: int,
 
     rules = tmpl["rules"]
     amounts = _split_amounts(financed, rules)
+    try:
+        start = date.fromisoformat(booking_date) if booking_date else date.today()
+    except ValueError as e:
+        raise ValueError("Booking date must be YYYY-MM-DD") from e
     installments = []
-    for rule, amt in zip(rules, amounts):
+    for rule, rule_amt in zip(rules, amounts):
         trigger_kind = rule["trigger_kind"]
-        forecast = rule.get("forecast_due_date")
-        if not forecast and trigger_kind == "time":
-            # rough default: today + offset months (approx 30 days)
-            offset = int(rule.get("start_offset_months") or 0)
-            forecast = (date.today() + timedelta(days=30 * offset)).isoformat()
-        installments.append({
-            "label": rule["label"],
-            "type": rule["label"],
-            "amount": amt,
-            "amount_bps": rule["amount_bps"],
-            "trigger_kind": trigger_kind,
-            "trigger_progress": rule.get("milestone_progress"),
-            "milestone_progress": rule.get("milestone_progress"),
-            "forecast_due_date": forecast,
-            "due_date": forecast or date.today().isoformat(),
-            "due_days_after_trigger": rule.get("due_days_after_trigger") or 0,
-            "trigger_label": rule["label"],
-            "template_rule_id": rule["id"],
-            "status": "scheduled" if trigger_kind == "construction" else "pending",
-            "notes": rule.get("notes") or "",
-        })
+        count = max(int(rule.get("installment_count") or 1), 1)
+        interval = max(int(rule.get("interval_months") or 1), 1)
+        offset = int(rule.get("start_offset_months") or 0)
+        each = rule_amt // count
+        for k in range(count):
+            amt = each if k < count - 1 else rule_amt - each * (count - 1)
+            if amt <= 0:
+                raise ValueError(f"'{rule['label']}' is too small to split into {count} installments")
+            forecast = rule.get("forecast_due_date") if count == 1 else None
+            if not forecast and trigger_kind == "time":
+                forecast = _add_months(start, offset + k * interval).isoformat()
+            label = rule["label"] if count == 1 else f"{rule['label']} {k + 1}/{count}"
+            installments.append({
+                "label": label,
+                "type": rule["label"],
+                "amount": amt,
+                "amount_bps": rule["amount_bps"] if count == 1 else None,
+                "trigger_kind": trigger_kind,
+                "trigger_progress": rule.get("milestone_progress"),
+                "milestone_progress": rule.get("milestone_progress"),
+                "forecast_due_date": forecast,
+                "due_date": forecast or start.isoformat(),
+                "due_days_after_trigger": rule.get("due_days_after_trigger") or 0,
+                "trigger_label": label,
+                "template_rule_id": rule["id"],
+                "status": "scheduled" if trigger_kind == "construction" else "pending",
+                "notes": rule.get("notes") or "",
+            })
     return {
         "template_id": tmpl["id"],
         "template_revision": tmpl["revision"],
@@ -250,8 +269,8 @@ def preview_plan(conn, project_id: int, sale_price: int, booking_amount: int,
 
 
 def preview_for_booking(conn, project_id: int, sale_price: int, booking_amount: int,
-                        template_id: int | None = None) -> dict:
-    return preview_plan(conn, project_id, sale_price, booking_amount, template_id)
+                        template_id: int | None = None, booking_date: str | None = None) -> dict:
+    return preview_plan(conn, project_id, sale_price, booking_amount, template_id, booking_date)
 
 
 def activate_milestones_for_project(conn, project_id: int, progress: int,

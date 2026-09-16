@@ -695,15 +695,7 @@
   </div>
 </div>
 
-<div class="screen" id="s-reports">
-  <div style="margin-bottom:16px"><div class="pg-title">Reports</div></div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
-    <div class="rep-tile" data-report="ageing"><div class="rep-ico">⏳</div><div class="rep-name">Ageing Report</div><div class="rep-desc">1–30 / 31–60 / 60+ overdue</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile" data-report="sales"><div class="rep-ico">📊</div><div class="rep-name">Sales Report</div><div class="rep-desc">Project-wise bookings & DP</div><button type="button" class="btn primary" style="width:100%">Generate</button></div>
-    <div class="rep-tile is-soon"><div class="rep-ico">📋</div><div class="rep-name">More reports</div><div class="rep-desc">Statements, schedules, trial balance — later</div></div>
-  </div>
-  <div id="report-output" style="margin-top:16px"></div>
-</div>
+<div class="screen" id="s-reports"></div>
 
 
 <div class="screen" id="s-documents">
@@ -1026,11 +1018,29 @@
         <select id="le-type">
           <option>General</option>
           <option>Expense</option>
+          <option>Material</option>
+          <option>Labor</option>
+          <option>Contractor</option>
+          <option>Admin</option>
+          <option>Marketing</option>
+          <option>Commission</option>
+          <option>Land / plot</option>
+          <option>Membership fee</option>
           <option>Purchase</option>
           <option>Sales</option>
           <option>Refund</option>
+          <option>Other</option>
         </select>
       </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Paid from / received into *</label>
+        <select id="le-method">
+          <option value="Bank">Bank</option>
+          <option value="Cash">Cash</option>
+        </select>
+      </div>
+      <div class="fg"><label>Project</label><select id="le-project"><option value="">Company-wide</option></select></div>
     </div>
     <div class="fg"><label>Narration *</label><input id="le-nar" type="text"></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">

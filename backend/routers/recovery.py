@@ -33,9 +33,10 @@ def _recovery(conn, project_ids: list[int] | None):
         totals = fetch_one(
             conn,
             f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS receivable,
-                      COALESCE(SUM(CASE WHEN i.status='overdue' THEN i.remaining_amount ELSE 0 END),0) AS overdue_amt
+                      COALESCE(SUM(CASE WHEN i.status IN ('overdue','partial') AND i.due_date < date('now') THEN i.remaining_amount ELSE 0 END),0) AS overdue_amt
                FROM installments i
                JOIN units u ON u.id=i.unit_id
+               JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
                WHERE i.status IN ('pending','partial','overdue')
                  AND u.project_id IN ({ph})""",
             tuple(project_ids),
@@ -51,9 +52,10 @@ def _recovery(conn, project_ids: list[int] | None):
     else:
         totals = fetch_one(
             conn,
-            """SELECT COALESCE(SUM(remaining_amount),0) AS receivable,
-                      COALESCE(SUM(CASE WHEN status='overdue' THEN remaining_amount ELSE 0 END),0) AS overdue_amt
-               FROM installments WHERE status IN ('pending','partial','overdue')""",
+            """SELECT COALESCE(SUM(i.remaining_amount),0) AS receivable,
+                      COALESCE(SUM(CASE WHEN i.status IN ('overdue','partial') AND i.due_date < date('now') THEN i.remaining_amount ELSE 0 END),0) AS overdue_amt
+               FROM installments i JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+               WHERE i.status IN ('pending','partial','overdue')""",
         )
         collected = fetch_one(
             conn,
@@ -97,6 +99,7 @@ def recovery_calendar(
                    c.name AS customer_name, u.unit_no, p.name AS project_name,
                    c.contact_number AS phone
             FROM installments i
+            JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
             JOIN customers c ON c.id=i.customer_id
             JOIN units u ON u.id=i.unit_id
             JOIN projects p ON p.id=u.project_id

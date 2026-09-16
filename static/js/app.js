@@ -23,7 +23,7 @@ import { loadProcurement, loadVendors, initOperationsEvents } from './screens/op
 import { loadSite, initSiteEvents } from './screens/site.js';
 import { loadAccounts, initAccountsEvents } from './screens/finance.js';
 import { loadAgents, initAgentEvents } from './screens/agents.js';
-import { initReportsEvents } from './screens/finance-extra.js';
+import { initReportsEvents, loadReports } from './screens/finance-extra.js';
 import { loadPortal, initPortalEvents } from './screens/portal.js';
 import { loadInvestors, initInvestorEvents } from './screens/investors.js';
 import { loadPartners, initPartnerEvents } from './screens/partners.js';
@@ -56,7 +56,7 @@ registerScreen('agents', loadAgents);
 registerScreen('investors', loadInvestors);
 registerScreen('partners', loadPartners);
 registerScreen('parties', loadParties);
-registerScreen('reports', () => {});
+registerScreen('reports', loadReports);
 registerScreen('portal', loadPortal);
 registerScreen('documents', loadDocuments);
 registerScreen('access', loadAccess);

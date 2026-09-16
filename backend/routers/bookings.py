@@ -51,6 +51,7 @@ class BookingCreate(BaseModel):
 
 
 class PlanPreviewBody(BaseModel):
+    booking_date: str | None = None
     project_id: int
     sale_price: int
     booking_amount: int = 0
@@ -80,7 +81,7 @@ def plan_preview(body: PlanPreviewBody):
     with get_db() as conn:
         try:
             return tmpl_svc.preview_plan(
-                conn, body.project_id, body.sale_price, body.booking_amount, body.template_id,
+                conn, body.project_id, body.sale_price, body.booking_amount, body.template_id, body.booking_date,
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

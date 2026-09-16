@@ -48,6 +48,10 @@ def ensure_tenant_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE audit_log ADD COLUMN user_id INTEGER")
     if not _has_column(conn, "audit_log", "ip"):
         conn.execute("ALTER TABLE audit_log ADD COLUMN ip TEXT")
+    if not _has_column(conn, "ledger_entries", "payment_method"):
+        conn.execute("ALTER TABLE ledger_entries ADD COLUMN payment_method TEXT")
+    if not _has_column(conn, "ledger_entries", "project_id"):
+        conn.execute("ALTER TABLE ledger_entries ADD COLUMN project_id INTEGER")
     if not _has_column(conn, "projects", "is_public"):
         conn.execute("ALTER TABLE projects ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1")
         # Hide leftovers from automated test runs on the public website.

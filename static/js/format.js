@@ -5,6 +5,7 @@ export function fmt(n) {
 
 export function fmtShort(n) {
   if (!n) return 'PKR 0';
+  if (n < 0) return '−' + fmtShort(-n);
   if (n >= 10000000) return 'PKR ' + (n / 10000000).toFixed(1) + 'Cr';
   if (n >= 100000) return 'PKR ' + (n / 100000).toFixed(1) + 'L';
   return 'PKR ' + Number(n).toLocaleString('en-PK');

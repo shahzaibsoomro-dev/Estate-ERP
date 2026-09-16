@@ -3,6 +3,7 @@ import { api, toast } from '../api.js';
 import { fmt, fmtShort } from '../format.js';
 import { closeModal, openModal } from '../modal.js';
 import { askConfirm } from '../dialog.js';
+import { state } from '../state.js';
 
 export async function loadAccounts() {
   const d = await api('/api/ledger');
@@ -44,6 +45,11 @@ export function openLedgerModal() {
   if ($('le-amount')) $('le-amount').value = '';
   if ($('le-nar')) $('le-nar').value = '';
   if ($('le-type')) $('le-type').value = 'General';
+  if ($('le-method')) $('le-method').value = 'Bank';
+  const proj = $('le-project');
+  if (proj) {
+    proj.innerHTML = `<option value="">Company-wide</option>${(state.projects || []).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}`;
+  }
   openModal('ledger-modal');
 }
 
@@ -63,6 +69,8 @@ export async function submitLedger() {
         amount,
         direction: $('le-dir')?.value || 'out',
         category: $('le-type')?.value || 'General',
+        payment_method: $('le-method')?.value || 'Bank',
+        project_id: $('le-project')?.value ? Number($('le-project').value) : null,
       }),
     });
     closeModal('ledger-modal');

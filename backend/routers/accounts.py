@@ -16,6 +16,8 @@ class LedgerCreate(BaseModel):
     debit: int | None = None
     credit: int | None = None
     notes: str | None = None
+    payment_method: str | None = None
+    project_id: int | None = None
 
 
 def _http(exc: ValueError) -> HTTPException:
