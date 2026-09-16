@@ -381,10 +381,17 @@ def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> Non
     )
 
 
+def _check_cnic(conn, cfg: CapitalConfig, cnic: str | None, person_id: int | None = None) -> None:
+    if cnic and fetch_one(conn, f"SELECT id FROM {cfg.person_table} WHERE cnic=? AND id != ?",
+                          (cnic, person_id or 0)):
+        raise ValueError(f"Another {cfg.label.lower()} already has CNIC {cnic}")
+
+
 def create_person(conn, cfg: CapitalConfig, data: dict) -> dict:
     name = _clean(data.get("name"))
     if not name:
         raise ValueError(f"{cfg.label} name is required")
+    _check_cnic(conn, cfg, _clean(data.get("cnic")))
     status = _person_status(data.get("status"))
     cur = conn.execute(
         f"""INSERT INTO {cfg.person_table}(name, cnic, mobile_number, email, description, status)
@@ -406,6 +413,7 @@ def update_person(conn, cfg: CapitalConfig, person_id: int, data: dict) -> dict 
     name = _clean(data.get("name"))
     if not name:
         raise ValueError(f"{cfg.label} name is required")
+    _check_cnic(conn, cfg, _clean(data.get("cnic")), person_id)
     status = _person_status(data.get("status"))
     conn.execute(
         f"""UPDATE {cfg.person_table} SET name=?, cnic=?, mobile_number=?, email=?, description=?, status=?

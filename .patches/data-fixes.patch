@@ -1,0 +1,213 @@
+diff --git a/backend/routers/recovery.py b/backend/routers/recovery.py
+index 9353228..a6f1985 100644
+--- a/backend/routers/recovery.py
++++ b/backend/routers/recovery.py
+@@ -33,9 +33,10 @@ def _recovery(conn, project_ids: list[int] | None):
+         totals = fetch_one(
+             conn,
+             f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS receivable,
+-                      COALESCE(SUM(CASE WHEN i.status='overdue' THEN i.remaining_amount ELSE 0 END),0) AS overdue_amt
++                      COALESCE(SUM(CASE WHEN i.status IN ('overdue','partial') AND i.due_date < date('now') THEN i.remaining_amount ELSE 0 END),0) AS overdue_amt
+                FROM installments i
+                JOIN units u ON u.id=i.unit_id
++               JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+                WHERE i.status IN ('pending','partial','overdue')
+                  AND u.project_id IN ({ph})""",
+             tuple(project_ids),
+@@ -51,9 +52,10 @@ def _recovery(conn, project_ids: list[int] | None):
+     else:
+         totals = fetch_one(
+             conn,
+-            """SELECT COALESCE(SUM(remaining_amount),0) AS receivable,
+-                      COALESCE(SUM(CASE WHEN status='overdue' THEN remaining_amount ELSE 0 END),0) AS overdue_amt
+-               FROM installments WHERE status IN ('pending','partial','overdue')""",
++            """SELECT COALESCE(SUM(i.remaining_amount),0) AS receivable,
++                      COALESCE(SUM(CASE WHEN i.status IN ('overdue','partial') AND i.due_date < date('now') THEN i.remaining_amount ELSE 0 END),0) AS overdue_amt
++               FROM installments i JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
++               WHERE i.status IN ('pending','partial','overdue')""",
+         )
+         collected = fetch_one(
+             conn,
+@@ -97,6 +99,7 @@ def recovery_calendar(
+                    c.name AS customer_name, u.unit_no, p.name AS project_name,
+                    c.contact_number AS phone
+             FROM installments i
++            JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+             JOIN customers c ON c.id=i.customer_id
+             JOIN units u ON u.id=i.unit_id
+             JOIN projects p ON p.id=u.project_id
+diff --git a/backend/routers/reports.py b/backend/routers/reports.py
+index fe30910..4540000 100644
+--- a/backend/routers/reports.py
++++ b/backend/routers/reports.py
+@@ -366,8 +366,15 @@ def payables(project_ids: str | None = Query(None)):
+                 GROUP BY v.id""",
+             pp,
+         )
++        # Payments not tied to a live purchase order (advances) still reduce what we owe.
++        unlinked = {} if ids else {r["vendor_id"]: r["amt"] for r in fetch_all(
++            conn, """SELECT vp.vendor_id, SUM(vp.amount) AS amt FROM vendor_payments vp
++                     LEFT JOIN purchase_orders po ON po.id=vp.purchase_order_id
++                     WHERE po.id IS NULL OR po.status='cancelled' GROUP BY vp.vendor_id""")}
+         for v in vendors:
+-            v["balance"] = max(v["ordered"] - v["paid"], 0)
++            v["advance"] = unlinked.get(v["vendor_id"], 0)
++            v["paid"] += v["advance"]
++            v["balance"] = v["ordered"] - v["paid"]
+         agents = fetch_all(
+             conn,
+             """SELECT a.id AS agent_id, a.name AS agent_name, COUNT(ac.id) AS deals,
+@@ -593,10 +600,10 @@ def project_wise(project_ids: str | None = Query(None), date_from: str | None =
+     with get_db() as conn:
+         inst_svc.refresh_statuses(conn)
+         projects = fetch_all(conn, f"""SELECT p.id AS project_id, p.name AS project_name,
+-                   COALESCE(p.construction_progress, 0) AS progress,
++                   COALESCE(p.current_progress, 0) AS progress,
+                    (SELECT COUNT(*) FROM units u WHERE u.project_id=p.id) AS units,
+                    (SELECT COUNT(*) FROM units u WHERE u.project_id=p.id AND u.status='available') AS available
+-                   FROM projects p WHERE 1=1{pf} ORDER BY p.name""", pp) if _has_col(conn, "projects", "construction_progress") \
++                   FROM projects p WHERE 1=1{pf} ORDER BY p.name""", pp) if _has_col(conn, "projects", "current_progress") \
+             else fetch_all(conn, f"""SELECT p.id AS project_id, p.name AS project_name, 0 AS progress,
+                    (SELECT COUNT(*) FROM units u WHERE u.project_id=p.id) AS units,
+                    (SELECT COUNT(*) FROM units u WHERE u.project_id=p.id AND u.status='available') AS available
+diff --git a/backend/services/bookings.py b/backend/services/bookings.py
+index 1bcf1a6..27c898d 100644
+--- a/backend/services/bookings.py
++++ b/backend/services/bookings.py
+@@ -162,7 +162,8 @@ def cancel_booking(conn, booking_id: int, reason: str | None = None) -> dict:
+     )
+     total_paid = paid_row["total"] if paid_row else 0
+     forfeit_pct = settings_svc.get_float(conn, "cancellation_forfeit_pct", 30.0)
+-    forfeit = int(booking["booking_amount"] * forfeit_pct / 100)
++    # Forfeit a share of the booking amount, but never more than was actually received.
++    forfeit = min(int(booking["booking_amount"] * forfeit_pct / 100), total_paid)
+     refund = max(total_paid - forfeit, 0)
+ 
+     conn.execute("UPDATE bookings SET status='cancelled' WHERE id=?", (booking_id,))
+@@ -211,7 +212,8 @@ def preview_cancel(conn, booking_id: int) -> dict:
+     )
+     total_paid = paid_row["total"] if paid_row else 0
+     forfeit_pct = settings_svc.get_float(conn, "cancellation_forfeit_pct", 30.0)
+-    forfeit = int(booking["booking_amount"] * forfeit_pct / 100)
++    # Forfeit a share of the booking amount, but never more than was actually received.
++    forfeit = min(int(booking["booking_amount"] * forfeit_pct / 100), total_paid)
+     return {
+         "booking_id": booking_id,
+         "booking_no": booking["booking_no"],
+diff --git a/backend/services/dashboard.py b/backend/services/dashboard.py
+index 531168a..2f2d67a 100644
+--- a/backend/services/dashboard.py
++++ b/backend/services/dashboard.py
+@@ -28,6 +28,7 @@ OVERDUE_SQL = """
+            u.unit_no, p.name AS project_name, u.project_id,
+            CAST(julianday('now') - julianday(i.due_date) AS INT) AS days_overdue
+     FROM installments i
++    JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+     JOIN customers c ON c.id=i.customer_id
+     JOIN units u ON u.id=i.unit_id
+     JOIN projects p ON p.id=u.project_id
+@@ -68,6 +69,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
+             f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS v
+                 FROM installments i
+                 JOIN units u ON u.id=i.unit_id
++                JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+                 WHERE i.status IN ('pending','partial','overdue')
+                   AND u.project_id IN ({ph})""",
+             tuple(project_ids),
+@@ -75,7 +77,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
+     else:
+         recv = fetch_one(
+             conn,
+-            "SELECT COALESCE(SUM(remaining_amount),0) AS v FROM installments WHERE status IN ('pending','partial','overdue')",
++            "SELECT COALESCE(SUM(i.remaining_amount),0) AS v FROM installments i JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active' WHERE i.status IN ('pending','partial','overdue')",
+         )
+ 
+     if project_ids:
+@@ -200,6 +202,7 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
+             conn,
+             f"""SELECT COALESCE(SUM(i.remaining_amount),0) AS v
+                 FROM installments i JOIN units u ON u.id=i.unit_id
++                JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+                 WHERE i.status IN ('pending','partial','overdue','paid')
+                   AND u.project_id IN ({ph})""",
+             tuple(project_ids),
+@@ -214,8 +217,9 @@ def dashboard(conn, project_ids: list[int] | None = None) -> dict:
+         )
+         overall_remain = fetch_one(
+             conn,
+-            """SELECT COALESCE(SUM(remaining_amount),0) AS v FROM installments
+-               WHERE status IN ('pending','partial','overdue','paid')""",
++            """SELECT COALESCE(SUM(i.remaining_amount),0) AS v FROM installments i
++               JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
++               WHERE i.status IN ('pending','partial','overdue','paid')""",
+         )
+     coll_total = int(overall_coll["v"] if overall_coll else 0)
+     remain_total = int(overall_remain["v"] if overall_remain else 0)
+@@ -247,7 +251,7 @@ def _alerts(conn, project_ids: list[int] | None = None) -> list[dict]:
+     alerts = []
+     overdue_count = fetch_one(
+         conn,
+-        "SELECT COUNT(*) AS n FROM installments WHERE status='overdue'",
++        "SELECT COUNT(*) AS n FROM installments i JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active' WHERE i.status='overdue'",
+     )
+     if overdue_count and overdue_count["n"] > 0:
+         alerts.append({
+diff --git a/tests/test_reports.py b/tests/test_reports.py
+index febcccc..41c94ad 100644
+--- a/tests/test_reports.py
++++ b/tests/test_reports.py
+@@ -100,3 +100,54 @@ def test_audit_checks_present(as_role):
+ def test_new_company_has_empty_books(as_role):
+     tb = as_role("admin_b").get("/api/reports/trial-balance").json()
+     assert tb["accounts"] == [] and tb["balanced"]
++
++
++def test_dashboard_and_recovery_ignore_cancelled_bookings(as_role, world):
++    from backend.database import get_db
++    admin = as_role("admin")
++    with get_db(world["a_db"]) as conn:
++        open_cancelled = conn.execute(
++            """SELECT COALESCE(SUM(i.remaining_amount),0) FROM installments i JOIN bookings b ON b.id=i.booking_id
++               WHERE b.status='cancelled' AND i.status IN ('pending','partial','overdue')""").fetchone()[0]
++        open_active = conn.execute(
++            """SELECT COALESCE(SUM(i.remaining_amount),0) FROM installments i JOIN bookings b ON b.id=i.booking_id
++               WHERE b.status='active' AND i.status IN ('pending','partial','overdue')""").fetchone()[0]
++    dash = admin.get("/api/dashboard").json()
++    rec = admin.get("/api/recovery").json()
++    ageing = admin.get("/api/reports/ageing").json()
++    assert dash["kpi"]["receivable"] == open_active == rec["receivable"]
++    assert rec["overdue_amt"] == ageing["total"] == sum(x["amount"] for x in dash["overdue"])
++    assert open_cancelled == 0 or dash["kpi"]["receivable"] != open_active + open_cancelled
++
++
++def test_payables_count_vendor_advances(as_role, world):
++    from backend.database import get_db
++    admin = as_role("admin")
++    with get_db(world["a_db"]) as conn:
++        total_paid = conn.execute("SELECT COALESCE(SUM(amount),0) FROM vendor_payments").fetchone()[0]
++    pay = admin.get("/api/reports/payables").json()
++    assert pay["totals"]["vendor_paid"] == total_paid
++    tb = {a["code"]: a for a in admin.get("/api/reports/trial-balance").json()["accounts"]}
++    assert tb["2000"]["credit"] - tb["2000"]["debit"] == pay["totals"]["vendor_balance"]
++
++
++def test_project_wise_progress_uses_project_progress(as_role, world):
++    from backend.database import get_db
++    with get_db(world["a_db"]) as conn:
++        raw = {r[0]: r[1] or 0 for r in conn.execute("SELECT id, current_progress FROM projects")}
++    d = as_role("admin").get("/api/reports/project-wise").json()
++    assert {p["project_id"]: p["progress"] for p in d["projects"]} == raw
++
++
++def test_cancel_never_forfeits_more_than_paid(as_role, world):
++    from backend.database import get_db
++    admin = as_role("admin")
++    with get_db(world["a_db"]) as conn:
++        rows = conn.execute(
++            """SELECT b.id, b.booking_amount, COALESCE((SELECT SUM(amount) FROM payments p WHERE p.booking_id=b.id),0)
++               FROM bookings b WHERE b.status='active'""").fetchall()
++    assert rows
++    for bid, booking_amount, paid in rows:
++        p = admin.get(f"/api/bookings/{bid}/cancel-preview").json()
++        assert p["forfeit_amount"] <= paid
++        assert p["forfeit_amount"] + p["refund_amount"] == paid

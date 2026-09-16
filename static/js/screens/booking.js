@@ -321,7 +321,7 @@ async function loadTemplatePlan() {
   try {
     const preview = await api(`/api/projects/${selectedProject.id}/installment-template/preview`, {
       method: 'POST',
-      body: JSON.stringify({ sale_price: price, booking_amount: dp }),
+      body: JSON.stringify({ sale_price: price, booking_amount: dp, booking_date: $('bk-date')?.value || null }),
     });
     activeTemplateMeta = {
       id: preview.template_id,

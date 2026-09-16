@@ -1,0 +1,658 @@
+diff --git a/backend/auth/schema.py b/backend/auth/schema.py
+index 999e33e..1890756 100644
+--- a/backend/auth/schema.py
++++ b/backend/auth/schema.py
+@@ -48,6 +48,10 @@ def ensure_tenant_schema(conn: sqlite3.Connection) -> None:
+         conn.execute("ALTER TABLE audit_log ADD COLUMN user_id INTEGER")
+     if not _has_column(conn, "audit_log", "ip"):
+         conn.execute("ALTER TABLE audit_log ADD COLUMN ip TEXT")
++    if not _has_column(conn, "ledger_entries", "payment_method"):
++        conn.execute("ALTER TABLE ledger_entries ADD COLUMN payment_method TEXT")
++    if not _has_column(conn, "ledger_entries", "project_id"):
++        conn.execute("ALTER TABLE ledger_entries ADD COLUMN project_id INTEGER")
+     if not _has_column(conn, "projects", "is_public"):
+         conn.execute("ALTER TABLE projects ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1")
+         # Hide leftovers from automated test runs on the public website.
+diff --git a/backend/routers/accounts.py b/backend/routers/accounts.py
+index 4f32afb..1c2da63 100644
+--- a/backend/routers/accounts.py
++++ b/backend/routers/accounts.py
+@@ -16,6 +16,8 @@ class LedgerCreate(BaseModel):
+     debit: int | None = None
+     credit: int | None = None
+     notes: str | None = None
++    payment_method: str | None = None
++    project_id: int | None = None
+ 
+ 
+ def _http(exc: ValueError) -> HTTPException:
+diff --git a/backend/routers/bookings.py b/backend/routers/bookings.py
+index 18ff164..3480992 100644
+--- a/backend/routers/bookings.py
++++ b/backend/routers/bookings.py
+@@ -51,6 +51,7 @@ class BookingCreate(BaseModel):
+ 
+ 
+ class PlanPreviewBody(BaseModel):
++    booking_date: str | None = None
+     project_id: int
+     sale_price: int
+     booking_amount: int = 0
+@@ -80,7 +81,7 @@ def plan_preview(body: PlanPreviewBody):
+     with get_db() as conn:
+         try:
+             return tmpl_svc.preview_plan(
+-                conn, body.project_id, body.sale_price, body.booking_amount, body.template_id,
++                conn, body.project_id, body.sale_price, body.booking_amount, body.template_id, body.booking_date,
+             )
+         except ValueError as e:
+             raise HTTPException(400, str(e)) from e
+diff --git a/backend/routers/projects.py b/backend/routers/projects.py
+index d356a04..0cb4430 100644
+--- a/backend/routers/projects.py
++++ b/backend/routers/projects.py
+@@ -120,6 +120,7 @@ class TemplateBody(BaseModel):
+ 
+ 
+ class TemplatePreviewBody(BaseModel):
++    booking_date: str | None = None
+     sale_price: int
+     booking_amount: int = 0
+     template_id: int | None = None
+@@ -153,7 +154,7 @@ def preview_installment_template(project_id: int, body: TemplatePreviewBody):
+     with get_db() as conn:
+         try:
+             return tmpl_svc.preview_plan(
+-                conn, project_id, body.sale_price, body.booking_amount, body.template_id,
++                conn, project_id, body.sale_price, body.booking_amount, body.template_id, body.booking_date,
+             )
+         except ValueError as e:
+             raise HTTPException(400, str(e)) from e
+diff --git a/backend/services/accounts.py b/backend/services/accounts.py
+index cdae350..1b0daf2 100644
+--- a/backend/services/accounts.py
++++ b/backend/services/accounts.py
+@@ -1,3 +1,5 @@
++from datetime import date
++
+ from backend.database import fetch_all, fetch_one
+ 
+ 
+@@ -208,10 +210,21 @@ def create_ledger_entry(conn, data: dict) -> dict:
+     if amount <= 0:
+         raise ValueError("Amount must be greater than 0")
+     category = _clean(data.get("category") or data.get("account_type"))
++    try:
++        date.fromisoformat(entry_date)
++    except ValueError as e:
++        raise ValueError("Date must be YYYY-MM-DD") from e
++    method = _clean(data.get("payment_method")) or "Bank"
++    if method.lower() not in ("cash", "bank", "bank transfer", "cheque", "online transfer"):
++        raise ValueError("Paid from must be Cash or Bank")
++    project_id = data.get("project_id") or None
++    if project_id and not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
++        raise ValueError("Project not found")
+     cur = conn.execute(
+-        """INSERT INTO ledger_entries(entry_date, narration, amount, direction, category, notes)
+-           VALUES(?,?,?,?,?,?)""",
+-        (entry_date, narration, amount, direction, category, _clean(data.get("notes"))),
++        """INSERT INTO ledger_entries(entry_date, narration, amount, direction, category, notes,
++                                       payment_method, project_id)
++           VALUES(?,?,?,?,?,?,?,?)""",
++        (entry_date, narration, amount, direction, category, _clean(data.get("notes")), method, project_id),
+     )
+     return fetch_one(conn, "SELECT * FROM ledger_entries WHERE id=?", (cur.lastrowid,))
+ 
+diff --git a/backend/services/bookings.py b/backend/services/bookings.py
+index 27c898d..488a78d 100644
+--- a/backend/services/bookings.py
++++ b/backend/services/bookings.py
+@@ -65,10 +65,41 @@ def create_booking(conn, data: dict) -> dict:
+         "template_revision": data.get("template_revision"),
+         "template_name": data.get("template_name"),
+     }
++    if not sale_price or sale_price <= 0:
++        raise ValueError("Sale price must be greater than 0")
++    if booking_amount < 0 or booking_amount > sale_price:
++        raise ValueError("Booking amount must be between 0 and the sale price")
++    booking_date = data.get("booking_date") or date.today().isoformat()
++    try:
++        date.fromisoformat(str(booking_date))
++    except ValueError as e:
++        raise ValueError("Booking date must be YYYY-MM-DD") from e
++    data["booking_date"] = booking_date
+     installments = data.get("installments") or []
++    if plan_source != "template":
++        if not installments:
++            raise ValueError("Add at least one installment, or use the project's plan template")
++        for inst in installments:
++            if int(inst.get("amount") or 0) <= 0:
++                raise ValueError("Every installment needs an amount greater than 0")
++            due = inst.get("due_date") or inst.get("forecast_due_date")
++            if due:
++                try:
++                    date.fromisoformat(str(due))
++                except ValueError as e:
++                    raise ValueError(f"Installment due date '{due}' must be YYYY-MM-DD") from e
++        plan_total = sum(int(i.get("amount") or 0) for i in installments)
++        # The plan may include the booking amount as its first row, or leave it to be paid separately.
++        if plan_total != sale_price and plan_total + booking_amount != sale_price:
++            short = sale_price - plan_total
++            raise ValueError(
++                f"Payment plan totals PKR {plan_total:,} but the sale price is PKR {sale_price:,} "
++                f"({'short' if short > 0 else 'over'} by PKR {abs(short):,})"
++            )
+     if plan_source == "template":
+         preview = tmpl_svc.preview_for_booking(
+             conn, project_id, sale_price, booking_amount, data.get("template_id"),
++            booking_date=booking_date,
+         )
+         installments = preview["installments"]
+         template_meta.update({
+diff --git a/backend/services/capital.py b/backend/services/capital.py
+index acdc23a..d3af901 100644
+--- a/backend/services/capital.py
++++ b/backend/services/capital.py
+@@ -381,10 +381,17 @@ def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> Non
+     )
+ 
+ 
++def _check_cnic(conn, cfg: CapitalConfig, cnic: str | None, person_id: int | None = None) -> None:
++    if cnic and fetch_one(conn, f"SELECT id FROM {cfg.person_table} WHERE cnic=? AND id != ?",
++                          (cnic, person_id or 0)):
++        raise ValueError(f"Another {cfg.label.lower()} already has CNIC {cnic}")
++
++
+ def create_person(conn, cfg: CapitalConfig, data: dict) -> dict:
+     name = _clean(data.get("name"))
+     if not name:
+         raise ValueError(f"{cfg.label} name is required")
++    _check_cnic(conn, cfg, _clean(data.get("cnic")))
+     status = _person_status(data.get("status"))
+     cur = conn.execute(
+         f"""INSERT INTO {cfg.person_table}(name, cnic, mobile_number, email, description, status)
+@@ -406,6 +413,7 @@ def update_person(conn, cfg: CapitalConfig, person_id: int, data: dict) -> dict
+     name = _clean(data.get("name"))
+     if not name:
+         raise ValueError(f"{cfg.label} name is required")
++    _check_cnic(conn, cfg, _clean(data.get("cnic")), person_id)
+     status = _person_status(data.get("status"))
+     conn.execute(
+         f"""UPDATE {cfg.person_table} SET name=?, cnic=?, mobile_number=?, email=?, description=?, status=?
+diff --git a/backend/services/installment_templates.py b/backend/services/installment_templates.py
+index 786276a..c05bae0 100644
+--- a/backend/services/installment_templates.py
++++ b/backend/services/installment_templates.py
+@@ -192,8 +192,16 @@ def _split_amounts(financed: int, rules: list[dict]) -> list[int]:
+     return amounts
+ 
+ 
++def _add_months(d: date, months: int) -> date:
++    y, m = divmod(d.month - 1 + months, 12)
++    y += d.year
++    m += 1
++    last = [31, 29 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]
++    return date(y, m, min(d.day, last))
++
++
+ def preview_plan(conn, project_id: int, sale_price: int, booking_amount: int,
+-                 template_id: int | None = None) -> dict:
++                 template_id: int | None = None, booking_date: str | None = None) -> dict:
+     sale_price = _int(sale_price)
+     booking_amount = max(_int(booking_amount), 0)
+     if sale_price <= 0:
+@@ -213,30 +221,41 @@ def preview_plan(conn, project_id: int, sale_price: int, booking_amount: int,
+ 
+     rules = tmpl["rules"]
+     amounts = _split_amounts(financed, rules)
++    try:
++        start = date.fromisoformat(booking_date) if booking_date else date.today()
++    except ValueError as e:
++        raise ValueError("Booking date must be YYYY-MM-DD") from e
+     installments = []
+-    for rule, amt in zip(rules, amounts):
++    for rule, rule_amt in zip(rules, amounts):
+         trigger_kind = rule["trigger_kind"]
+-        forecast = rule.get("forecast_due_date")
+-        if not forecast and trigger_kind == "time":
+-            # rough default: today + offset months (approx 30 days)
+-            offset = int(rule.get("start_offset_months") or 0)
+-            forecast = (date.today() + timedelta(days=30 * offset)).isoformat()
+-        installments.append({
+-            "label": rule["label"],
+-            "type": rule["label"],
+-            "amount": amt,
+-            "amount_bps": rule["amount_bps"],
+-            "trigger_kind": trigger_kind,
+-            "trigger_progress": rule.get("milestone_progress"),
+-            "milestone_progress": rule.get("milestone_progress"),
+-            "forecast_due_date": forecast,
+-            "due_date": forecast or date.today().isoformat(),
+-            "due_days_after_trigger": rule.get("due_days_after_trigger") or 0,
+-            "trigger_label": rule["label"],
+-            "template_rule_id": rule["id"],
+-            "status": "scheduled" if trigger_kind == "construction" else "pending",
+-            "notes": rule.get("notes") or "",
+-        })
++        count = max(int(rule.get("installment_count") or 1), 1)
++        interval = max(int(rule.get("interval_months") or 1), 1)
++        offset = int(rule.get("start_offset_months") or 0)
++        each = rule_amt // count
++        for k in range(count):
++            amt = each if k < count - 1 else rule_amt - each * (count - 1)
++            if amt <= 0:
++                raise ValueError(f"'{rule['label']}' is too small to split into {count} installments")
++            forecast = rule.get("forecast_due_date") if count == 1 else None
++            if not forecast and trigger_kind == "time":
++                forecast = _add_months(start, offset + k * interval).isoformat()
++            label = rule["label"] if count == 1 else f"{rule['label']} {k + 1}/{count}"
++            installments.append({
++                "label": label,
++                "type": rule["label"],
++                "amount": amt,
++                "amount_bps": rule["amount_bps"] if count == 1 else None,
++                "trigger_kind": trigger_kind,
++                "trigger_progress": rule.get("milestone_progress"),
++                "milestone_progress": rule.get("milestone_progress"),
++                "forecast_due_date": forecast,
++                "due_date": forecast or start.isoformat(),
++                "due_days_after_trigger": rule.get("due_days_after_trigger") or 0,
++                "trigger_label": label,
++                "template_rule_id": rule["id"],
++                "status": "scheduled" if trigger_kind == "construction" else "pending",
++                "notes": rule.get("notes") or "",
++            })
+     return {
+         "template_id": tmpl["id"],
+         "template_revision": tmpl["revision"],
+@@ -250,8 +269,8 @@ def preview_plan(conn, project_id: int, sale_price: int, booking_amount: int,
+ 
+ 
+ def preview_for_booking(conn, project_id: int, sale_price: int, booking_amount: int,
+-                        template_id: int | None = None) -> dict:
+-    return preview_plan(conn, project_id, sale_price, booking_amount, template_id)
++                        template_id: int | None = None, booking_date: str | None = None) -> dict:
++    return preview_plan(conn, project_id, sale_price, booking_amount, template_id, booking_date)
+ 
+ 
+ def activate_milestones_for_project(conn, project_id: int, progress: int,
+diff --git a/backend/services/journal.py b/backend/services/journal.py
+index 03008a7..21b667a 100644
+--- a/backend/services/journal.py
++++ b/backend/services/journal.py
+@@ -192,14 +192,18 @@ def build(conn, project_ids: list[int] | None = None, end: str | None = None) ->
+             _e(E, r["d"], f"{kind}_out", None, f"{kind.title()} {label} · {r['name']}", r["project_id"], r["name"],
+                [(payout, r["amount"], 0), ("1020", 0, r["amount"])])
+ 
+-    for m in fetch_all(conn, "SELECT id, entry_date, narration, amount, direction, category FROM ledger_entries"):
++    cols = {r[1] for r in conn.execute("PRAGMA table_info(ledger_entries)")}
++    extra = ", payment_method, project_id" if {"payment_method", "project_id"} <= cols else ", NULL AS payment_method, NULL AS project_id"
++    for m in fetch_all(conn, f"SELECT id, entry_date, narration, amount, direction, category{extra} FROM ledger_entries"):
+         amt = m["amount"] or 0
++        cash = cash_account(m["payment_method"])
+         if m["direction"] == "in":
+-            lines = [("1020", amt, 0), ("4300", 0, amt)]
++            lines = [(cash, amt, 0), ("4300", 0, amt)]
+         else:
+-            lines = [("5900", amt, 0), ("1020", 0, amt)]
+-        _e(E, m["entry_date"], "manual", f"CB-{m['id']}", m["narration"], None, None, lines)
+-        if E and E[-1]["ref"] == f"CB-{m['id']}":
++            lines = [("5900", amt, 0), (cash, 0, amt)]
++        before = len(E)
++        _e(E, m["entry_date"], "manual", f"CB-{m['id']}", m["narration"], m["project_id"], None, lines)
++        if len(E) > before:
+             E[-1]["category"] = m["category"] or ("Other income" if m["direction"] == "in" else "Other expenses")
+ 
+     if project_ids is not None:
+diff --git a/backend/services/payments.py b/backend/services/payments.py
+index f0c89ec..c68ce8e 100644
+--- a/backend/services/payments.py
++++ b/backend/services/payments.py
+@@ -20,15 +20,37 @@ def _next_receipt_no(conn) -> str:
+ 
+ def record_payment(conn, data: dict) -> dict:
+     installment_id = data.get("installment_id")
+-    amount = data["amount"]
++    amount = int(data.get("amount") or 0)
+     booking_id = data["booking_id"]
+     customer_id = data["customer_id"]
+     payment_date = data.get("paid_date") or data.get("payment_date") or date.today().isoformat()
+ 
++    if amount <= 0:
++        raise ValueError("Amount must be greater than 0")
++    try:
++        paid_on = date.fromisoformat(str(payment_date))
++    except ValueError as e:
++        raise ValueError("Payment date must be YYYY-MM-DD") from e
++    if paid_on > date.today():
++        raise ValueError("Payment date cannot be in the future — record post-dated cheques when they clear")
++    booking = fetch_one(conn, "SELECT * FROM bookings WHERE id=?", (booking_id,))
++    if not booking:
++        raise ValueError("Booking not found")
++    if booking["status"] != "active":
++        raise ValueError(f"Booking is {booking['status']} — payments can only be recorded on active bookings")
++    if int(booking["customer_id"]) != int(customer_id):
++        raise ValueError("This booking belongs to a different customer")
++    paid = fetch_one(conn, "SELECT COALESCE(SUM(amount),0) AS v FROM payments WHERE booking_id=?", (booking_id,))["v"]
++    outstanding = (booking["final_sale_price"] or 0) - paid
++    if amount > outstanding:
++        raise ValueError(f"Payment exceeds the booking's outstanding balance (PKR {max(outstanding, 0):,})")
++
+     if installment_id:
+         inst = fetch_one(conn, "SELECT * FROM installments WHERE id=?", (installment_id,))
+-        if not inst:
+-            raise ValueError("Installment not found")
++        if not inst or int(inst["booking_id"]) != int(booking_id):
++            raise ValueError("Installment not found on this booking")
++        if inst["status"] == "cancelled":
++            raise ValueError("Installment is cancelled")
+         if amount > inst["remaining_amount"]:
+             raise ValueError("Payment exceeds remaining installment amount")
+ 
+@@ -37,7 +59,7 @@ def record_payment(conn, data: dict) -> dict:
+            payment_date, payment_method, bank, reference_number, received_by, notes)
+            VALUES(?,?,?,?,?,?,?,?,?,?)""",
+         (
+-            customer_id, booking_id, installment_id, amount, payment_date,
++            customer_id, booking_id, installment_id, amount, paid_on.isoformat(),
+             data.get("method") or data.get("payment_method", "Cash"),
+             data.get("bank"), data.get("reference_number"),
+             data.get("received_by", "Admin"), data.get("notes"),
+diff --git a/backend/services/units.py b/backend/services/units.py
+index 0a1eb22..884adfb 100644
+--- a/backend/services/units.py
++++ b/backend/services/units.py
+@@ -185,6 +185,10 @@ def create_unit(conn, data: dict) -> dict:
+     )
+     if dup:
+         raise ValueError("Unit number already exists in this project")
++    if (data.get("status") or "available").lower() not in ("available", "blocked"):
++        raise ValueError("New units start as available — use a hold or booking to change that")
++    if data.get("base_sale_price") is not None and int(data["base_sale_price"]) < 0:
++        raise ValueError("Price cannot be negative")
+     cur = conn.execute(
+         """INSERT INTO units(project_id, unit_no, description, unit_type, residential_type,
+            floor_number, area_ghaz, block_tower, bedrooms, bathrooms, status,
+@@ -223,6 +227,14 @@ def update_status(conn, unit_id: int, status: str, hold_customer_id: int | None
+             **extra,
+         })
+         return get_unit(conn, unit_id)
++    allowed = {"available", "hold", "booked", "sold", "possession_delivered", "blocked"}
++    if status not in allowed:
++        raise ValueError(f"Unknown unit status '{status}'")
++    has_booking = fetch_one(conn, "SELECT id FROM bookings WHERE unit_id=? AND status='active'", (unit_id,))
++    if status in ("booked", "sold", "possession_delivered") and not has_booking:
++        raise ValueError("A unit becomes booked or sold only through a booking — create the booking instead")
++    if status in ("available", "blocked") and has_booking:
++        raise ValueError("This unit has an active booking — cancel the booking first")
+     if status == "available" and unit["status"] == "hold":
+         active = holds_svc.get_active_hold(conn, unit_id)
+         if active:
+diff --git a/backend/services/vendors.py b/backend/services/vendors.py
+index 715f533..c70c9f4 100644
+--- a/backend/services/vendors.py
++++ b/backend/services/vendors.py
+@@ -90,8 +90,14 @@ def _mapped_po(conn, po: dict) -> dict:
+     return _map_po_status(dict(po), _po_paid(conn, po["id"]))
+ 
+ 
++def _check_ntn(conn, ntn, vendor_id=None):
++    if ntn and fetch_one(conn, "SELECT id FROM vendors WHERE ntn=? AND id != ?", (ntn, vendor_id or 0)):
++        raise ValueError(f"Another vendor already has NTN {ntn}")
++
++
+ def create_vendor(conn, data: dict) -> dict:
+     payload = normalize_vendor(data)
++    _check_ntn(conn, payload["ntn"])
+     cur = conn.execute(
+         "INSERT INTO vendors(name, description, contact, category, ntn, status) VALUES(?,?,?,?,?,?)",
+         (
+@@ -133,6 +139,7 @@ def update_vendor(conn, vendor_id: int, data: dict) -> dict | None:
+     if not fetch_one(conn, "SELECT id FROM vendors WHERE id=?", (vendor_id,)):
+         return None
+     payload = normalize_vendor(data)
++    _check_ntn(conn, payload["ntn"], vendor_id)
+     conn.execute(
+         """UPDATE vendors SET name=?, description=?, contact=?, category=?, ntn=?, status=?
+            WHERE id=?""",
+diff --git a/backend/verify.py b/backend/verify.py
+index e159c88..bed1dff 100644
+--- a/backend/verify.py
++++ b/backend/verify.py
+@@ -157,7 +157,8 @@ try:
+         bk = post("/api/bookings", {
+             "unit_id": u["id"], "project_id": 1, "customer_id": cu["id"],
+             "sale_price": 7000000, "down_payment": 1000000, "booking_date": "2025-06-15",
+-            "installments": [{"amount": 1000000, "due_date": "2025-06-15", "type": "Booking"}],
++            "installments": [{"amount": 1000000, "due_date": "2025-06-15", "type": "Booking"},
++                             {"amount": 6000000, "due_date": "2026-06-15", "type": "Balance"}],
+         })
+         try:
+             post("/api/bookings", {
+@@ -255,7 +256,8 @@ try:
+         bk = post("/api/bookings", {
+             "unit_id": u["id"], "project_id": 1, "customer_id": cu["id"],
+             "sale_price": 6000000, "down_payment": 1800000, "booking_date": "2025-06-01",
+-            "installments": [{"amount": 1800000, "due_date": "2025-06-01", "type": "Booking"}],
++            "installments": [{"amount": 1800000, "due_date": "2025-06-01", "type": "Booking"},
++                             {"amount": 4200000, "due_date": "2026-06-01", "type": "Balance"}],
+         })
+         bk_id = bk["booking_id"]
+         unit_id = u["id"]
+diff --git a/static/index.html b/static/index.html
+index 75d9cdb..a045351 100644
+--- a/static/index.html
++++ b/static/index.html
+@@ -1018,12 +1018,30 @@
+         <select id="le-type">
+           <option>General</option>
+           <option>Expense</option>
++          <option>Material</option>
++          <option>Labor</option>
++          <option>Contractor</option>
++          <option>Admin</option>
++          <option>Marketing</option>
++          <option>Commission</option>
++          <option>Land / plot</option>
++          <option>Membership fee</option>
+           <option>Purchase</option>
+           <option>Sales</option>
+           <option>Refund</option>
++          <option>Other</option>
+         </select>
+       </div>
+     </div>
++    <div class="form-row">
++      <div class="fg"><label>Paid from / received into *</label>
++        <select id="le-method">
++          <option value="Bank">Bank</option>
++          <option value="Cash">Cash</option>
++        </select>
++      </div>
++      <div class="fg"><label>Project</label><select id="le-project"><option value="">Company-wide</option></select></div>
++    </div>
+     <div class="fg"><label>Narration *</label><input id="le-nar" type="text"></div>
+     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+       <button type="button" class="btn" data-close-modal="ledger-modal">Cancel</button>
+diff --git a/static/js/screens/booking.js b/static/js/screens/booking.js
+index d15c0a8..4fa7602 100644
+--- a/static/js/screens/booking.js
++++ b/static/js/screens/booking.js
+@@ -321,7 +321,7 @@ async function loadTemplatePlan() {
+   try {
+     const preview = await api(`/api/projects/${selectedProject.id}/installment-template/preview`, {
+       method: 'POST',
+-      body: JSON.stringify({ sale_price: price, booking_amount: dp }),
++      body: JSON.stringify({ sale_price: price, booking_amount: dp, booking_date: $('bk-date')?.value || null }),
+     });
+     activeTemplateMeta = {
+       id: preview.template_id,
+diff --git a/static/js/screens/finance.js b/static/js/screens/finance.js
+index 963d027..b9bc1bd 100644
+--- a/static/js/screens/finance.js
++++ b/static/js/screens/finance.js
+@@ -3,6 +3,7 @@ import { api, toast } from '../api.js';
+ import { fmt, fmtShort } from '../format.js';
+ import { closeModal, openModal } from '../modal.js';
+ import { askConfirm } from '../dialog.js';
++import { state } from '../state.js';
+ 
+ export async function loadAccounts() {
+   const d = await api('/api/ledger');
+@@ -44,6 +45,11 @@ export function openLedgerModal() {
+   if ($('le-amount')) $('le-amount').value = '';
+   if ($('le-nar')) $('le-nar').value = '';
+   if ($('le-type')) $('le-type').value = 'General';
++  if ($('le-method')) $('le-method').value = 'Bank';
++  const proj = $('le-project');
++  if (proj) {
++    proj.innerHTML = `<option value="">Company-wide</option>${(state.projects || []).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}`;
++  }
+   openModal('ledger-modal');
+ }
+ 
+@@ -63,6 +69,8 @@ export async function submitLedger() {
+         amount,
+         direction: $('le-dir')?.value || 'out',
+         category: $('le-type')?.value || 'General',
++        payment_method: $('le-method')?.value || 'Bank',
++        project_id: $('le-project')?.value ? Number($('le-project').value) : null,
+       }),
+     });
+     closeModal('ledger-modal');
+diff --git a/tests/test_validation.py b/tests/test_validation.py
+new file mode 100644
+index 0000000..1ba3d08
+--- /dev/null
++++ b/tests/test_validation.py
+@@ -0,0 +1,130 @@
++"""Input validation found while importing a real workbook."""
++from datetime import date, timedelta
++
++import pytest
++
++
++@pytest.fixture
++def booking(as_role, world):
++    from backend.database import get_db
++    with get_db(world["a_db"]) as conn:
++        row = conn.execute("""SELECT b.id, b.customer_id, b.final_sale_price,
++                                     COALESCE((SELECT SUM(amount) FROM payments p WHERE p.booking_id=b.id),0)
++                              FROM bookings b WHERE b.status='active'
++                                AND b.final_sale_price > COALESCE((SELECT SUM(amount) FROM payments p WHERE p.booking_id=b.id),0) + 10
++                              LIMIT 1""").fetchone()
++        cancelled = conn.execute("SELECT id, customer_id FROM bookings WHERE status='cancelled' LIMIT 1").fetchone()
++    return {"id": row[0], "customer_id": row[1], "outstanding": row[2] - row[3], "cancelled": cancelled}
++
++
++@pytest.mark.parametrize("amount,when,why", [
++    (0, None, "greater than 0"),
++    (-500, None, "greater than 0"),
++    (1000, (date.today() + timedelta(days=400)).isoformat(), "future"),
++    (1000, "15-07-2026", "YYYY-MM-DD"),
++])
++def test_bad_payments_rejected(as_role, booking, amount, when, why):
++    body = {"booking_id": booking["id"], "customer_id": booking["customer_id"], "amount": amount}
++    if when:
++        body["payment_date"] = when
++    r = as_role("admin").post("/api/payments", json=body)
++    assert r.status_code == 400 and why in r.json()["detail"]
++
++
++def test_payment_over_outstanding_rejected(as_role, booking):
++    r = as_role("admin").post("/api/payments", json={"booking_id": booking["id"], "customer_id": booking["customer_id"],
++                                                     "amount": booking["outstanding"] + 1})
++    assert r.status_code == 400 and "outstanding" in r.json()["detail"]
++
++
++def test_payment_on_missing_or_cancelled_booking_rejected(as_role, booking):
++    admin = as_role("admin")
++    r = admin.post("/api/payments", json={"booking_id": 99999999, "customer_id": booking["customer_id"], "amount": 10})
++    assert r.status_code == 400 and "not found" in r.json()["detail"]
++    if booking["cancelled"]:
++        bid, cid = booking["cancelled"]
++        r = admin.post("/api/payments", json={"booking_id": bid, "customer_id": cid, "amount": 10})
++        assert r.status_code == 400 and "active" in r.json()["detail"]
++
++
++def test_payment_wrong_customer_rejected(as_role, booking):
++    r = as_role("admin").post("/api/payments", json={"booking_id": booking["id"],
++                                                     "customer_id": booking["customer_id"] + 100000, "amount": 10})
++    assert r.status_code == 400 and "different customer" in r.json()["detail"]
++
++
++def _fresh_unit(admin, world, suffix):
++    r = admin.post("/api/units", json={"project_id": world["scoped_project"], "unit_no": f"VAL-{suffix}",
++                                       "base_sale_price": 1_000_000})
++    assert r.status_code == 200, r.text
++    return r.json()["id"]
++
++
++def test_unit_cannot_be_marked_booked_without_booking(as_role, world):
++    admin = as_role("admin")
++    uid = _fresh_unit(admin, world, "A")
++    for st in ("booked", "sold", "possession_delivered"):
++        r = admin.put(f"/api/units/{uid}/status", json={"status": st})
++        assert r.status_code == 400, st
++    assert admin.post("/api/units", json={"project_id": world["scoped_project"], "unit_no": "VAL-SOLD",
++                                          "status": "sold"}).status_code == 400
++
++
++def test_booking_plan_must_cover_price(as_role, world):
++    admin = as_role("admin")
++    uid = _fresh_unit(admin, world, "B")
++    cust = admin.post("/api/customers", json={"name": "Plan Test", "cnic": "99999-8888888-1"}).json()
++    base = {"unit_id": uid, "project_id": world["scoped_project"], "customer_id": cust["id"],
++            "sale_price": 1_000_000, "booking_amount": 200_000, "booking_date": "2026-01-10"}
++    short = [{"amount": 200_000, "due_date": "2026-01-10"}, {"amount": 500_000, "due_date": "2026-02-10"}]
++    r = admin.post("/api/bookings", json={**base, "installments": short})
++    assert r.status_code == 400 and "short by PKR 300,000" in r.json()["detail"]
++    r = admin.post("/api/bookings", json={**base, "booking_date": "10-01-2026",
++                                          "installments": short + [{"amount": 300_000, "due_date": "2026-03-10"}]})
++    assert r.status_code == 400 and "YYYY-MM-DD" in r.json()["detail"]
++    # booking amount paid outside the plan is also valid
++    r = admin.post("/api/bookings", json={**base, "installments": [{"amount": 800_000, "due_date": "2026-03-10"}]})
++    assert r.status_code == 200, r.text
++
++
++def test_template_expands_installment_count_from_booking_date(as_role, world):
++    admin = as_role("admin")
++    pid = admin.post("/api/projects", json={"name": "Template Expand", "status": "active"}).json()["id"]
++    r = admin.put(f"/api/projects/{pid}/installment-template", json={"name": "M-18", "default_booking_bps": 2000, "rules": [
++        {"label": "Monthly", "trigger_kind": "time", "amount_bps": 8750, "installment_count": 18,
++         "start_offset_months": 1, "interval_months": 1},
++        {"label": "Possession", "trigger_kind": "construction", "amount_bps": 1250, "milestone_progress": 100}]})
++    assert r.status_code == 200, r.text
++    pv = admin.post(f"/api/projects/{pid}/installment-template/preview",
++                    json={"sale_price": 5_670_000, "booking_amount": 1_134_000, "booking_date": "2026-01-31"}).json()
++    rows = pv["installments"]
++    assert len(rows) == 19
++    assert sum(x["amount"] for x in rows) == 5_670_000 - 1_134_000
++    assert [x["due_date"] for x in rows[:3]] == ["2026-02-28", "2026-03-31", "2026-04-30"]
++    assert rows[-1]["trigger_kind"] == "construction"
++
++
++def test_duplicate_partner_cnic_and_vendor_ntn_rejected(as_role, world):
++    admin = as_role("admin")
++    link = {"project_id": world["scoped_project"], "agreed_amount": 1000, "investment_date": "2026-01-01"}
++    r = admin.post("/api/partners", json={"name": "P1", "cnic": "12345-0000000-9", **link})
++    assert r.status_code == 200, r.text
++    r = admin.post("/api/partners", json={"name": "P2", "cnic": "12345-0000000-9", **link})
++    assert r.status_code == 400 and "CNIC" in r.json()["detail"]
++    assert admin.post("/api/vendors", json={"name": "V1", "ntn": "NTN-777"}).status_code == 200
++    r = admin.post("/api/vendors", json={"name": "V2", "ntn": "NTN-777"})
++    assert r.status_code == 400 and "NTN" in r.json()["detail"]
++
++
++def test_cashbook_entry_cash_or_bank(as_role):
++    admin = as_role("admin")
++    before = {a["code"]: a for a in admin.get("/api/reports/trial-balance").json()["accounts"]}
++    r = admin.post("/api/ledger", json={"entry_date": date.today().isoformat(), "narration": "petty cash",
++                                        "amount": 7_000, "direction": "out", "payment_method": "Cash"})
++    assert r.status_code == 200, r.text
++    after = {a["code"]: a for a in admin.get("/api/reports/trial-balance").json()["accounts"]}
++    bal = lambda d, c: (d.get(c, {}).get("debit", 0) - d.get(c, {}).get("credit", 0))
++    assert bal(after, "1010") - bal(before, "1010") == -7_000
++    assert bal(after, "1020") == bal(before, "1020")
++    assert admin.post("/api/ledger", json={"entry_date": "01-06-2026", "narration": "x", "amount": 5,
++                                           "direction": "out"}).status_code == 400

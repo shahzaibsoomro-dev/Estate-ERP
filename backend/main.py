@@ -38,6 +38,7 @@ from backend.routers import (
     projects,
     public,
     recovery,
+    reports,
     settings,
     setup,
     site_logs,
@@ -71,7 +72,7 @@ for mod in (
     health, public, setup, auth, console, company, portal_access, me, documents,
     dashboard, projects, units, customers, bookings, payments,
     recovery, vendors, budget, site_logs, accounts, agents, investors, partners, entities,
-    contractors, inventory, possession, settings, portal, audit, stubs,
+    contractors, inventory, possession, settings, portal, audit, reports, stubs,
     holds,
 ):
     app.include_router(mod.router)

@@ -185,6 +185,10 @@ def create_unit(conn, data: dict) -> dict:
     )
     if dup:
         raise ValueError("Unit number already exists in this project")
+    if (data.get("status") or "available").lower() not in ("available", "blocked"):
+        raise ValueError("New units start as available — use a hold or booking to change that")
+    if data.get("base_sale_price") is not None and int(data["base_sale_price"]) < 0:
+        raise ValueError("Price cannot be negative")
     cur = conn.execute(
         """INSERT INTO units(project_id, unit_no, description, unit_type, residential_type,
            floor_number, area_ghaz, block_tower, bedrooms, bathrooms, status,
@@ -223,6 +227,14 @@ def update_status(conn, unit_id: int, status: str, hold_customer_id: int | None 
             **extra,
         })
         return get_unit(conn, unit_id)
+    allowed = {"available", "hold", "booked", "sold", "possession_delivered", "blocked"}
+    if status not in allowed:
+        raise ValueError(f"Unknown unit status '{status}'")
+    has_booking = fetch_one(conn, "SELECT id FROM bookings WHERE unit_id=? AND status='active'", (unit_id,))
+    if status in ("booked", "sold", "possession_delivered") and not has_booking:
+        raise ValueError("A unit becomes booked or sold only through a booking — create the booking instead")
+    if status in ("available", "blocked") and has_booking:
+        raise ValueError("This unit has an active booking — cancel the booking first")
     if status == "available" and unit["status"] == "hold":
         active = holds_svc.get_active_hold(conn, unit_id)
         if active:

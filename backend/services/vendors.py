@@ -90,8 +90,14 @@ def _mapped_po(conn, po: dict) -> dict:
     return _map_po_status(dict(po), _po_paid(conn, po["id"]))
 
 
+def _check_ntn(conn, ntn, vendor_id=None):
+    if ntn and fetch_one(conn, "SELECT id FROM vendors WHERE ntn=? AND id != ?", (ntn, vendor_id or 0)):
+        raise ValueError(f"Another vendor already has NTN {ntn}")
+
+
 def create_vendor(conn, data: dict) -> dict:
     payload = normalize_vendor(data)
+    _check_ntn(conn, payload["ntn"])
     cur = conn.execute(
         "INSERT INTO vendors(name, description, contact, category, ntn, status) VALUES(?,?,?,?,?,?)",
         (
@@ -133,6 +139,7 @@ def update_vendor(conn, vendor_id: int, data: dict) -> dict | None:
     if not fetch_one(conn, "SELECT id FROM vendors WHERE id=?", (vendor_id,)):
         return None
     payload = normalize_vendor(data)
+    _check_ntn(conn, payload["ntn"], vendor_id)
     conn.execute(
         """UPDATE vendors SET name=?, description=?, contact=?, category=?, ntn=?, status=?
            WHERE id=?""",

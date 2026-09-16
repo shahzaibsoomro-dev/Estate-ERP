@@ -120,6 +120,7 @@ class TemplateBody(BaseModel):
 
 
 class TemplatePreviewBody(BaseModel):
+    booking_date: str | None = None
     sale_price: int
     booking_amount: int = 0
     template_id: int | None = None
@@ -153,7 +154,7 @@ def preview_installment_template(project_id: int, body: TemplatePreviewBody):
     with get_db() as conn:
         try:
             return tmpl_svc.preview_plan(
-                conn, project_id, body.sale_price, body.booking_amount, body.template_id,
+                conn, project_id, body.sale_price, body.booking_amount, body.template_id, body.booking_date,
             )
         except ValueError as e:
             raise HTTPException(400, str(e)) from e

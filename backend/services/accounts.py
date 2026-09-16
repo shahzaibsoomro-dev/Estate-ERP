@@ -1,3 +1,5 @@
+from datetime import date
+
 from backend.database import fetch_all, fetch_one
 
 
@@ -208,10 +210,21 @@ def create_ledger_entry(conn, data: dict) -> dict:
     if amount <= 0:
         raise ValueError("Amount must be greater than 0")
     category = _clean(data.get("category") or data.get("account_type"))
+    try:
+        date.fromisoformat(entry_date)
+    except ValueError as e:
+        raise ValueError("Date must be YYYY-MM-DD") from e
+    method = _clean(data.get("payment_method")) or "Bank"
+    if method.lower() not in ("cash", "bank", "bank transfer", "cheque", "online transfer"):
+        raise ValueError("Paid from must be Cash or Bank")
+    project_id = data.get("project_id") or None
+    if project_id and not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
+        raise ValueError("Project not found")
     cur = conn.execute(
-        """INSERT INTO ledger_entries(entry_date, narration, amount, direction, category, notes)
-           VALUES(?,?,?,?,?,?)""",
-        (entry_date, narration, amount, direction, category, _clean(data.get("notes"))),
+        """INSERT INTO ledger_entries(entry_date, narration, amount, direction, category, notes,
+                                       payment_method, project_id)
+           VALUES(?,?,?,?,?,?,?,?)""",
+        (entry_date, narration, amount, direction, category, _clean(data.get("notes")), method, project_id),
     )
     return fetch_one(conn, "SELECT * FROM ledger_entries WHERE id=?", (cur.lastrowid,))
 

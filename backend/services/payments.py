@@ -20,15 +20,37 @@ def _next_receipt_no(conn) -> str:
 
 def record_payment(conn, data: dict) -> dict:
     installment_id = data.get("installment_id")
-    amount = data["amount"]
+    amount = int(data.get("amount") or 0)
     booking_id = data["booking_id"]
     customer_id = data["customer_id"]
     payment_date = data.get("paid_date") or data.get("payment_date") or date.today().isoformat()
 
+    if amount <= 0:
+        raise ValueError("Amount must be greater than 0")
+    try:
+        paid_on = date.fromisoformat(str(payment_date))
+    except ValueError as e:
+        raise ValueError("Payment date must be YYYY-MM-DD") from e
+    if paid_on > date.today():
+        raise ValueError("Payment date cannot be in the future — record post-dated cheques when they clear")
+    booking = fetch_one(conn, "SELECT * FROM bookings WHERE id=?", (booking_id,))
+    if not booking:
+        raise ValueError("Booking not found")
+    if booking["status"] != "active":
+        raise ValueError(f"Booking is {booking['status']} — payments can only be recorded on active bookings")
+    if int(booking["customer_id"]) != int(customer_id):
+        raise ValueError("This booking belongs to a different customer")
+    paid = fetch_one(conn, "SELECT COALESCE(SUM(amount),0) AS v FROM payments WHERE booking_id=?", (booking_id,))["v"]
+    outstanding = (booking["final_sale_price"] or 0) - paid
+    if amount > outstanding:
+        raise ValueError(f"Payment exceeds the booking's outstanding balance (PKR {max(outstanding, 0):,})")
+
     if installment_id:
         inst = fetch_one(conn, "SELECT * FROM installments WHERE id=?", (installment_id,))
-        if not inst:
-            raise ValueError("Installment not found")
+        if not inst or int(inst["booking_id"]) != int(booking_id):
+            raise ValueError("Installment not found on this booking")
+        if inst["status"] == "cancelled":
+            raise ValueError("Installment is cancelled")
         if amount > inst["remaining_amount"]:
             raise ValueError("Payment exceeds remaining installment amount")
 
@@ -37,7 +59,7 @@ def record_payment(conn, data: dict) -> dict:
            payment_date, payment_method, bank, reference_number, received_by, notes)
            VALUES(?,?,?,?,?,?,?,?,?,?)""",
         (
-            customer_id, booking_id, installment_id, amount, payment_date,
+            customer_id, booking_id, installment_id, amount, paid_on.isoformat(),
             data.get("method") or data.get("payment_method", "Cash"),
             data.get("bank"), data.get("reference_number"),
             data.get("received_by", "Admin"), data.get("notes"),
