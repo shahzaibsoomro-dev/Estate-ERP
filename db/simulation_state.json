@@ -1,0 +1,1151 @@
+{
+  "wipe": {
+    "before": {
+      "projects": 4,
+      "units": 314,
+      "customers": 62,
+      "bookings": 60,
+      "vendors": 5,
+      "agents": 3,
+      "investors": 3
+    },
+    "after": {
+      "projects": 3,
+      "haven_projects": 3,
+      "units": 280,
+      "customers": 48,
+      "bookings": 49,
+      "vendors": 0,
+      "agents": 0,
+      "investors": 0,
+      "haven_payments": 46080000,
+      "backup": "exists",
+      "haven_ids": [
+        1,
+        2,
+        3
+      ]
+    }
+  },
+  "project_id": 84,
+  "units": {
+    "GS-G01": {
+      "id": 514,
+      "price": 22000000,
+      "type": "Shop"
+    },
+    "GS-G02": {
+      "id": 515,
+      "price": 18500000,
+      "type": "Shop"
+    },
+    "GS-G03": {
+      "id": 516,
+      "price": 25000000,
+      "type": "Shop"
+    },
+    "GS-G04": {
+      "id": 517,
+      "price": 19800000,
+      "type": "Shop"
+    },
+    "GS-G05": {
+      "id": 518,
+      "price": 30000000,
+      "type": "Shop"
+    },
+    "GS-G06": {
+      "id": 519,
+      "price": 21000000,
+      "type": "Shop"
+    },
+    "GS-G07": {
+      "id": 520,
+      "price": 24000000,
+      "type": "Shop"
+    },
+    "GS-G08": {
+      "id": 521,
+      "price": 27500000,
+      "type": "Shop"
+    },
+    "GS-101": {
+      "id": 522,
+      "price": 18050000,
+      "type": "Flat"
+    },
+    "GS-102": {
+      "id": 523,
+      "price": 18100000,
+      "type": "Flat"
+    },
+    "GS-103": {
+      "id": 524,
+      "price": 18150000,
+      "type": "Flat"
+    },
+    "GS-104": {
+      "id": 525,
+      "price": 28200000,
+      "type": "Flat"
+    },
+    "GS-105": {
+      "id": 526,
+      "price": 28250000,
+      "type": "Flat"
+    },
+    "GS-106": {
+      "id": 527,
+      "price": 28300000,
+      "type": "Flat"
+    },
+    "GS-201": {
+      "id": 528,
+      "price": 18550000,
+      "type": "Flat"
+    },
+    "GS-202": {
+      "id": 529,
+      "price": 18600000,
+      "type": "Flat"
+    },
+    "GS-203": {
+      "id": 530,
+      "price": 18650000,
+      "type": "Flat"
+    },
+    "GS-204": {
+      "id": 531,
+      "price": 28700000,
+      "type": "Flat"
+    },
+    "GS-205": {
+      "id": 532,
+      "price": 28750000,
+      "type": "Flat"
+    },
+    "GS-206": {
+      "id": 533,
+      "price": 28800000,
+      "type": "Flat"
+    },
+    "GS-301": {
+      "id": 534,
+      "price": 19050000,
+      "type": "Flat"
+    },
+    "GS-302": {
+      "id": 535,
+      "price": 19100000,
+      "type": "Flat"
+    },
+    "GS-303": {
+      "id": 536,
+      "price": 19150000,
+      "type": "Flat"
+    },
+    "GS-304": {
+      "id": 537,
+      "price": 29200000,
+      "type": "Flat"
+    },
+    "GS-305": {
+      "id": 538,
+      "price": 29250000,
+      "type": "Flat"
+    },
+    "GS-306": {
+      "id": 539,
+      "price": 29300000,
+      "type": "Flat"
+    },
+    "GS-401": {
+      "id": 540,
+      "price": 19550000,
+      "type": "Flat"
+    },
+    "GS-402": {
+      "id": 541,
+      "price": 19600000,
+      "type": "Flat"
+    },
+    "GS-403": {
+      "id": 542,
+      "price": 19650000,
+      "type": "Flat"
+    },
+    "GS-404": {
+      "id": 543,
+      "price": 30200000,
+      "type": "Flat"
+    },
+    "GS-405": {
+      "id": 544,
+      "price": 30250000,
+      "type": "Flat"
+    },
+    "GS-406": {
+      "id": 545,
+      "price": 30300000,
+      "type": "Flat"
+    },
+    "GS-PH1": {
+      "id": 546,
+      "price": 55000000,
+      "type": "Flat"
+    },
+    "GS-PH2": {
+      "id": 547,
+      "price": 58000000,
+      "type": "Flat"
+    }
+  },
+  "customers": {
+    "bilal": {
+      "id": 192,
+      "name": "Bilal Ahmed",
+      "cnic": "37405-9900001-1"
+    },
+    "hina": {
+      "id": 193,
+      "name": "Hina Qureshi",
+      "cnic": "37405-9900002-3"
+    },
+    "usman": {
+      "id": 194,
+      "name": "Usman Tariq",
+      "cnic": "37405-9900003-5"
+    },
+    "saima": {
+      "id": 195,
+      "name": "Saima Riaz",
+      "cnic": "37405-9900004-7"
+    },
+    "omar": {
+      "id": 196,
+      "name": "Omar Farooq",
+      "cnic": "37405-9900005-9"
+    },
+    "nadia": {
+      "id": 197,
+      "name": "Nadia Sheikh",
+      "cnic": "37405-9900006-1"
+    },
+    "kamal": {
+      "id": 198,
+      "name": "Kamal Hussain",
+      "cnic": "37405-9900007-3"
+    },
+    "farah": {
+      "id": 199,
+      "name": "Farah Malik",
+      "cnic": "37405-9900008-5"
+    },
+    "zainab": {
+      "id": 200,
+      "name": "Zainab Ali",
+      "cnic": "37405-9900009-7"
+    },
+    "imran": {
+      "id": 201,
+      "name": "Imran Cheema",
+      "cnic": "37405-9900010-9"
+    },
+    "rabia": {
+      "id": 202,
+      "name": "Rabia Noor",
+      "cnic": "37405-9900011-1"
+    },
+    "shahid": {
+      "id": 203,
+      "name": "Shahid Mehmood",
+      "cnic": "37405-9900012-3"
+    },
+    "asad": {
+      "id": 204,
+      "name": "Asad Javed",
+      "cnic": "37405-9900013-5"
+    },
+    "tariq": {
+      "id": 205,
+      "name": "Tariq Nadeem",
+      "cnic": "37405-9900014-7"
+    }
+  },
+  "agents": {
+    "malik": {
+      "id": 33,
+      "name": "Malik Brokers",
+      "rate": 2.0
+    },
+    "horizon": {
+      "id": 34,
+      "name": "Horizon Realty",
+      "rate": 2.5
+    },
+    "citylink": {
+      "id": 35,
+      "name": "City Link Associates",
+      "rate": 1.5
+    }
+  },
+  "vendors": {
+    "steel": {
+      "id": 56,
+      "name": "Punjab Steel Works"
+    },
+    "elec": {
+      "id": 57,
+      "name": "Spark Electricals"
+    },
+    "paint": {
+      "id": 58,
+      "name": "ColorCraft Paints"
+    },
+    "plumb": {
+      "id": 59,
+      "name": "FlowLine Plumbing"
+    },
+    "tiles": {
+      "id": 60,
+      "name": "Royal Ceramics"
+    }
+  },
+  "investors": {
+    "khawaja": {
+      "id": 28,
+      "name": "Khawaja Capital",
+      "agreed": 25000000,
+      "type": "Monthly Return"
+    },
+    "crescent": {
+      "id": 29,
+      "name": "Crescent Holdings",
+      "agreed": 40000000,
+      "type": "Profit Sharing"
+    },
+    "metro": {
+      "id": 30,
+      "name": "Metro Seed Fund",
+      "agreed": 15000000,
+      "type": "Profit Sharing"
+    }
+  },
+  "bookings": {
+    "shahid_m": {
+      "id": 109,
+      "unit": "GS-105",
+      "unit_id": 526,
+      "customer": "shahid",
+      "customer_id": 203,
+      "sale": 18500000,
+      "dp": 1850000,
+      "date": "2025-02-05",
+      "plan": "template"
+    },
+    "bilal": {
+      "id": 110,
+      "unit": "GS-G01",
+      "unit_id": 514,
+      "customer": "bilal",
+      "customer_id": 192,
+      "sale": 22000000,
+      "dp": 2200000,
+      "agent": null,
+      "date": "2025-02-10",
+      "receipt": "RCP-1265"
+    },
+    "hina": {
+      "id": 111,
+      "unit": "GS-101",
+      "unit_id": 522,
+      "customer": "hina",
+      "customer_id": 193,
+      "sale": 18000000,
+      "dp": 2000000,
+      "agent": "malik",
+      "date": "2025-02-12",
+      "receipt": "RCP-1266"
+    },
+    "usman": {
+      "id": 112,
+      "unit": "GS-203",
+      "unit_id": 530,
+      "customer": "usman",
+      "customer_id": 194,
+      "sale": 28500000,
+      "dp": 2000000,
+      "agent": "horizon",
+      "date": "2025-02-15",
+      "receipt": "RCP-1267"
+    },
+    "saima": {
+      "id": 113,
+      "unit": "GS-G03",
+      "unit_id": 516,
+      "customer": "saima",
+      "customer_id": 195,
+      "sale": 25000000,
+      "dp": 1500000,
+      "agent": "malik",
+      "date": "2025-02-20",
+      "receipt": "RCP-1268"
+    },
+    "nadia": {
+      "id": 114,
+      "unit": "GS-102",
+      "unit_id": 523,
+      "customer": "nadia",
+      "customer_id": 197,
+      "sale": 18000000,
+      "dp": 2000000,
+      "agent": "horizon",
+      "date": "2025-02-25",
+      "receipt": "RCP-1269"
+    },
+    "omar": {
+      "id": 115,
+      "unit": "GS-104",
+      "unit_id": 525,
+      "customer": "omar",
+      "customer_id": 196,
+      "sale": 18200000,
+      "dp": 2000000,
+      "agent": "citylink",
+      "date": "2025-03-01",
+      "receipt": "RCP-1270"
+    },
+    "farah": {
+      "id": 116,
+      "unit": "GS-301",
+      "unit_id": 534,
+      "customer": "farah",
+      "customer_id": 199,
+      "sale": 29000000,
+      "dp": 3000000,
+      "agent": "malik",
+      "date": "2025-03-05",
+      "receipt": "RCP-1271"
+    },
+    "imran": {
+      "id": 117,
+      "unit": "GS-PH1",
+      "unit_id": 546,
+      "customer": "imran",
+      "customer_id": 201,
+      "sale": 55000000,
+      "dp": 8000000,
+      "agent": "horizon",
+      "date": "2025-03-10",
+      "receipt": "RCP-1272"
+    },
+    "rabia": {
+      "id": 118,
+      "unit": "GS-G05",
+      "unit_id": 518,
+      "customer": "rabia",
+      "customer_id": 202,
+      "sale": 30000000,
+      "dp": 12000000,
+      "agent": null,
+      "date": "2025-03-12",
+      "receipt": "RCP-1273"
+    },
+    "kamal": {
+      "id": 119,
+      "unit": "GS-102",
+      "unit_id": 523,
+      "customer": "kamal",
+      "customer_id": 198,
+      "sale": 18000000,
+      "dp": 2000000,
+      "agent": "malik",
+      "date": "2025-05-05",
+      "receipt": "RCP-1280"
+    }
+  },
+  "pos": {
+    "steel": 36,
+    "elec": 37,
+    "paint": 38,
+    "plumb": 39,
+    "tiles": 40
+  },
+  "budget_cats": {
+    "Structural Steel": 1,
+    "Electrical": 4,
+    "Plumbing": 8,
+    "Tiles & Finishing": 5
+  },
+  "expected": {
+    "cust_in": 213354322,
+    "vendor_out": 20150000,
+    "agent_out": 2843750,
+    "inv_in": 70000000,
+    "inv_out": 3575000,
+    "manual_in": 100000,
+    "manual_out": 25000,
+    "hold_in": 500000,
+    "hold_out": 0,
+    "haven_payments": 46080000,
+    "unalloc_cust": 300000
+  },
+  "narrative": [
+    "2025-01-15  Gulberg Square onboarded: 34 units, 2 holds (GS-204 zero-token, GS-G08 token 500k), milestone template",
+    "2025-02-05  Shahid Malik booked GS-105 on construction milestone template (all stages scheduled)",
+    "2025-02-01  Investor capital in: Khawaja 15M, Crescent 20M, Metro 15M",
+    "2025-02-10  Bilal Ahmed booked GS-G01 for PKR 22,000,000 (DP 2,200,000) direct",
+    "2025-02-12  Hina Qureshi booked GS-101 for PKR 18,000,000 (DP 2,000,000) via malik",
+    "2025-02-15  Usman Tariq booked GS-203 for PKR 28,500,000 (DP 2,000,000) via horizon",
+    "2025-02-20  Saima Riaz booked GS-G03 for PKR 25,000,000 (DP 1,500,000) via malik",
+    "2025-02-25  Nadia Sheikh booked GS-102 for PKR 18,000,000 (DP 2,000,000) via horizon",
+    "2025-03-01  Omar Farooq booked GS-104 for PKR 18,200,000 (DP 2,000,000) via citylink",
+    "2025-03-05  Farah Malik booked GS-301 for PKR 29,000,000 (DP 3,000,000) via malik",
+    "2025-03-10  Imran Cheema booked GS-PH1 for PKR 55,000,000 (DP 8,000,000) via horizon",
+    "2025-03-12  Rabia Noor booked GS-G05 for PKR 30,000,000 (DP 12,000,000) direct",
+    "2025-05-01  Cancelled Nadia Sheikh GS-102  paid=4666666 forfeit=600000 refund=4066666 (not posted to cashbook)",
+    "2025-05-05  Kamal Hussain booked GS-102 for PKR 18,000,000 (DP 2,000,000) via malik",
+    "2025-07-08  Omar Farooq caught up missed installments in one transfer",
+    "2025-07-20  GS-301 transferred Farah Malik -> Zainab Ali",
+    "2025-08-01  Cancelled draft paint PO 1M (budget should ignore it)",
+    "2026-01-20  Possession delivered GS-G01 Bilal Ahmed",
+    "2026-03-15  Possession delivered GS-PH1 while still owing",
+    "2026-08  Simulation clock stops near today. Saima still chronic overdue."
+  ],
+  "findings": [
+    {
+      "sev": "low",
+      "area": "possession",
+      "msg": "Booking stays status=active after possession_delivered. Realistic ops usually mark completed."
+    },
+    {
+      "sev": "med",
+      "area": "possession",
+      "msg": "Possession allowed on GS-PH1 while installments still outstanding."
+    },
+    {
+      "sev": "med",
+      "area": "cancel",
+      "msg": "Cancel computed refund 4066666 but no cashbook/ledger outflow was posted."
+    }
+  ],
+  "checks": [
+    {
+      "name": "gulberg live unit count",
+      "expected": 34,
+      "actual": 34,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "project.number_of_units stored",
+      "expected": 34,
+      "actual": 34,
+      "pass": true,
+      "sev": "med",
+      "note": "planning field; live count also returned as total_units"
+    },
+    {
+      "name": "dashboard gulberg total_units",
+      "expected": 34,
+      "actual": 34,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "dashboard gulberg hold",
+      "expected": 2,
+      "actual": 2,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "site progress last write",
+      "expected": 72,
+      "actual": 72,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "cancelled installments stay cancelled after dashboard refresh",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": "statuses=[{'status': 'cancelled', 'n': 10}, {'status': 'paid', 'n': 3}]"
+    },
+    {
+      "name": "transfer booking owner is Zainab",
+      "expected": 200,
+      "actual": 200,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "transfer: Farah has no payment rows on moved booking",
+      "expected": 0,
+      "actual": 0,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "transfer: Zainab owns payment rows",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": "zainab_paid=29000000"
+    },
+    {
+      "name": "cashbook inflow (company-wide)",
+      "expected": 330034322,
+      "actual": 330034322,
+      "pass": true,
+      "sev": "high",
+      "note": "includes leftover Haven customer receipts + hold tokens"
+    },
+    {
+      "name": "cashbook outflow",
+      "expected": 26593750,
+      "actual": 26593750,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "hold token cashbook inflow",
+      "expected": 500000,
+      "actual": 500000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "hold token cashbook outflow",
+      "expected": 0,
+      "actual": 0,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-105 has activated milestones after progress >=70%",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-105 still has later scheduled milestones",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "med",
+      "note": ""
+    },
+    {
+      "name": "scheduled milestones excluded from recovery overdue",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "Bilal NOK name persisted",
+      "expected": "Ayesha Ahmed",
+      "actual": "Ayesha Ahmed",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "Bilal father separate from NOK",
+      "expected": "Tariq Ahmed",
+      "actual": "Tariq Ahmed",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "Bilal NOK searchable fields present",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-G08 still on hold with token history",
+      "expected": "hold",
+      "actual": "hold",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "GS-G08 hold token amount 500k",
+      "expected": 500000,
+      "actual": 500000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "dashboard payable == vendor balances + agent unpaid",
+      "expected": 2966750,
+      "actual": 2966750,
+      "pass": true,
+      "sev": "high",
+      "note": "vendor_bal=1650000 agent_unpaid=1316750"
+    },
+    {
+      "name": "agent unpaid excludes reversed commissions",
+      "expected": 1316750,
+      "actual": 1316750,
+      "pass": true,
+      "sev": "high",
+      "note": "reversed_rows=1"
+    },
+    {
+      "name": "budget finishing actual excludes cancelled 1M paint PO",
+      "expected": 3000000,
+      "actual": 3000000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "structural budget Exceeded",
+      "expected": "Exceeded",
+      "actual": "Exceeded",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "electrical budget Near Limit",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": "Near Limit"
+    },
+    {
+      "name": "plumbing budget Exceeded",
+      "expected": "Exceeded",
+      "actual": "Exceeded",
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "khawaja contributed",
+      "expected": 15000000,
+      "actual": 15000000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "crescent contributed",
+      "expected": 40000000,
+      "actual": 40000000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "khawaja agreed",
+      "expected": 25000000,
+      "actual": 25000000,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "unallocated payment reflected consistently",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "possessed unit display delivered/possession",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "double-book blocked",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "overpay blocked",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "delete investor with money blocked",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "high",
+      "note": ""
+    },
+    {
+      "name": "portal lists Bilal (active booking)",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "med",
+      "note": ""
+    },
+    {
+      "name": "portal detail for Bilal",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "med",
+      "note": ""
+    },
+    {
+      "name": "Saima appears on Gulberg overdue/recovery",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "med",
+      "note": ""
+    },
+    {
+      "name": "sales report includes Gulberg Square",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "med",
+      "note": ""
+    },
+    {
+      "name": "audit has booking/payment activity",
+      "expected": true,
+      "actual": true,
+      "pass": true,
+      "sev": "low",
+      "note": ""
+    }
+  ],
+  "neg": {
+    "double_book": "blocked HTTP 400",
+    "overpay": "blocked HTTP 400",
+    "cancel_paid_po": "blocked HTTP 400",
+    "poss_bilal": "ok",
+    "poss_imran_owing": "ALLOWED (no outstanding check)",
+    "del_investor_money": "blocked HTTP 400",
+    "del_proj_sitelog": "blocked HTTP 400: Cannot delete project \u2014 1 site log(s). Remove them first."
+  },
+  "last_progress": 72,
+  "ux_notes": [
+    {
+      "sev": "med",
+      "screen": "Accounts",
+      "msg": "Cashbook is company-wide (now labelled in UI). Dashboard project filter will not match Accounts net cash."
+    },
+    {
+      "sev": "low",
+      "screen": "Demand notices",
+      "msg": "Preview is honest now; WhatsApp/email/PDF still not connected. late_fee_pct setting unused."
+    },
+    {
+      "sev": "low",
+      "screen": "Activity",
+      "msg": "Audit still omits most CRUD and site logs (payments/bookings/money are logged)."
+    }
+  ],
+  "holds": {
+    "gs204": "zero-token",
+    "gsg08": {
+      "hold": {
+        "id": 27,
+        "unit_id": 521,
+        "customer_id": 204,
+        "hold_until": "2027-05-15",
+        "notes": "Price negotiation \u00b7 token received",
+        "status": "active",
+        "token_amount": 500000,
+        "held_at": "2025-01-15",
+        "released_at": null,
+        "release_reason": null,
+        "converted_booking_id": null,
+        "created_at": "2026-08-16 17:08:44",
+        "customer_name": "Asad Javed",
+        "unit_no": "GS-G08",
+        "project_name": "Gulberg Square"
+      },
+      "receipts": [
+        {
+          "id": 28,
+          "hold_id": 27,
+          "receipt_no": "RCP-1265",
+          "acknowledged_amount": 500000,
+          "transaction_id": 5,
+          "issued_at": "2026-08-16 17:08:44",
+          "notes": "Hold token receipt"
+        }
+      ],
+      "transactions": [
+        {
+          "id": 5,
+          "hold_id": 27,
+          "direction": "in",
+          "amount": 500000,
+          "txn_date": "2025-01-15",
+          "payment_method": "Cash",
+          "bank": null,
+          "reference_number": null,
+          "received_by": "Admin",
+          "notes": "Price negotiation \u00b7 token received",
+          "voucher_no": null,
+          "created_at": "2026-08-16 17:08:44"
+        }
+      ],
+      "applications": [],
+      "unapplied_token": 500000,
+      "receipt": {
+        "id": 28,
+        "hold_id": 27,
+        "receipt_no": "RCP-1265",
+        "acknowledged_amount": 500000,
+        "transaction_id": 5,
+        "issued_at": "2026-08-16 17:08:44",
+        "notes": "Hold token receipt"
+      }
+    }
+  },
+  "cancel_preview": {
+    "booking_id": 114,
+    "booking_no": "BK-1085",
+    "unit_id": 523,
+    "total_paid": 4666666,
+    "forfeit_pct": 30.0,
+    "forfeit_amount": 600000,
+    "refund_amount": 4066666
+  },
+  "cancel_result": {
+    "ok": true,
+    "booking_id": 114,
+    "total_paid": 4666666,
+    "forfeit_amount": 600000,
+    "refund_amount": 4066666,
+    "forfeit_pct": 30.0
+  },
+  "nadia_inst_after_cancel": [
+    {
+      "status": "paid",
+      "remaining_amount": 0
+    },
+    {
+      "status": "paid",
+      "remaining_amount": 0
+    },
+    {
+      "status": "paid",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    }
+  ],
+  "nadia_inst_after_refresh": [
+    {
+      "status": "paid",
+      "remaining_amount": 0
+    },
+    {
+      "status": "paid",
+      "remaining_amount": 0
+    },
+    {
+      "status": "paid",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    },
+    {
+      "status": "cancelled",
+      "remaining_amount": 0
+    }
+  ],
+  "malik_partial": 600000,
+  "transfer_ok": true,
+  "snapshot": {
+    "gulberg_units": 34,
+    "gulberg_hold": 2,
+    "gulberg_available": 22,
+    "gulberg_booked": 8,
+    "gulberg_delivered": 2,
+    "dash_all_payable": 2966750,
+    "dash_g_receivable": 48517344,
+    "cash_in": 330034322,
+    "cash_out": 26593750,
+    "cash_net": 303440572,
+    "vendor_payable": 21800000,
+    "vendor_paid": 20150000,
+    "vendor_balance": 1650000,
+    "agent_unpaid": 1316750,
+    "ageing": {
+      "d30": 2210000,
+      "d60": 0,
+      "d90": 98917344,
+      "items": 76
+    },
+    "budget": [
+      {
+        "project_id": 84,
+        "project_name": "Gulberg Square",
+        "category_id": 1,
+        "category_name": "Structural Steel",
+        "planned_amount": 10000000,
+        "actual_spent": 12000000,
+        "variance": -2000000,
+        "pct_used": 120,
+        "status": "Exceeded"
+      },
+      {
+        "project_id": 84,
+        "project_name": "Gulberg Square",
+        "category_id": 4,
+        "category_name": "Electrical",
+        "planned_amount": 5000000,
+        "actual_spent": 4300000,
+        "variance": 700000,
+        "pct_used": 86,
+        "status": "Near Limit"
+      },
+      {
+        "project_id": 84,
+        "project_name": "Gulberg Square",
+        "category_id": 5,
+        "category_name": "Tiles & Finishing",
+        "planned_amount": 8000000,
+        "actual_spent": 3000000,
+        "variance": 5000000,
+        "pct_used": 38,
+        "status": "Within Budget"
+      },
+      {
+        "project_id": 84,
+        "project_name": "Gulberg Square",
+        "category_id": 8,
+        "category_name": "Plumbing",
+        "planned_amount": 2000000,
+        "actual_spent": 2500000,
+        "variance": -500000,
+        "pct_used": 125,
+        "status": "Exceeded"
+      }
+    ],
+    "farah_paid_rows": 0,
+    "zainab_paid_rows": 29000000,
+    "zainab_api_paid": 29000000,
+    "zainab_api_out": 0,
+    "nadia_inst": [
+      {
+        "status": "cancelled",
+        "n": 10
+      },
+      {
+        "status": "paid",
+        "n": 3
+      }
+    ],
+    "progress": 72
+  }
+}

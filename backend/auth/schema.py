@@ -1,0 +1,60 @@
+"""Additive per-company tables (documents, audit actor, public flag). Safe to run on every startup.
+
+Logins, sessions and subscriptions live in the platform database (backend/saas/schema.py)."""
+import sqlite3
+
+TENANT_SQL = """
+CREATE TABLE IF NOT EXISTS document_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'general',
+    description TEXT,
+    body_html TEXT NOT NULL,
+    requires_booking INTEGER NOT NULL DEFAULT 1,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS customer_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_no TEXT NOT NULL UNIQUE,
+    customer_id INTEGER NOT NULL,
+    booking_id INTEGER,
+    template_id INTEGER,
+    title TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    visible_to_customer INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    revoked_at TEXT,
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (booking_id) REFERENCES bookings(id),
+    FOREIGN KEY (template_id) REFERENCES document_templates(id)
+);
+CREATE INDEX IF NOT EXISTS idx_customer_documents_customer ON customer_documents(customer_id);
+"""
+
+
+def _has_column(conn: sqlite3.Connection, table: str, col: str) -> bool:
+    return any(r[1] == col for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def ensure_tenant_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(TENANT_SQL)
+    if not _has_column(conn, "audit_log", "user_id"):
+        conn.execute("ALTER TABLE audit_log ADD COLUMN user_id INTEGER")
+    if not _has_column(conn, "audit_log", "ip"):
+        conn.execute("ALTER TABLE audit_log ADD COLUMN ip TEXT")
+    if not _has_column(conn, "projects", "is_public"):
+        conn.execute("ALTER TABLE projects ADD COLUMN is_public INTEGER NOT NULL DEFAULT 1")
+        # Hide leftovers from automated test runs on the public website.
+        conn.execute(
+            """UPDATE projects SET is_public=0
+               WHERE name GLOB '*[0-9][0-9][0-9][0-9][0-9][0-9][0-9]*' OR name LIKE '%test%'"""
+        )
+    from backend.documents.defaults import seed_default_templates, upgrade_default_templates
+    seed_default_templates(conn)
+    upgrade_default_templates(conn)

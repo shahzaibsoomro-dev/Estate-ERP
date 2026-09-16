@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>First-time setup · Estate ERP</title>
+<meta name="theme-color" content="#061a2c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/css/public.css">
+</head>
+<body>
+<div class="auth">
+  <aside class="auth-side">
+    <a class="brand" href="/"><span class="brand-mark" data-icon="building"></span><span><span class="brand-name">Estate ERP</span><br><span class="brand-sub">First-time setup</span></span></a>
+    <h2>Two accounts and you're ready.</h2>
+    <p>This page only appears once — until the first super admin exists — and only works on the computer running the server.</p>
+    <ul class="role-list">
+      <li><span class="ri" data-icon="shield"></span><span><b>1 · Super admin (you)</b><span>Platform console: companies, subscriptions and payments, helping admins who are locked out.</span></span></li>
+      <li><span class="ri" data-icon="dashboard"></span><span><b>2 · Company admin</b><span>Signs in to the ERP with all your existing projects, units, customers and bookings, and creates employees.</span></span></li>
+    </ul>
+    <small>Passwords are stored as scrypt hashes and never shown again.</small>
+  </aside>
+
+  <main class="auth-main">
+    <div class="auth-card setup-card">
+      <a class="brand auth-mobile-brand" href="/"><span class="brand-mark" data-icon="building"></span><span class="brand-name">Estate ERP</span></a>
+
+      <div id="setup-loading" class="hint">Checking…</div>
+
+      <div id="setup-done" hidden>
+        <h1>Setup is complete</h1>
+        <p class="sub">Accounts already exist. Sign in to continue.</p>
+        <a class="btn btn-primary btn-block" href="/login">Go to sign in</a>
+      </div>
+
+      <div id="setup-remote" hidden>
+        <h1>Open this on the server computer</h1>
+        <p class="sub">For security, first-time setup only works on the computer that runs Estate ERP. Open <b>http://localhost:5050/setup</b> there.</p>
+      </div>
+
+      <form id="setup-form" novalidate hidden>
+        <h1>Create your accounts</h1>
+        <p class="sub" id="data-summary"></p>
+        <div class="alert alert-error" id="setup-error" role="alert" hidden></div>
+
+        <fieldset class="setup-step">
+          <legend><span class="step-no">1</span> Super admin — your developer login</legend>
+          <div class="field"><label for="sa-name">Full name</label><input class="input" id="sa-name" autocomplete="name" required></div>
+          <div class="field"><label for="sa-email">Email</label><input class="input" id="sa-email" type="email" autocomplete="username" required></div>
+          <div class="field"><label for="sa-pw">Password</label>
+            <div class="input-wrap"><input class="input" id="sa-pw" type="password" autocomplete="new-password" required>
+              <button type="button" class="input-btn" data-toggle="sa-pw" aria-label="Show password" data-icon="eye"></button></div>
+            <div class="meter"><span data-meter="sa-pw"></span></div>
+            <span class="hint">At least 10 characters with letters and numbers, not containing your email name.</span>
+          </div>
+        </fieldset>
+
+        <fieldset class="setup-step" id="admin-step">
+          <legend><span class="step-no">2</span> Company admin — for your existing data</legend>
+          <div id="existing-admins" class="alert alert-info" hidden></div>
+          <label class="check-row-lg" id="admin-toggle-row"><input type="checkbox" id="admin-on" checked> Create a company admin account now</label>
+          <div id="admin-fields">
+            <div class="field"><label for="co-name">Company name</label><input class="input" id="co-name" autocomplete="organization"></div>
+            <div class="field"><label for="ad-name">Admin full name</label><input class="input" id="ad-name" autocomplete="off"></div>
+            <div class="field"><label for="ad-email">Admin email</label><input class="input" id="ad-email" type="email" autocomplete="off">
+              <span class="hint">Must be different from the super admin email.</span></div>
+            <div class="field"><label for="ad-pw">Admin password</label>
+              <div class="input-wrap"><input class="input" id="ad-pw" type="password" autocomplete="new-password">
+                <button type="button" class="input-btn" data-toggle="ad-pw" aria-label="Show password" data-icon="eye"></button></div>
+              <div class="meter"><span data-meter="ad-pw"></span></div>
+            </div>
+          </div>
+        </fieldset>
+
+        <button class="btn btn-primary btn-block" type="submit" id="setup-btn">Create accounts</button>
+      </form>
+
+      <div id="setup-success" hidden>
+        <h1>You're all set</h1>
+        <p class="sub">Both accounts were created. Sign in with either one:</p>
+        <div class="setup-result" id="setup-result"></div>
+        <a class="btn btn-primary btn-block" href="/login">Go to sign in</a>
+      </div>
+    </div>
+  </main>
+</div>
+<script type="module" src="/static/js/setup.js"></script>
+</body>
+</html>

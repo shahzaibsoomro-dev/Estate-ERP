@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Platform console · Estate ERP</title>
+<meta name="theme-color" content="#061a2c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%237C3AED%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/theme.css">
+<link rel="stylesheet" href="/static/css/console.css">
+</head>
+<body class="console">
+<aside class="sb" id="sidebar" aria-label="Console navigation">
+  <div class="sb-logo">
+    <div class="sb-logo-ico console-ico" data-icon="shield"></div>
+    <div class="sb-logo-text"><div class="sb-logo-name">Platform console</div><div class="sb-logo-sub">Estate ERP · Super admin</div></div>
+    <button type="button" class="sb-collapse" id="sb-close" aria-label="Close menu"></button>
+  </div>
+  <div class="sb-scroll">
+    <div class="sb-group"><div class="sb-group-hd" style="cursor:default"><span>Platform</span></div>
+      <div class="sb-group-inner" id="cn-nav">
+        <a href="#overview" class="ni" data-v="overview"><span class="ni-ico" data-icon="dashboard"></span><span class="ni-txt">Overview</span></a>
+        <a href="#companies" class="ni" data-v="companies"><span class="ni-ico" data-icon="building"></span><span class="ni-txt">Companies</span></a>
+        <a href="#payments" class="ni" data-v="payments"><span class="ni-ico" data-icon="wallet"></span><span class="ni-txt">Subscription payments</span></a>
+        <a href="#plans" class="ni" data-v="plans"><span class="ni-ico" data-icon="payplans"></span><span class="ni-txt">Plans</span></a>
+        <a href="#team" class="ni" data-v="team"><span class="ni-ico" data-icon="users_cog"></span><span class="ni-txt">Platform team</span></a>
+        <a href="#activity" class="ni" data-v="activity"><span class="ni-ico" data-icon="activity"></span><span class="ni-txt">Audit log</span></a>
+        <a href="/docs" class="ni" target="_blank" rel="noopener"><span class="ni-ico" data-icon="file"></span><span class="ni-txt">API docs</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="sb-bot">
+    <div class="ucard-wrap">
+      <button type="button" class="ucard" id="ucard" aria-haspopup="true">
+        <div class="uav" id="u-av">…</div>
+        <div class="ucard-text"><div class="uname" id="u-name"></div><div class="urole">Super admin</div></div>
+      </button>
+      <div class="umenu" id="umenu" hidden>
+        <div class="umenu-who"><b id="um-name"></b><span id="um-email"></span></div>
+        <a href="/account/password">Change password</a>
+        <button type="button" id="btn-logout">Sign out</button>
+      </div>
+    </div>
+  </div>
+</aside>
+<div class="sb-backdrop" id="sb-backdrop"></div>
+
+<div class="main">
+  <div class="topbar">
+    <button type="button" class="tb-icon-btn tb-menu" id="tb-menu" aria-label="Open menu" data-icon="menu"></button>
+    <div class="tb-heading"><div class="tb-crumb" id="tb-crumb">Platform</div><div class="tb-title" id="tb-title">Overview</div></div>
+    <div class="tb-right" style="margin-left:auto">
+      <button type="button" class="btn primary" id="btn-new-company">+ New company</button>
+    </div>
+  </div>
+  <div class="content"><div class="screen active" id="view"><div class="loading"><span class="spinner"></span>Loading…</div></div></div>
+</div>
+
+<div class="modal-bg" id="cn-modal">
+  <div class="modal" id="cn-modal-box">
+    <div class="modal-title"><span id="cn-modal-title"></span><button type="button" class="modal-close" id="cn-modal-x">✕</button></div>
+    <form id="cn-form" novalidate></form>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script type="module" src="/static/js/console.js"></script>
+</body>
+</html>
