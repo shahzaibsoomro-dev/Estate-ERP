@@ -54,8 +54,8 @@ export function unitDetailsHtml(u, displayStatus) {
           ${row('Unit No', u.unit_no)}
           ${row('Project', u.project_name)}
           ${row('Block / Tower', u.block_tower)}
-          ${row('Unit Type', u.type || u.unit_type)}
-          ${row('Residential Type', u.residential_type)}
+          ${row('Type', u.type_label || (String(u.unit_type || u.type).toLowerCase() === 'commercial' ? 'Commercial' : 'Residential'))}
+          ${row('Layout', u.residential_type)}
           ${row('Floor', u.floor != null ? `Floor ${u.floor}` : null)}
           ${row('Area (Ghaz)', u.area_ghaz != null ? u.area_ghaz : null)}
           ${row('Size', u.size_sqft ? `${u.size_sqft} sqft` : null)}
@@ -157,7 +157,8 @@ export function customerDetailsHtml(c) {
         <tbody>${payRows}</tbody>
       </table></div>
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button type="button" class="btn" data-cust-doc="${c.id}">Generate document</button>
       <button type="button" class="btn" data-cust-edit="${c.id}">Edit</button>
       <button type="button" class="btn danger" data-cust-delete="${c.id}">Delete</button>
     </div>`;
@@ -166,14 +167,14 @@ export function customerDetailsHtml(c) {
 export function projectDetailsHtml(p, units = []) {
   const attrs = parseAttrList(p.project_attributes);
   const statusLabel = p.status || '—';
-  const statusClass = statusLabel === 'Completed' ? 'bg-grey' : 'bg-green';
+  const statusClass = p.raw_status === 'completed' ? 'bg-grey' : p.raw_status === 'planning' ? 'bg-blue' : 'bg-green';
 
   const unitPreview = units.length
     ? `<div class="detail-block"><div class="detail-block-lbl">Units in Project (${units.length})</div>
         <div class="tbl-wrap"><table><thead><tr><th>Unit</th><th>Type</th><th>Floor</th><th>Price</th><th>Status</th></tr></thead>
         <tbody>${units.slice(0, 12).map((u) => `
           <tr class="detail-unit-row" data-unit-open="${u.id}" style="cursor:pointer" title="Open unit details">
-            <td class="td-b">${esc(u.unit_no)}</td><td>${esc(u.type || u.unit_type)}</td>
+            <td class="td-b">${esc(u.unit_no)}</td><td>${esc(u.type_label || u.type || u.unit_type)}</td>
           <td>${u.floor ?? '—'}</td><td>${u.price ? fmt(u.price) : '—'}</td>
           <td><span class="badge ${statusBadgeClass(u.raw_status || u.status)}">${esc(u.raw_status || u.status)}</span></td></tr>`).join('')}
         ${units.length > 12 ? `<tr><td colspan="5" style="text-align:center;color:var(--g400);font-size:11px">+ ${units.length - 12} more — use View Units</td></tr>` : ''}
@@ -189,9 +190,10 @@ export function projectDetailsHtml(p, units = []) {
           ${row('City', p.city)}
           ${row('Start Date', p.start_date)}
           ${row('Expected End', p.end_date || p.expected_end_date)}
+          ${row('Type', p.project_type_label || (p.project_type === 'housing_scheme' ? 'Housing scheme' : 'Building'))}
           ${row('Status', `<span class="badge ${statusClass}">${esc(statusLabel)}</span>`, true)}
-          ${row('Floors', p.number_of_floors)}
-          ${row('Planned Units', p.number_of_units)}
+          ${p.project_type === 'housing_scheme' ? '' : row('Floors', p.number_of_floors)}
+          ${row(p.project_type === 'housing_scheme' ? 'Planned plots' : 'Planned Units', p.number_of_units)}
         </div>
         <div>
           ${row('Total Area (Ghaz)', p.total_area_ghaz)}

@@ -30,8 +30,10 @@ def overview(request: Request):
         for b in data["bookings"]:
             b.pop("unit_id", None)
             unit = b.get("unit") or {}
-            b["unit"] = {k: unit.get(k) for k in ("unit_no", "unit_type", "residential_type", "floor_number",
-                                                  "area_ghaz", "block_tower", "bedrooms", "bathrooms")}
+            b["unit"] = {k: unit.get(k) for k in (
+                "unit_no", "unit_type", "type_label", "residential_type", "floor_number",
+                "area_ghaz", "size_sqft", "block_tower", "bedrooms", "bathrooms",
+            )}
         return data
 
 

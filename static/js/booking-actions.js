@@ -3,21 +3,12 @@ import { api, toast } from './api.js';
 import { fmt } from './format.js';
 import { closeModal, openModal } from './modal.js';
 import { askConfirm } from './dialog.js';
+import { customerOptionHtml, customerSearchBlob } from './customer-pick.js';
 
 function todayISO() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-function initials(name) {
-  return String(name || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase() || '?';
 }
 
 let cancelResolver = null;
@@ -176,23 +167,16 @@ function paintXferMenu() {
   const rows = xferCustomers.filter((c) => {
     if (xferExcludeId && c.id === xferExcludeId) return false;
     if (!q) return true;
-    return [c.name, c.cnic, c.phone, c.contact_number, c.father_name, c.nok_name, c.nok_phone, c.nok_cnic]
-      .filter(Boolean).join(' ').toLowerCase().includes(q);
+    return customerSearchBlob(c).includes(q);
   });
   if (!rows.length) {
     menu.innerHTML = '<div class="bk-opt-empty">No match</div>';
     return;
   }
-  menu.innerHTML = rows.map((c) => {
-    const sub = [c.cnic, c.phone || c.contact_number].filter(Boolean).join(' · ');
-    return `<button type="button" class="bk-opt${c.id === xferSelectedId ? ' active' : ''}" data-xfer-id="${c.id}">
-      <span class="bk-av">${esc(initials(c.name))}</span>
-      <span class="bk-opt-text">
-        <span class="bk-opt-title">${esc(c.name)}</span>
-        ${sub ? `<span class="bk-opt-sub">${esc(sub)}</span>` : ''}
-      </span>
-    </button>`;
-  }).join('');
+  menu.innerHTML = rows.map((c) => customerOptionHtml(c, {
+    selected: c.id === xferSelectedId,
+    attr: 'data-xfer-id',
+  })).join('');
 }
 
 function pickXferCustomer(id) {

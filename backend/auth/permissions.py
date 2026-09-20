@@ -95,7 +95,7 @@ _R = [
     ("POST", r"/api/projects/\d+/installment-template/preview", ("payplans", "booking"), "view"),
     # --- units, holds, possession
     ("GET", r"/api/units(/\d+(/holds|/checklist)?)?", ("units", "booking"), "view"),
-    ("POST", r"/api/units", ("units",), "add"),
+    ("POST", r"/api/units(/bulk)?", ("units",), "add"),
     ("PUT", r"/api/units/\d+", ("units",), "edit"),
     ("DELETE", r"/api/units/\d+", ("units",), "delete"),
     ("PUT", r"/api/units/\d+/status", ("units",), "edit"),

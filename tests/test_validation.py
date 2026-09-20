@@ -104,6 +104,92 @@ def test_template_expands_installment_count_from_booking_date(as_role, world):
     assert rows[-1]["trigger_kind"] == "construction"
 
 
+def test_project_create_rules(as_role):
+    admin = as_role("admin")
+    planning = admin.post("/api/projects", json={
+        "name": "Plan Only", "location": "Lahore", "status": "planning",
+        "current_progress": 40, "number_of_floors": 4, "number_of_units": 20})
+    assert planning.status_code == 200, planning.text
+    assert planning.json()["raw_status"] == "planning"
+    assert planning.json()["progress"] == 0
+    assert planning.json()["project_type"] == "building"
+
+    done = admin.post("/api/projects", json={
+        "name": "Finished Block", "location": "Lahore", "status": "completed",
+        "current_progress": 10, "project_type": "building"})
+    assert done.status_code == 200, done.text
+    assert done.json()["progress"] == 100
+
+    building = admin.post("/api/projects", json={
+        "name": "Live Tower", "location": "Lahore", "status": "under_construction",
+        "current_progress": 35, "number_of_floors": 8, "number_of_units": 40})
+    assert building.status_code == 200, building.text
+    assert building.json()["progress"] == 35
+
+    scheme = admin.post("/api/projects", json={
+        "name": "Green Valley", "location": "Multan", "project_type": "housing_scheme",
+        "number_of_floors": 6, "number_of_units": 80})
+    assert scheme.status_code == 200, scheme.text
+    assert scheme.json()["project_type"] == "housing_scheme"
+    assert scheme.json()["number_of_floors"] == 0
+
+    bad_floors = admin.post("/api/projects", json={
+        "name": "Too Many Floors", "location": "Lahore",
+        "number_of_floors": 12, "number_of_units": 8})
+    assert bad_floors.status_code == 400 and "floors" in bad_floors.json()["detail"]
+
+    bad_type = admin.post("/api/projects", json={"name": "Plaza", "location": "X", "project_type": "plaza"})
+    assert bad_type.status_code == 400
+
+
+def test_unit_type_and_bulk_import(as_role, world):
+    admin = as_role("admin")
+    pid = admin.post("/api/projects", json={"name": "Type Check", "location": "Lahore"}).json()["id"]
+    shop = admin.post("/api/units", json={"project_id": pid, "unit_no": "S-01", "unit_type": "Shop"})
+    assert shop.status_code == 200, shop.text
+    assert shop.json()["unit_type"] == "commercial" and shop.json()["type_label"] == "Commercial"
+    house = admin.post("/api/units", json={"project_id": pid, "unit_no": "H-01", "unit_type": "House",
+                                           "residential_type": "2 Bed Lounge"})
+    assert house.status_code == 200
+    assert house.json()["unit_type"] == "residential"
+    bad = admin.post("/api/units", json={"project_id": pid, "unit_no": "X-01", "unit_type": "warehouse-x"})
+    assert bad.status_code == 400
+    bulk = admin.post("/api/units/bulk", json={"project_id": pid, "units": [
+        {"unit_no": "A-201", "unit_type": "residential", "layout": "Studio", "floor_number": 2, "price": "2500000"},
+        {"unit_no": "S-01", "unit_type": "commercial"},
+        {"unit_no": "", "unit_type": "residential"},
+    ]})
+    assert bulk.status_code == 200, bulk.text
+    assert bulk.json()["created"] == 1 and bulk.json()["failed"] == 2
+    listed = admin.get(f"/api/units?project_id={pid}").json()
+    assert {u["unit_no"] for u in listed} >= {"S-01", "H-01", "A-201"}
+
+
+def test_demand_notice_explains_overdue(as_role):
+    admin = as_role("admin")
+    pid = admin.post("/api/projects", json={"name": "Demand Block", "location": "Lahore"}).json()["id"]
+    cid = admin.post("/api/customers", json={"name": "Late Buyer", "cnic": "35202-1111111-1",
+                                             "phone": "03001234567"}).json()["id"]
+    uid = admin.post("/api/units", json={"project_id": pid, "unit_no": "D-01",
+                                         "unit_type": "residential", "base_sale_price": 1_000_000}).json()["id"]
+    booked = admin.post("/api/bookings", json={
+        "customer_id": cid, "unit_id": uid, "project_id": pid,
+        "booking_date": "2026-01-01", "sale_price": 1_000_000, "booking_amount": 100_000,
+        "installments": [{"amount": 900_000, "due_date": "2026-02-01", "type": "Monthly"}],
+    })
+    assert booked.status_code == 200, booked.text
+    notices = admin.get("/api/demand-notices").json()
+    mine = [n for n in notices if n["unit_no"] == "D-01"]
+    assert mine, notices
+    n = mine[0]
+    assert n["why"] and "due" in n["why"].lower()
+    assert n["what"] and "900,000" in n["what"]
+    assert n["when"] and "overdue" in n["when"].lower()
+    rec = admin.get("/api/recovery").json()
+    assert "due_soon" in rec
+    assert any(x["unit_no"] == "D-01" for x in rec["overdue"])
+
+
 def test_duplicate_partner_cnic_and_vendor_ntn_rejected(as_role, world):
     admin = as_role("admin")
     link = {"project_id": world["scoped_project"], "agreed_amount": 1000, "investment_date": "2026-01-01"}

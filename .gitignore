@@ -1,7 +1,6 @@
 # Environment and secrets
 .env
 .env.*
-!.env.example
 
 # Python
 __pycache__/
@@ -18,11 +17,21 @@ venv/
 env/
 ENV/
 
-# Local databases and runtime files
+# Databases. db/haven.db and db/haven.pre-sim.db are committed on purpose (the
+# test suite seeds itself from them); already-tracked files ignore these rules.
+# Everything else — platform.db, per-company databases, journals — stays local.
 *.db
 *.sqlite
 *.sqlite3
-*.log
+# *.db-journal
+# *.db-wal
+# *.db-shm
+# db/tenants/
+
+# # Logs and server runtime
+# *.log
+# server.log
+# .server.pid
 
 # Coverage and build output
 .coverage
@@ -35,6 +44,7 @@ build/
 # IDE settings
 .vscode/
 .idea/
+*.swp
 
 # macOS and Windows metadata
 .DS_Store
@@ -42,6 +52,3 @@ build/
 .LSOverride
 Thumbs.db
 Desktop.ini
-
-# Server runtime
-.server.pid

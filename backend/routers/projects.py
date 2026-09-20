@@ -22,6 +22,7 @@ class ProjectCreate(BaseModel):
     start_date: str | None = None
     expected_end_date: str | None = None
     status: str = "planning"
+    project_type: str = "building"
     current_progress: int = 0
     number_of_floors: int = 0
     number_of_units: int = 0
@@ -39,6 +40,7 @@ class ProjectUpdate(BaseModel):
     start_date: str | None = None
     expected_end_date: str | None = None
     status: str | None = None
+    project_type: str | None = None
     current_progress: int | None = None
     number_of_floors: int | None = None
     number_of_units: int | None = None
@@ -77,13 +79,19 @@ def create_project(body: ProjectCreate, request: Request):
                     check_limit(pconn, sess["company"]["id"], "projects", count)
                 except ValueError as e:
                     raise HTTPException(400, str(e)) from e
-        return svc.create_project(conn, body.model_dump())
+        try:
+            return svc.create_project(conn, body.model_dump())
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
 
 
 @router.put("/{project_id}")
 def update_project(project_id: int, body: ProjectUpdate):
     with get_db() as conn:
-        p = svc.update_project(conn, project_id, body.model_dump(exclude_unset=True))
+        try:
+            p = svc.update_project(conn, project_id, body.model_dump(exclude_unset=True))
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         if not p:
             raise HTTPException(404, "Project not found")
         return p

@@ -383,7 +383,7 @@ def build_world(state):
         n = i + 1
         attrs = ["Road Facing"] + (["Corner"] if n in (1, 8) else [])
         units_spec.append({
-            "key": f"GS-G{n:02d}", "unit_no": f"GS-G{n:02d}", "unit_type": "Shop",
+            "key": f"GS-G{n:02d}", "unit_no": f"GS-G{n:02d}", "unit_type": "commercial",
             "floor_number": 0, "area_ghaz": 45 + n * 4, "bedrooms": None, "bathrooms": 1,
             "residential_type": None, "base_sale_price": shop_prices[i],
             "booking_amount_required": shop_prices[i] // 10,
@@ -414,7 +414,7 @@ def build_world(state):
             rtype = "2 bed lounge" if beds == 2 else "3 bed DD"
             units_spec.append({
                 "key": f"GS-{floor}{slot:02d}", "unit_no": f"GS-{floor}{slot:02d}",
-                "unit_type": "Flat", "floor_number": floor, "area_ghaz": 90 if beds == 2 else 140,
+                "unit_type": "residential", "floor_number": floor, "area_ghaz": 90 if beds == 2 else 140,
                 "bedrooms": beds, "bathrooms": baths, "residential_type": rtype,
                 "base_sale_price": price, "booking_amount_required": price // 10,
                 "furnishing_status": "Semi Furnished" if floor >= 3 else "Builder condition",
@@ -423,7 +423,7 @@ def build_world(state):
             })
     for n, price in ((1, 55000000), (2, 58000000)):
         units_spec.append({
-            "key": f"GS-PH{n}", "unit_no": f"GS-PH{n}", "unit_type": "Flat",
+            "key": f"GS-PH{n}", "unit_no": f"GS-PH{n}", "unit_type": "residential",
             "floor_number": 5, "area_ghaz": 220, "bedrooms": 4, "bathrooms": 4,
             "residential_type": "Penthouse", "base_sale_price": price,
             "booking_amount_required": 8000000,

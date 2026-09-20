@@ -8,46 +8,100 @@ import { customerDetailsHtml, customerStatusBadgeClass } from '../detail.js';
 import { confirmCancelBooking } from '../booking-actions.js';
 import { askConfirm } from '../dialog.js';
 
-export async function loadDemand() {
-  state.demandData = await api(`/api/demand-notices${projectFilterQuery()}`);
-  $('demand-tbody').innerHTML = state.demandData.length
-    ? state.demandData.map((n, idx) => `
-      <tr>
-        <td class="td-b">${esc(n.customer_name)}</td>
-        <td>${esc(n.unit_no)}</td>
-        <td class="td-red">${fmt(n.amount)}</td>
-        <td><span class="badge ${overdueBadge(n.days_overdue)}">${n.days_overdue}d</span></td>
-        <td><button class="btn sm" data-notice-idx="${idx}">Preview</button></td>
-      </tr>`).join('')
-    : '<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:20px">No overdue notices</td></tr>';
-
-  $('demand-tbody').querySelectorAll('[data-notice-idx]').forEach((btn) => {
-    btn.addEventListener('click', () => showNotice(parseInt(btn.dataset.noticeIdx, 10)));
+function demandRows() {
+  const q = ($('demand-q')?.value || '').trim().toLowerCase();
+  return (state.demandData || []).filter((n) => {
+    if (!q) return true;
+    return [n.customer_name, n.unit_no, n.project_name, n.phone, n.cnic, n.type, n.trigger_label, n.reason]
+      .filter(Boolean).join(' ').toLowerCase().includes(q);
   });
 }
 
-function showNotice(idx) {
-  const n = state.demandData[idx];
+export async function loadDemand() {
+  state.demandData = await api(`/api/demand-notices${projectFilterQuery()}`);
+  renderDemandList();
+  if ($('notice-area') && !state.demandData?.length) {
+    $('notice-area').innerHTML = `<div class="demand-empty">No overdue installments — nothing to demand.</div>`;
+  }
+}
+
+function renderDemandList() {
+  const rows = demandRows();
+  const tbody = $('demand-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = rows.length
+    ? rows.map((n) => `
+      <tr class="demand-row${state.demandSelectedId === n.id ? ' active' : ''}" data-notice-id="${n.id}">
+        <td>
+          <div class="td-b">${esc(n.customer_name)}</div>
+          <div class="td-sm">${esc(n.unit_no)} · ${esc(n.project_name || '')}</div>
+        </td>
+        <td>
+          <div>${esc(n.trigger_label || n.type || 'Installment')}</div>
+          <div class="td-sm">${esc(n.when || `${n.days_overdue}d overdue`)}</div>
+        </td>
+        <td class="td-red">${fmt(n.amount)}</td>
+        <td><span class="badge ${overdueBadge(n.days_overdue)}">${n.days_overdue}d</span></td>
+      </tr>`).join('')
+    : `<tr><td colspan="4" style="text-align:center;color:var(--g400);padding:20px">${
+      (state.demandData || []).length ? 'No matching notices' : 'No overdue installments'
+    }</td></tr>`;
+  tbody.querySelectorAll('[data-notice-id]').forEach((row) => {
+    row.addEventListener('click', () => showNotice(parseInt(row.dataset.noticeId, 10)));
+  });
+}
+
+function showNotice(id) {
+  const n = (state.demandData || []).find((x) => x.id === id);
+  if (!n) return;
+  state.demandSelectedId = id;
+  renderDemandList();
+  const instLabel = n.trigger_label || n.type || 'Installment';
   $('notice-area').innerHTML = `
     <div class="notice">
       <div class="notice-lh">
-        <div style="font-size:26px">🏗️</div>
-        <div><div style="font-weight:900;font-size:16px;color:var(--navy)">Haven Builders (Pvt.) Ltd.</div>
-        <div style="font-size:10.5px;color:var(--g400)">Head Office: Main Blvd, Lahore</div></div>
+        <div>
+          <div class="notice-kicker">Demand notice · preview</div>
+          <div style="font-weight:800;font-size:16px;color:var(--navy)">${esc(n.customer_name)}</div>
+          <div class="td-sm">${esc(n.unit_no)} · ${esc(n.project_name || '')}${n.booking_no ? ` · ${esc(n.booking_no)}` : ''}</div>
+        </div>
+        <span class="badge ${overdueBadge(n.days_overdue)}">${n.days_overdue} days overdue</span>
       </div>
-      <div style="font-size:11px;font-weight:700;color:var(--g500);text-align:right;margin-bottom:12px">CNIC: ${esc(n.cnic)}</div>
+      <div class="notice-why">
+        <div><span>Why</span><b>${esc(n.why || instLabel)}</b></div>
+        <div><span>When</span><b>${esc(n.when || n.due_date || '—')}</b></div>
+        <div><span>What</span><b>${esc(n.what || fmt(n.amount))}</b></div>
+      </div>
       <div class="notice-body">
-        <p><strong>To:</strong> ${esc(n.customer_name)} &nbsp;|&nbsp; <strong>Unit:</strong> ${esc(n.unit_no)}, ${esc(n.project_name)}</p><br>
-        <p>Dear ${esc(n.customer_name)},</p><br>
-        <p>This is a formal demand notice for your overdue installment payment.</p><br>
+        <p>Dear ${esc(n.customer_name)},</p>
+        <p>${esc(n.reason || `Your ${instLabel.toLowerCase()} for unit ${n.unit_no} is overdue.`)}</p>
         <table class="notice-table">
-          <tr><td>Amount Due</td><td><strong>${fmt(n.amount)}</strong></td></tr>
-          <tr><td>Days Overdue</td><td><strong style="color:var(--danger)">${n.days_overdue} Days</strong></td></tr>
+          <tr><td>Installment</td><td>${esc(instLabel)}</td></tr>
+          <tr><td>Due date</td><td>${esc(n.due_date || '—')}</td></tr>
+          <tr><td>Original amount</td><td>${fmt(n.original_amount || n.amount)}</td></tr>
+          <tr><td>Received so far</td><td>${fmt(n.paid_amount || 0)}</td></tr>
+          <tr><td>Still unpaid</td><td><strong class="td-red">${fmt(n.amount)}</strong></td></tr>
+          ${n.last_payment ? `<tr><td>Last payment</td><td>${esc(n.last_payment)}</td></tr>` : ''}
+          ${n.notes ? `<tr><td>Notes</td><td>${esc(n.notes)}</td></tr>` : ''}
         </table>
-        <p>Please clear within <strong>7 working days</strong> to avoid legal action.</p>
-        <p style="font-size:11px;color:var(--g400);margin-top:10px">This is an in-app preview. WhatsApp, email and PDF sending are not connected yet. Late fees are not calculated by the system.</p>
+        <p>Please clear this installment within <strong>7 working days</strong> to stay on the agreed payment plan. Late charges, if any, follow the booking terms — they are not calculated here.</p>
+        <p class="td-sm">This is an in-app preview. Issue a formal notice as a document to keep a copy on the booking and in the customer portal. WhatsApp and email sending are not connected yet.</p>
+      </div>
+      <div class="notice-actions">
+        <button type="button" class="btn sm" data-dn-view="${n.customer_id}">View customer</button>
+        <button type="button" class="btn sm primary" data-dn-pay="${n.id}">Record payment</button>
+        <button type="button" class="btn sm" data-dn-doc="${n.id}">Issue as document</button>
       </div>
     </div>`;
+  $('notice-area').querySelector('[data-dn-view]')?.addEventListener('click', () => openCustomerDetail(n.customer_id));
+  $('notice-area').querySelector('[data-dn-pay]')?.addEventListener('click', async () => {
+    const { openPayForInstallment } = await import('./recovery.js');
+    openPayForInstallment(n);
+  });
+  $('notice-area').querySelector('[data-dn-doc]')?.addEventListener('click', async () => {
+    const { openGenerate } = await import('./documents.js');
+    await openGenerate({ customerId: n.customer_id, bookingId: n.booking_id, kind: 'notice' });
+  });
 }
 
 function displayStatus(c) {
@@ -125,6 +179,11 @@ export async function openCustomerDetail(id) {
         openCustomerDetail(id);
       }
     });
+  });
+  $('cd-body').querySelector('[data-cust-doc]')?.addEventListener('click', async () => {
+    const { openGenerate } = await import('./documents.js');
+    const first = (c.bookings || []).find((b) => b.status === 'active');
+    await openGenerate({ customerId: id, bookingId: first?.id || null });
   });
 }
 
@@ -289,6 +348,7 @@ export function filterCustomers() {
 
 export function initCustomerEvents() {
   $('cust-search')?.addEventListener('input', filterCustomers);
+  $('demand-q')?.addEventListener('input', renderDemandList);
   $('btn-add-customer')?.addEventListener('click', openAddCustomer);
   $('btn-save-customer')?.addEventListener('click', submitCustomer);
   ['nc-name', 'nc-cnic', 'nc-father', 'nc-phone', 'nc-emergency', 'nc-email', 'nc-address', 'nc-description']

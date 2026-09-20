@@ -4,7 +4,7 @@ import { fmt, instStatusBadge } from '../format.js';
 import { openModal, closeModal } from '../modal.js';
 import { state } from '../state.js';
 import { loadDashboard } from './dashboard.js';
-import { openUnitFormModal, UNIT_ATTRS } from '../unit-form.js';
+import { openUnitFormModal, UNIT_ATTRS, typeLabel, normalizeUnitType } from '../unit-form.js';
 import { loadProjects } from './projects.js';
 import { unitDetailsHtml, parseAttrList } from '../detail.js';
 import { confirmCancelBooking, confirmPossession, openTransferModal, initTransferEvents, initCancelPossEvents } from '../booking-actions.js';
@@ -61,6 +61,7 @@ export async function loadUnits() {
     const data = await api(`/api/units${unitsApiQuery()}`);
     if (seq !== unitsLoadSeq) return;
     state.allUnits = data;
+    syncFloorFilter(data);
     renderUnits(state.allUnits);
   } catch {
     if (seq !== unitsLoadSeq) return;
@@ -91,13 +92,47 @@ function knownTags() {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+function currentProject() {
+  if (!state.unitsProjectId) return null;
+  return (state.projects || []).find((p) => p.id === state.unitsProjectId) || null;
+}
+
+function projectTypeOf(projectId) {
+  return (state.projects || []).find((p) => p.id === projectId)?.project_type || 'building';
+}
+
+function floorHeading(n, projectType) {
+  if (projectType === 'housing_scheme') return 'Plots';
+  if (n === 0 || n === '0') return 'Ground';
+  return `Floor ${n}`;
+}
+
+function syncFloorFilter(units) {
+  const sel = $('u-floor');
+  if (!sel) return;
+  const prev = sel.value;
+  const scheme = currentProject()?.project_type === 'housing_scheme';
+  sel.hidden = !!scheme;
+  if (scheme) {
+    sel.value = '';
+    return;
+  }
+  const floors = [...new Set((units || []).map((u) => u.floor).filter((f) => f != null && f !== ''))]
+    .sort((a, b) => Number(a) - Number(b));
+  sel.innerHTML = `<option value="">All floors</option>${floors.map((f) =>
+    `<option value="${esc(String(f))}">${Number(f) === 0 ? 'Ground' : `Floor ${f}`}</option>`).join('')}`;
+  sel.value = floors.some((f) => String(f) === prev) ? prev : '';
+}
+
 function applyLocalFilters(units) {
   const floorFilter = $('u-floor')?.value;
   const statusFilter = $('u-status')?.value;
+  const typeFilter = $('u-type')?.value;
   const q = ($('u-search')?.value || '').trim().toLowerCase();
   let filtered = units;
   if (floorFilter) filtered = filtered.filter((u) => String(u.floor) === floorFilter);
   if (statusFilter) filtered = filtered.filter((u) => u.status === statusFilter);
+  if (typeFilter) filtered = filtered.filter((u) => normalizeUnitType(u.unit_type || u.type) === typeFilter);
   if (q) {
     const exactTag = knownTags().find((t) => t.toLowerCase() === q);
     if (exactTag) {
@@ -148,7 +183,7 @@ function paintUnitSearchMenu() {
     units.forEach((u) => {
       parts.push(`<button type="button" class="bk-opt" data-u-no="${esc(u.unit_no)}">
         <span class="bk-opt-text"><span class="bk-opt-title">${esc(u.unit_no)}</span>
-        <span class="bk-opt-sub">${esc([u.project_name, u.type, u.status].filter(Boolean).join(' · '))}</span></span>
+        <span class="bk-opt-sub">${esc([u.project_name, typeLabel(u.unit_type || u.type), u.status].filter(Boolean).join(' · '))}</span></span>
       </button>`);
     });
   }
@@ -177,32 +212,56 @@ function groupByProject(units) {
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function floorCardsHtml(units) {
+function floorCardsHtml(units, projectType) {
+  if (projectType === 'housing_scheme') {
+    const blocks = {};
+    units.forEach((u) => {
+      const key = u.block_tower || 'Plots';
+      (blocks[key] = blocks[key] || []).push(u);
+    });
+    return Object.entries(blocks)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, list]) => `
+        <div class="card">
+          <div class="card-hd"><span class="card-title">${esc(name)} — ${list.length} plot${list.length === 1 ? '' : 's'}</span></div>
+          <div class="card-bd"><div class="unit-grid">
+            ${list.map((u) => unitTileHtml(u)).join('')}
+          </div></div>
+        </div>`).join('');
+  }
   const floors = {};
   units.forEach((u) => {
     (floors[u.floor] = floors[u.floor] || []).push(u);
   });
-
   return Object.entries(floors)
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .map(([fl, flUnits]) => `
       <div class="card">
-        <div class="card-hd"><span class="card-title">Floor ${fl} — ${flUnits.length} Units</span></div>
+        <div class="card-hd"><span class="card-title">${floorHeading(fl, projectType)} — ${flUnits.length} unit${flUnits.length === 1 ? '' : 's'}</span></div>
         <div class="card-bd"><div class="unit-grid">
           ${flUnits.map((u) => unitTileHtml(u)).join('')}
         </div></div>
       </div>`).join('');
 }
 
+function priceShort(n) {
+  if (!n) return '';
+  if (n >= 10000000) return `${(n / 10000000).toFixed(1)} Cr`;
+  if (n >= 100000) return `${Math.round(n / 100000)} Lac`;
+  return fmt(n);
+}
+
 function unitTileHtml(u) {
   const tags = parseAttrList(u.unit_attributes);
-  const tip = [u.unit_no, u.type, u.status, tags.join(', ')].filter(Boolean).join(' · ');
+  const kind = typeLabel(u.unit_type || u.type);
+  const layout = normalizeUnitType(u.unit_type || u.type) === 'residential' ? (u.residential_type || '') : '';
+  const tip = [u.unit_no, kind, layout, u.status, tags.join(', ')].filter(Boolean).join(' · ');
   return `
     <div class="utile ${u.status}" data-unit-id="${u.id}" title="${esc(tip)}">
-      <div class="utile-no">${esc(u.unit_no)}</div>
-      <div class="utile-type">${esc(u.type)}</div>
-      <div style="font-size:9px;opacity:.6;margin-top:1px">${u.size_sqft || '—'} sqft</div>
-      ${tags.length ? `<div style="font-size:8.5px;opacity:.75;margin-top:3px;font-weight:700">${esc(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ''}</div>` : ''}
+      <div class="utile-top"><div class="utile-no">${esc(u.unit_no)}</div><span class="utile-kind">${esc(kind)}</span></div>
+      <div class="utile-type">${esc(layout || kind)}</div>
+      <div class="utile-meta">${u.size_sqft ? `${u.size_sqft} sqft` : '—'}${u.price ? ` · ${esc(priceShort(u.price))}` : ''}</div>
+      ${tags.length ? `<div class="utile-tags">${esc(tags[0])}${tags.length > 1 ? ` +${tags.length - 1}` : ''}</div>` : ''}
     </div>`;
 }
 
@@ -223,13 +282,20 @@ export function renderUnits(units) {
   const multiProject = !state.unitsProjectId && projectGroups.length > 1;
 
   if (multiProject) {
-    $('unit-floors').innerHTML = projectGroups.map((pg) => `
-      <div class="units-project-block">
-        <div class="units-project-hd">${esc(pg.name)} <span style="font-weight:600;color:var(--g400)">· ${pg.units.length} units</span></div>
-        ${floorCardsHtml(pg.units)}
-      </div>`).join('');
+    $('unit-floors').innerHTML = projectGroups.map((pg) => {
+      const ptype = projectTypeOf(pg.id);
+      const avail = pg.units.filter((u) => u.status === 'available').length;
+      return `<div class="units-project-block">
+        <div class="units-project-hd">${esc(pg.name)}
+          <span class="badge ${ptype === 'housing_scheme' ? 'bg-blue' : 'bg-grey'}">${ptype === 'housing_scheme' ? 'Housing scheme' : 'Building'}</span>
+          <span style="font-weight:600;color:var(--g400)">${pg.units.length} units · ${avail} available</span>
+        </div>
+        ${floorCardsHtml(pg.units, ptype)}
+      </div>`;
+    }).join('');
   } else {
-    $('unit-floors').innerHTML = floorCardsHtml(filtered);
+    const ptype = currentProject()?.project_type || projectTypeOf(filtered[0]?.project_id);
+    $('unit-floors').innerHTML = floorCardsHtml(filtered, ptype);
   }
 }
 
@@ -337,6 +403,10 @@ export async function openUnit(uid) {
       }
     });
 
+    $('um-body').querySelector('[data-gen-doc]')?.addEventListener('click', async () => {
+      const { openGenerate } = await import('./documents.js');
+      await openGenerate({ customerId: b.customer_id, bookingId: b.id });
+    });
     $('um-body').querySelector('[data-xfer-bk]')?.addEventListener('click', () => {
       openTransferModal({
         bookingId: b.id,
@@ -405,6 +475,7 @@ function soldUnitHtml(u, b, s, instRows, payRows, displayStatus) {
     <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--navy)">💳 Payment History</div>
     <div class="tbl-wrap"><table><thead><tr><th>Paid Date</th><th>Type</th><th>Amount</th><th>Method</th><th>Receipt</th></tr></thead><tbody>${payRows}</tbody></table></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">
+      <button type="button" class="btn" data-gen-doc>Generate document</button>
       <button type="button" class="btn danger" data-cancel-bk>Cancel booking</button>
       <button type="button" class="btn" data-xfer-bk>Transfer owner</button>
       ${String(displayStatus).includes('possession') || u.status === 'delivered' ? '' : '<button type="button" class="btn primary" data-poss-unit>Mark possession</button>'}
@@ -463,8 +534,9 @@ async function openHoldModal(u) {
   if ($('hold-received-by')) $('hold-received-by').value = 'Admin';
   try {
     const custs = await api('/api/customers');
+    const { customerOptionLabel } = await import('../customer-pick.js');
     $('hold-cust').innerHTML = '<option value="">— none —</option>' + (custs || []).map((c) =>
-      `<option value="${c.id}"${c.id === u.hold_customer_id ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+      `<option value="${c.id}"${c.id === u.hold_customer_id ? ' selected' : ''}>${esc(customerOptionLabel(c))}</option>`).join('');
   } catch {
     $('hold-cust').innerHTML = '<option value="">— none —</option>';
   }
@@ -548,6 +620,121 @@ async function saveHold() {
   } catch { /* toasted */ }
 }
 
+const SAMPLE_CSV = `unit_no,unit_type,layout,floor_number,block_tower,area_ghaz,bedrooms,bathrooms,base_sale_price,booking_amount_required,furnishing_status,tags
+A-101,residential,2 Bed Lounge,1,Tower A,120,2,2,8500000,850000,Builder Condition,Corner;Park Facing
+S-01,commercial,,0,Podium,45,,,3500000,350000,Builder Condition,Road Facing
+`;
+
+function splitCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') { cur += '"'; i += 1; }
+      else quoted = !quoted;
+    } else if (ch === ',' && !quoted) {
+      out.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseCsv(text) {
+  const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return [];
+  const headers = splitCsvLine(lines[0]).map((h) => h.toLowerCase());
+  return lines.slice(1).map((line) => {
+    const cols = splitCsvLine(line);
+    const row = {};
+    headers.forEach((h, i) => { row[h] = cols[i] ?? ''; });
+    return row;
+  });
+}
+
+function downloadSampleCsv() {
+  const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'units-sample.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function openBulkModal() {
+  const sel = $('ub-proj');
+  if (sel) {
+    sel.innerHTML = (state.projects || []).map((p) =>
+      `<option value="${p.id}"${p.id === state.unitsProjectId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  }
+  if ($('ub-file')) $('ub-file').value = '';
+  if ($('ub-preview')) $('ub-preview').textContent = 'Choose a CSV that matches the sample columns.';
+  openModal('unit-bulk-modal');
+}
+
+function previewBulkFile() {
+  const file = $('ub-file')?.files?.[0];
+  if (!file || !$('ub-preview')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const rows = parseCsv(String(reader.result || ''));
+      $('ub-preview').textContent = rows.length
+        ? `${rows.length} unit row${rows.length === 1 ? '' : 's'} ready to upload.`
+        : 'No data rows found. Check the header matches the sample.';
+    } catch {
+      $('ub-preview').textContent = 'Could not read that file.';
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function importBulkUnits() {
+  const projectId = parseInt($('ub-proj')?.value, 10);
+  const file = $('ub-file')?.files?.[0];
+  if (!projectId) { toast('Select a project', 'error'); return; }
+  if (!file) { toast('Choose a CSV file', 'error'); return; }
+  const text = await file.text();
+  const rows = parseCsv(text);
+  if (!rows.length) { toast('No unit rows in that file', 'error'); return; }
+  const mapped = rows.map((r) => ({
+    unit_no: r.unit_no || r.unit,
+    unit_type: r.unit_type || r.type,
+    residential_type: r.layout || r.residential_type,
+    floor_number: r.floor_number || r.floor,
+    block_tower: r.block_tower || r.block,
+    area_ghaz: r.area_ghaz || r.area,
+    bedrooms: r.bedrooms,
+    bathrooms: r.bathrooms,
+    base_sale_price: r.base_sale_price || r.price,
+    booking_amount_required: r.booking_amount_required || r.booking_amount,
+    furnishing_status: r.furnishing_status || r.furnishing,
+    unit_attributes: r.tags || r.unit_attributes,
+    description: r.description,
+  }));
+  const result = await api('/api/units/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ project_id: projectId, units: mapped }),
+  });
+  const failed = result.failed || (result.errors || []).length;
+  toast(failed
+    ? `Created ${result.created} unit(s), ${failed} row(s) failed`
+    : `Created ${result.created} unit(s)`);
+  if (failed && $('ub-preview')) {
+    $('ub-preview').innerHTML = (result.errors || []).slice(0, 8)
+      .map((e) => `Row ${e.row}${e.unit_no ? ` (${esc(e.unit_no)})` : ''}: ${esc(e.error)}`).join('<br>');
+  } else {
+    closeModal('unit-bulk-modal');
+  }
+  state.unitsProjectId = projectId;
+  syncUnitsProjectSelect();
+  await loadUnits();
+  loadProjects();
+}
+
 export function initUnitsFilters() {
   $('unit-floors')?.addEventListener('click', (e) => {
     const tile = e.target.closest('[data-unit-id]');
@@ -588,9 +775,11 @@ export function initUnitsFilters() {
   document.addEventListener('mousedown', (e) => {
     if (!e.target.closest('#u-tag-combo')) hideUnitSearchMenu();
   });
-  $('btn-bulk-units')?.addEventListener('click', () => {
-    toast('Bulk CSV upload — coming soon');
-  });
+  $('u-type')?.addEventListener('change', () => renderUnits(state.allUnits));
+  $('btn-bulk-units')?.addEventListener('click', openBulkModal);
+  $('btn-ub-sample')?.addEventListener('click', downloadSampleCsv);
+  $('ub-file')?.addEventListener('change', previewBulkFile);
+  $('btn-ub-import')?.addEventListener('click', importBulkUnits);
   $('btn-add-unit')?.addEventListener('click', () => {
     const projectId = state.unitsProjectId;
     if (!projectId) {

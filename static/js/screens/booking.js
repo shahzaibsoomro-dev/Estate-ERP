@@ -4,6 +4,7 @@ import { fmt } from '../format.js';
 import { state } from '../state.js';
 import { parseAttrList } from '../detail.js';
 import { askConfirm } from '../dialog.js';
+import { customerOptionHtml, customerSearchBlob } from '../customer-pick.js';
 
 let bookingUnits = [];
 let customerItems = [];
@@ -106,17 +107,9 @@ function paintCustomers() {
     'bk-customer',
     filterItems(customerItems, query),
     'No match',
-    (it) => {
-      const c = it.data || {};
-      const sub = [c.cnic, c.phone || c.contact_number].filter(Boolean).join(' · ');
-      return `<button type="button" class="bk-opt${selectedCustomer?.id === it.id ? ' active' : ''}" data-id="${it.id}">
-      <span class="bk-av">${esc(initials(it.label))}</span>
-      <span class="bk-opt-text">
-        <span class="bk-opt-title">${esc(it.label)}</span>
-        ${sub ? `<span class="bk-opt-sub">${esc(sub)}</span>` : ''}
-      </span>
-    </button>`;
-    },
+    (it) => customerOptionHtml(it.data || { id: it.id, name: it.label }, {
+      selected: selectedCustomer?.id === it.id,
+    }),
   );
 }
 
@@ -196,7 +189,7 @@ async function loadBookingCustomers() {
   customerItems = state.allCustomers.map((c) => ({
     id: c.id,
     label: c.name,
-    search: `${c.name} ${c.cnic || ''} ${c.phone || ''} ${c.contact_number || ''} ${c.nok_name || ''} ${c.nok_phone || ''} ${c.nok_cnic || ''}`,
+    search: customerSearchBlob(c),
     data: c,
   }));
 }
@@ -516,7 +509,7 @@ function updateSelectionDetails() {
           ${dItem('On hold', p.hold != null ? String(p.hold) : null)}
           ${dItem('Sold', p.sold != null ? String(p.sold) : null)}
           ${dItem('Total units', p.total_units != null ? String(p.total_units) : null)}
-          ${dItem('Floors', p.number_of_floors || null)}
+          ${p.project_type === 'housing_scheme' ? '' : dItem('Floors', p.number_of_floors || null)}
           ${dItem('Timeline', (p.start_date || p.end_date) ? `${p.start_date || '—'} → ${p.end_date || '—'}` : null)}
         </div>
       </div>`);
@@ -540,8 +533,8 @@ function updateSelectionDetails() {
           <span class="bk-status ${st === 'hold' ? 'hold' : 'avail'}">${statusLabel(u)}</span>
         </div>
         <div class="bk-dgrid cols-2">
-          ${dItem('Type', u.type || u.unit_type)}
-          ${dItem('Residential', u.residential_type)}
+          ${dItem('Type', u.type_label || u.type || u.unit_type)}
+          ${dItem('Layout', u.residential_type)}
           ${dItem('Floor', u.floor != null || u.floor_number != null ? String(u.floor ?? u.floor_number) : null)}
           ${dItem('Block / Tower', u.block_tower)}
           ${dItem('Area', u.area_ghaz != null ? `${u.area_ghaz} ghaz` : null)}
@@ -801,7 +794,17 @@ export async function submitBooking() {
 
   const r = await api('/api/bookings', { method: 'POST', body: JSON.stringify(payload) });
   toast(`Booking confirmed · ${r.booking_id}`);
+  const custId = selectedCustomer.id;
+  const bookingId = r.booking_id;
   await resetBookingForm();
+  if (await askConfirm('Generate an allotment letter for this booking now?', {
+    title: 'Issue document',
+    confirmLabel: 'Generate letter',
+    cancelLabel: 'Skip',
+  })) {
+    const { openGenerate } = await import('./documents.js');
+    await openGenerate({ customerId: custId, bookingId, kind: 'letter' });
+  }
 }
 
 function moveHighlight(menu, dir) {

@@ -176,7 +176,10 @@ def build_context(conn, customer_id: int, booking_id: int | None) -> dict:
         "next_due.date": _d(nxt["due_date"]) if nxt else "—",
         "next_due.amount": money(nxt["remaining_amount"]) if nxt else "—",
         "unit.no": b["unit_no"],
-        "unit.type": " · ".join(x for x in (u.get("unit_type"), u.get("residential_type")) if x) or "",
+        "unit.type": " · ".join(x for x in (
+            u.get("type_label") or u.get("unit_type"),
+            u.get("residential_type") if (u.get("unit_type") or "").lower() == "residential" else None,
+        ) if x) or "",
         "unit.floor": "" if u.get("floor_number") is None else str(u.get("floor_number")),
         "unit.area": "" if u.get("area_ghaz") is None else f'{u.get("area_ghaz"):g}',
         "unit.block": u.get("block_tower") or "",

@@ -28,4 +28,12 @@ body.console .ni.active .ni-ico{color:#C4B5FD}
 .form-sec{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--g400);margin:6px 0 10px;grid-column:1/-1;border-top:1px solid var(--g100);padding-top:12px}
 .form-sec:first-child{border-top:0;padding-top:0}
 .form-err{background:var(--dangerp);color:#991B1B;border:1px solid #FECACA;border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:12px}
+.plan-preview{background:var(--g50);border:1px solid var(--g200);border-radius:10px;padding:12px 14px;margin:0 0 4px;font-size:13px;color:var(--g600);grid-column:1/-1}
+.plan-preview .pp-name{margin-bottom:2px}
+.plan-preview .pp-desc{color:var(--g500);margin:4px 0 2px}
+.plan-preview .pp-row{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;align-items:baseline}
+.plan-preview .pp-row span{font-size:11.5px;color:var(--g500)}
+.plan-preview .pp-row b{font-size:13.5px}
+.fg-hint.phone-ok{color:#047857}
+.fg-hint.phone-bad{color:#B91C1C}
 @media (max-width:900px){.cn-kpis{grid-template-columns:1fr 1fr}.cn-form-grid{grid-template-columns:1fr}}

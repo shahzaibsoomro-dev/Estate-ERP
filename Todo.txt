@@ -1,0 +1,72 @@
+
+Plan out modules and sub modules in it - PLAN & REDESIGN
+We need to work on Activity Log and make it more detailed
+
+
+General:
+- search and drop downs should be interactive  - DESIGN
+- Better suggestions for Side bar -  DESIGN
+- Understand the flow of statuses of a unit
+- Better UI/UX for paid, to be paid, payable, received, receivable, to be recevied
+
+Company creation:
+- While creating company, phone number should have sort of logics  [done]
+- Plan inputs in company creation (what else we can ask as inputs?)  [done — address, deal notes, live plan limits/price]
+- autofill agreed price per cycle as per plan company took  [done]
+- We have grace days in company account creation, so that they will get notified n number days before we close the subscription
+
+New Project creation
+- construction progress could be from 0-100% auto fill on basis of status, if completed or under Planning  [done]
+- planned floors can't be more than planned units  [done]
+- We shouldn't ask for installment template while creation of project  [done]
+- for future scope, we need project type as well such as housing scheme, building etc  [done — building / housing scheme]
+
+Unit Inventory:
+- all projects shows 10 floors by default in unit inventory page  [done]
+- user can select multiple amenities tags - make a desing better for dropdown and selection -  DESIGN  [done]
+- Unit view and project view can be made Better  -  DESIGN  [done]
+- Add functionality for Bulk upload (download sample file) and read file that was uploaded by user with that format for units  [done]
+
+Sales & CRM module
+- Better customer drop down view  -  DESIGN  [done]
+- Purpose and Redesign of Demand Notices (if payment is due/overdue show details or reasoning which when and why what)  [done]
+- Should documents be under sales module  [done — keep Documents page; generate from booking / unit / customer / recovery / demand]
+- Work on template and documents design and review sharjeel bhai - DESIGN
+- Do we should option for documents where it's needed in the flow?  [done — yes, at booking confirm, unit, customer, recovery, demand]
+- How should recovery screen look like - DESIGN  [done]
+- DESIGN for documents, receipts where necessary
+
+Construction
+- Understand procurement flow more in depth and verify it's status flow
+- in each order add total units such as 2x10kg cement bags = 20 units of cement (will be used in inventory and comparision with BOQ)
+- what if order gets cancelled
+- Ask More details about contractors
+- Materials page -- Inventory page -- BOQ - REDESIGN AND PLAN
+- Details for Entry of Site Management Logs
+
+FINANCE
+- Accounts should be global and project wise Both
+- What's Current balance 
+- Budget should be here? or BOQ? or work structure? or Should we need a planning module
+- Operating Costs Module - Calender View, should there be another page for employees - REDESIGN AND PLAN
+- Reports - Calendar View, Selection of reports  -  DESIGN
+
+STAKEHOLDERS
+- Agents can get commision on basis of pkr ammount, percentage, or they deal i can sell a unit anything above base price and that would be milestone
+- Profit sharing recheck
+- partner can't get monthly returns
+- parties (It's basically a entity/person/master search)  -  REDESIGN AND PLAN
+
+
+What else we can add in dashboard?  - DESIGN & PLAN
+Data Audit and validate on multiple scenarios
+QA 
+Validate reporting data
+
+New module for planning
+Planning  - PLAN & REDESIGN
+ - BOQ
+ - Structure of work
+ - Budget
+
+do we need anyother module?

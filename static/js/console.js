@@ -58,22 +58,36 @@ let submitHandler = null;
 function field(f) {
   const id = `f-${f.name}`;
   const cls = f.full ? 'fg full' : 'fg';
+  const hint = (extra = '') => {
+    if (!f.hint && !f.liveHint && !extra) return '';
+    return `<span class="fg-hint" id="${id}-hint">${extra || esc(f.hint || '')}</span>`;
+  };
   if (f.type === 'section') return `<div class="form-sec">${esc(f.label)}</div>`;
   if (f.type === 'note') return `<p class="fg-hint full" style="margin:0 0 12px">${f.html}</p>`;
+  if (f.type === 'plan-preview') return `<div class="plan-preview full" id="${id}"></div>`;
   if (f.type === 'select') {
-    return `<div class="${cls}"><label for="${id}">${esc(f.label)}</label><select id="${id}" name="${f.name}">${
-      f.options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(f.value ?? '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${f.hint ? `<span class="fg-hint">${esc(f.hint)}</span>` : ''}</div>`;
+    return `<div class="${cls}"><label for="${id}">${esc(f.label)}${f.required ? ' *' : ''}</label><select id="${id}" name="${f.name}">${
+      f.options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(f.value ?? '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${hint()}</div>`;
   }
   if (f.type === 'checkbox') {
     return `<label class="check-row full"><input type="checkbox" id="${id}" name="${f.name}" ${f.value ? 'checked' : ''}> ${esc(f.label)}</label>`;
   }
   if (f.type === 'textarea') {
-    return `<div class="${cls}"><label for="${id}">${esc(f.label)}</label><textarea id="${id}" name="${f.name}" maxlength="${f.max || 1000}">${esc(f.value || '')}</textarea></div>`;
+    return `<div class="${cls}"><label for="${id}">${esc(f.label)}</label><textarea id="${id}" name="${f.name}" maxlength="${f.max || 1000}" placeholder="${esc(f.placeholder || '')}">${esc(f.value || '')}</textarea>${hint()}</div>`;
   }
-  return `<div class="${cls}"><label for="${id}">${esc(f.label)}${f.required ? ' *' : ''}</label><input id="${id}" name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value ?? '')}" ${f.min != null ? `min="${f.min}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} autocomplete="off">${f.hint ? `<span class="fg-hint">${esc(f.hint)}</span>` : ''}</div>`;
+  const attrs = [
+    f.min != null ? `min="${f.min}"` : '',
+    f.max != null && f.type === 'number' ? `max="${f.max}"` : '',
+    f.max != null && f.type !== 'number' ? `maxlength="${f.max}"` : '',
+    f.placeholder ? `placeholder="${esc(f.placeholder)}"` : '',
+    f.type === 'tel' ? 'inputmode="tel"' : '',
+  ].filter(Boolean).join(' ');
+  return `<div class="${cls}"><label for="${id}">${esc(f.label)}${f.required ? ' *' : ''}</label><input id="${id}" name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value ?? '')}" ${attrs} autocomplete="off">${hint()}</div>`;
 }
 
-function openForm({ title, fields, submit, onSubmit, width = 620, danger = false }) {
+const SKIP_FIELDS = new Set(['section', 'note', 'plan-preview']);
+
+function openForm({ title, fields, submit, onSubmit, width = 620, danger = false, onReady }) {
   $('cn-modal-title').textContent = title;
   $('cn-modal-box').style.maxWidth = `${width}px`;
   $('cn-form').innerHTML = `<div class="form-err" id="cn-err" hidden></div><div class="cn-form-grid">${fields.map(field).join('')}</div>
@@ -83,6 +97,7 @@ function openForm({ title, fields, submit, onSubmit, width = 620, danger = false
   submitHandler = async () => {
     const values = {};
     fields.forEach((f) => {
+      if (!f.name || SKIP_FIELDS.has(f.type)) return;
       const el = $(`f-${f.name}`);
       if (!el) return;
       if (f.type === 'checkbox') values[f.name] = el.checked;
@@ -91,6 +106,10 @@ function openForm({ title, fields, submit, onSubmit, width = 620, danger = false
     });
     const missing = fields.filter((f) => f.required && (values[f.name] == null || values[f.name] === ''));
     if (missing.length) { showErr(`Please fill in: ${missing.map((f) => f.label).join(', ')}`); return; }
+    for (const f of fields) {
+      const err = f.validate?.(values[f.name]);
+      if (err) { showErr(err); return; }
+    }
     $('cn-submit').disabled = true;
     try {
       await onSubmit(values);
@@ -101,6 +120,7 @@ function openForm({ title, fields, submit, onSubmit, width = 620, danger = false
     }
   };
   $('cn-modal').classList.add('open');
+  onReady?.(fields);
   setTimeout(() => $('cn-form').querySelector('input,select,textarea')?.focus(), 30);
 }
 
@@ -139,6 +159,126 @@ function setTitle(title, crumb = 'Platform') {
 
 function planOptions(selected) {
   return meta.plans.filter((p) => p.is_active || p.id === selected).map((p) => [p.id, `${p.name} — ${money(p.price_monthly)}/mo`]);
+}
+
+const PK_AREA3 = new Set(['021', '022', '040', '041', '042', '043', '044', '046', '047', '048', '049',
+  '051', '052', '053', '054', '055', '056', '057', '061', '062', '063', '064', '065', '068', '071', '081', '086', '091']);
+
+function normalizePhone(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return { value: null };
+  if (/[A-Za-z]/.test(text)) return { error: 'Phone number cannot contain letters' };
+  let plus = text.startsWith('+') || text.startsWith('00');
+  let d = text.replace(/\D/g, '');
+  if (text.startsWith('00')) { d = d.startsWith('00') ? d.slice(2) : d; plus = true; }
+  const bad = 'Enter a Pakistani mobile (03XX-XXXXXXX), a landline, or an international number starting with +';
+  if (!d || d.length < 10 || d.length > 15) return { error: bad };
+  if (d.startsWith('92') && d.length >= 12) { d = `0${d.slice(2)}`; plus = false; }
+  if (d.length === 10 && d.startsWith('3')) d = `0${d}`;
+  if (d.startsWith('03')) {
+    if (d.length !== 11) return { error: 'Pakistani mobiles are 11 digits, e.g. 0300-1234567' };
+    return { value: `${d.slice(0, 4)}-${d.slice(4)}` };
+  }
+  if (d.startsWith('0') && d.length >= 10 && d.length <= 11) {
+    const n = PK_AREA3.has(d.slice(0, 3)) ? 3 : 4;
+    return { value: `${d.slice(0, n)}-${d.slice(n)}` };
+  }
+  if (plus && d.length >= 10 && d.length <= 15) return { value: `+${d}` };
+  return { error: bad };
+}
+
+function phoneError(v) {
+  return normalizePhone(v).error || null;
+}
+
+function bindPhone(name = 'contact_phone') {
+  const el = $(`f-${name}`);
+  const hint = $(`f-${name}-hint`);
+  if (!el) return;
+  const paint = () => {
+    const raw = el.value.trim();
+    if (!hint) return;
+    if (!raw) {
+      hint.textContent = 'Mobile 03XX-XXXXXXX, landline, or +country code';
+      hint.className = 'fg-hint';
+      return;
+    }
+    const r = normalizePhone(raw);
+    hint.textContent = r.error || `Will be saved as ${r.value}`;
+    hint.className = `fg-hint ${r.error ? 'phone-bad' : 'phone-ok'}`;
+  };
+  el.addEventListener('input', () => {
+    el.value = el.value.replace(/[^\d+\-\s()]/g, '');
+    paint();
+  });
+  el.addEventListener('blur', () => {
+    const r = normalizePhone(el.value);
+    if (r.value) el.value = r.value;
+    paint();
+  });
+  paint();
+}
+
+function planPreviewHtml(plan, cycle, trialDays) {
+  if (!plan) return '<span class="muted">Choose a plan to see limits and list price.</span>';
+  const yearly = cycle === 'yearly';
+  const list = yearly ? plan.price_yearly : plan.price_monthly;
+  const staff = plan.max_employees == null ? 'Unlimited' : plan.max_employees;
+  const projects = plan.max_projects == null ? 'Unlimited' : plan.max_projects;
+  const save = (plan.price_monthly || 0) * 12 - (plan.price_yearly || 0);
+  const trial = Number(trialDays);
+  const trialNote = Number.isFinite(trial)
+    ? (trial > 0 ? ` · ${trial}-day trial` : ' · no trial — billing starts today')
+    : '';
+  return `<div class="pp-name"><b>${esc(plan.name)}</b> · ${money(list)} / ${yearly ? 'year' : 'month'}${trialNote}</div>
+    ${plan.description ? `<div class="pp-desc">${esc(plan.description)}</div>` : ''}
+    <div class="pp-row"><span>Staff</span><b>${staff}</b><span>Projects</span><b>${projects}</b>
+      ${yearly && save > 0 ? `<span>Yearly saving</span><b>${money(save)}</b>` : ''}</div>`;
+}
+
+function bindPlanPrice({ fillNow = false } = {}) {
+  const planEl = $('f-plan_id');
+  const cycleEl = $('f-billing_cycle');
+  const amountEl = $('f-amount');
+  const preview = $('f-plan_preview');
+  const trialEl = $('f-trial_days');
+  if (!planEl) return;
+  const state = () => {
+    const plan = meta.plans.find((p) => p.id === Number(planEl.value));
+    const cycle = cycleEl?.value || 'monthly';
+    return { plan, cycle, list: plan ? (cycle === 'yearly' ? plan.price_yearly : plan.price_monthly) : null };
+  };
+  const render = (overwriteAmount) => {
+    const { plan, cycle, list } = state();
+    if (preview) preview.innerHTML = planPreviewHtml(plan, cycle, trialEl?.value);
+    if (overwriteAmount && amountEl && list != null) amountEl.value = list;
+    const hint = $('f-amount-hint');
+    if (hint && list != null && amountEl) {
+      const cur = amountEl.value === '' ? null : Number(amountEl.value);
+      hint.textContent = cur == null || cur === list
+        ? 'Filled from the selected plan. Change it for a custom deal.'
+        : `Custom price — list is ${money(list)} per ${cycle === 'yearly' ? 'year' : 'month'}.`;
+    }
+  };
+  planEl.addEventListener('change', () => render(true));
+  cycleEl?.addEventListener('change', () => render(true));
+  amountEl?.addEventListener('input', () => render(false));
+  trialEl?.addEventListener('input', () => render(false));
+  render(fillNow);
+}
+
+function bindAdminFromContact() {
+  const src = $('f-contact_name');
+  const dest = $('f-admin_name');
+  if (!src || !dest) return;
+  src.addEventListener('blur', () => {
+    if (!dest.value.trim() && src.value.trim()) dest.value = src.value.trim();
+  });
+}
+
+function emailError(v) {
+  if (!v) return null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : 'Enter a valid email address';
 }
 
 async function viewOverview() {
@@ -194,7 +334,7 @@ async function viewCompanies() {
     const q = $('co-q').value.trim().toLowerCase();
     const f = $('co-f').value;
     const rows = list.filter((c) => (!f || c.subscription.state === f)
-      && (!q || [c.name, c.contact_name, c.contact_email, c.city, c.slug].some((v) => String(v || '').toLowerCase().includes(q))));
+      && (!q || [c.name, c.contact_name, c.contact_email, c.contact_phone, c.city, c.address, c.slug].some((v) => String(v || '').toLowerCase().includes(q))));
     $('co-tbody').innerHTML = rows.length ? rows.map((c) => `<tr>
       <td><a class="td-b" href="#company/${c.id}">${esc(c.name)}</a><div class="cust-sub">${esc([c.contact_name, c.city].filter(Boolean).join(' · ') || c.slug)}</div></td>
       <td>${esc(c.plan_name || '—')}<div class="cust-sub">${c.amount != null ? `${money(c.amount)} / ${c.billing_cycle === 'yearly' ? 'yr' : 'mo'}` : ''}</div></td>
@@ -248,6 +388,7 @@ async function viewCompany(id) {
             <div><span>Contact</span><b>${esc(c.contact_name || '—')}</b></div>
             <div><span>Phone</span><b>${esc(c.contact_phone || '—')}</b></div>
             <div><span>Email</span><b>${esc(c.contact_email || '—')}</b></div>
+            <div><span>Address</span><b>${esc(c.address || '—')}</b></div>
             <div><span>Usage</span><b>${c.counts.projects} projects · ${c.counts.units} units</b></div>
             <div><span>Customers</span><b>${c.counts.customers} (${c.customer_logins} with portal)</b></div>
             <div><span>Active bookings</span><b>${c.counts.bookings}</b></div>
@@ -297,11 +438,14 @@ async function viewCompany(id) {
     fields: [
       { name: 'name', label: 'Company name', value: c.name, required: true, full: true },
       { name: 'contact_name', label: 'Contact person', value: c.contact_name },
-      { name: 'contact_phone', label: 'Phone', value: c.contact_phone },
-      { name: 'contact_email', label: 'Email', value: c.contact_email, type: 'email' },
+      { name: 'contact_phone', label: 'Phone', type: 'tel', value: c.contact_phone, placeholder: '0300-1234567', max: 20, liveHint: true,
+        hint: 'Mobile 03XX-XXXXXXX, landline, or +country code', validate: phoneError },
+      { name: 'contact_email', label: 'Email', value: c.contact_email, type: 'email', validate: emailError },
       { name: 'city', label: 'City', value: c.city },
+      { name: 'address', label: 'Address (letterheads & documents)', value: c.address, type: 'textarea', full: true, max: 300 },
       { name: 'notes', label: 'Internal notes', value: c.notes, type: 'textarea', full: true },
     ],
+    onReady: () => bindPhone(),
     onSubmit: async (v) => { await api(`/api/console/companies/${id}`, { method: 'PATCH', body: v }); closeForm(); toast('Saved'); route(); },
   });
   $('co-status').onclick = () => {
@@ -320,14 +464,18 @@ async function viewCompany(id) {
   $('co-sub-edit').onclick = () => openForm({
     title: 'Change subscription', submit: 'Save changes',
     fields: [
-      { name: 'plan_id', label: 'Plan', type: 'select', options: planOptions(s.plan_id), value: s.plan_id, full: true },
+      { name: 'plan_id', label: 'Plan', type: 'select', options: planOptions(s.plan_id), value: s.plan_id, required: true, full: true },
+      { name: 'plan_preview', type: 'plan-preview' },
       { name: 'billing_cycle', label: 'Billing cycle', type: 'select', options: [['monthly', 'Monthly'], ['yearly', 'Yearly']], value: s.billing_cycle },
-      { name: 'amount', label: 'Agreed price per cycle (PKR)', type: 'number', min: 0, value: s.amount },
+      { name: 'amount', label: 'Agreed price per cycle (PKR)', type: 'number', min: 0, value: s.amount, liveHint: true,
+        hint: 'Filled from the selected plan. Change it for a custom deal.' },
       { name: 'current_period_end', label: 'Current period ends', type: 'date', value: s.current_period_end },
-      { name: 'grace_days', label: 'Grace days after expiry', type: 'number', min: 0, value: s.grace_days },
+      { name: 'grace_days', label: 'Grace days after expiry', type: 'number', min: 0, max: 90, value: s.grace_days,
+        hint: 'Days after the period ends before the workspace becomes read-only' },
       { name: 'is_trial', label: 'This period is a free trial', type: 'checkbox', value: !!s.is_trial },
-      { name: 'notes', label: 'Notes (discounts, agreements)', type: 'textarea', value: s.notes, full: true },
+      { name: 'notes', label: 'Deal notes (discounts, agreements)', type: 'textarea', value: s.notes, full: true },
     ],
+    onReady: () => bindPlanPrice({ fillNow: false }),
     onSubmit: async (v) => {
       v.plan_id = Number(v.plan_id);
       await api(`/api/console/companies/${id}/subscription`, { method: 'PUT', body: v });
@@ -544,20 +692,33 @@ function newCompany() {
       { type: 'section', label: 'Company' },
       { name: 'name', label: 'Company name', required: true },
       { name: 'city', label: 'City' },
+      { name: 'address', label: 'Address (letterheads & documents)', type: 'textarea', full: true, max: 300,
+        placeholder: 'Office / site address printed on receipts and allotment letters' },
       { name: 'contact_name', label: 'Contact person' },
-      { name: 'contact_phone', label: 'Phone' },
-      { name: 'contact_email', label: 'Contact email', type: 'email', full: true },
+      { name: 'contact_email', label: 'Contact email', type: 'email', validate: emailError },
+      { name: 'contact_phone', label: 'Phone', type: 'tel', full: true, placeholder: '0300-1234567', max: 20, liveHint: true,
+        hint: 'Mobile 03XX-XXXXXXX, landline, or +country code', validate: phoneError },
       { type: 'section', label: 'Subscription' },
-      { name: 'plan_id', label: 'Plan', type: 'select', options: planOptions(), value: meta.plans[0]?.id },
+      { name: 'plan_id', label: 'Plan', type: 'select', options: planOptions(), value: meta.plans[0]?.id, required: true, full: true },
+      { name: 'plan_preview', type: 'plan-preview' },
       { name: 'billing_cycle', label: 'Billing cycle', type: 'select', options: [['monthly', 'Monthly'], ['yearly', 'Yearly']], value: 'monthly' },
-      { name: 'amount', label: 'Agreed price per cycle (PKR)', type: 'number', min: 0, hint: 'Leave empty to use the plan price' },
-      { name: 'trial_days', label: 'Free trial (days)', type: 'number', min: 0, value: 14 },
-      { name: 'grace_days', label: 'Grace days after expiry', type: 'number', min: 0, value: 7 },
+      { name: 'amount', label: 'Agreed price per cycle (PKR)', type: 'number', min: 0, liveHint: true,
+        hint: 'Filled from the selected plan. Change it for a custom deal.' },
+      { name: 'trial_days', label: 'Free trial (days)', type: 'number', min: 0, max: 90, value: 14,
+        hint: '0 = start billing immediately' },
+      { name: 'grace_days', label: 'Grace days after expiry', type: 'number', min: 0, max: 90, value: 7,
+        hint: 'Days after the period ends before the workspace becomes read-only' },
+      { name: 'subscription_notes', label: 'Deal notes (discount, custom terms)', type: 'textarea', full: true, max: 1000 },
       { name: 'seed_sample', label: 'Start with sample demo data', type: 'checkbox', value: false },
       { type: 'section', label: 'First admin account' },
       { name: 'admin_name', label: 'Admin full name', required: true },
-      { name: 'admin_email', label: 'Admin email', type: 'email', required: true },
+      { name: 'admin_email', label: 'Admin email', type: 'email', required: true, validate: emailError },
     ],
+    onReady: () => {
+      bindPhone();
+      bindPlanPrice({ fillNow: true });
+      bindAdminFromContact();
+    },
     onSubmit: async (v) => {
       v.plan_id = Number(v.plan_id);
       if (v.trial_days == null) v.trial_days = 0;

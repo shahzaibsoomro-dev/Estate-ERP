@@ -105,7 +105,7 @@ export async function loadDashboard() {
           <div class="av" style="background:${avatarColor(o.customer_name)}">${esc(initials(o.customer_name))}</div>
           <div><div class="td-b">${esc(o.customer_name)}</div><div class="cust-sub">${esc(o.phone || 'No phone')}</div></div>
         </div></td>
-        <td><div class="td-b">${esc(o.unit_no)}</div><div class="cust-sub">${esc(o.project_name)}</div></td>
+        <td><div class="td-b">${esc(o.unit_no)}</div><div class="cust-sub">${esc(o.why || o.project_name)}</div></td>
         <td style="text-align:right"><div class="td-red num">${fmt(o.remaining_amount ?? o.amount)}</div><div class="cust-sub">due ${esc(o.due_date)}</div></td>
         <td><span class="badge ${overdueBadge(o.days_overdue)}">${o.days_overdue} days</span></td>
         <td style="text-align:right">${link
