@@ -74,10 +74,12 @@ def test_scoped_employee_cannot_open_company_wide_pages(as_role, world):
     from backend.database import platform_db
     with platform_db() as conn:
         service.set_employee_access(conn, world["ids"]["employee_scoped"],
-                                    permissions={**preset_permissions("sales"), "accounts": {"view": True}},
+                                    permissions={**preset_permissions("sales"), "reports": {"view": True},
+                                                 "accounts": {"view": True}},
                                     all_projects=False, project_ids=[world["scoped_project"]])
         perms = service.get_permissions(conn, world["ids"]["employee_scoped"])
-        assert "accounts" not in perms  # stripped: cashbook is company-wide
+        assert "reports" not in perms  # stripped: reports are company-wide
+        assert perms["accounts"]["view"]  # accounts can be project-wise
         service.set_employee_access(conn, world["ids"]["employee_scoped"], permissions=preset_permissions("sales"),
                                     all_projects=False, project_ids=[world["scoped_project"]])
 

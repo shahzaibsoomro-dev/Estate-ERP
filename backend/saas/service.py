@@ -254,7 +254,9 @@ def create_company(conn, *, name: str, slug: str | None = None, contact_name: st
                    city: str | None = None, address: str | None = None, notes: str | None = None,
                    plan_id: int, billing_cycle: str = "monthly", amount: int | None = None,
                    trial_days: int = 14, grace_days: int = 7, subscription_notes: str | None = None,
-                   db_path: str | None = None, seed_sample: bool = False) -> dict:
+                   db_path: str | None = None, seed_sample: bool = False,
+                   record_opening_balance: bool = False, opening_cash: int | None = None,
+                   opening_bank: int | None = None, opening_date: str | None = None) -> dict:
     from backend.db.seed import init_db
 
     name = (name or "").strip()
@@ -303,7 +305,31 @@ def create_company(conn, *, name: str, slug: str | None = None, contact_name: st
     )
     audit(conn, "company.create", company_id=cid, target_type="company", target_id=cid,
           details={"name": name, "plan": plan["name"], "trial_days": trial, "amount": price if amount is None else int(amount)})
+    if record_opening_balance:
+        _seed_opening_balance(db_path, opening_cash or 0, opening_bank or 0, opening_date)
     return get_company(conn, cid)
+
+
+def _seed_opening_balance(db_path: str, cash: int, bank: int, opening_date: str | None) -> None:
+    if (cash or 0) <= 0 and (bank or 0) <= 0:
+        return
+    path = resolve_db_path(db_path)
+    tconn = sqlite3.connect(path)
+    tconn.row_factory = sqlite3.Row
+    tconn.execute("PRAGMA foreign_keys = ON")
+    try:
+        from backend.auth.schema import ensure_tenant_schema
+        ensure_tenant_schema(tconn)
+        from backend.services import accounts as acc_svc
+        acc_svc.set_current_balance(tconn, {
+            "cash": int(cash or 0),
+            "bank": int(bank or 0),
+            "as_of": opening_date or date.today().isoformat(),
+            "reason": "Recorded at company onboarding",
+        }, allow_noop=True)
+        tconn.commit()
+    finally:
+        tconn.close()
 
 
 def update_company(conn, company_id: int, data: dict) -> dict:

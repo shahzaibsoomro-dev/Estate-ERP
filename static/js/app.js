@@ -31,9 +31,12 @@ import { loadParties, initPartyEvents } from './screens/parties.js';
 import {
   loadContractors, initContractorEvents,
   loadInventory, initInventoryEvents,
-  loadBudget, initBudgetEvents,
   loadPayPlans, initPayPlanEvents,
 } from './screens/ops-extra.js';
+import { loadPlanning, initPlanningEvents } from './screens/planning.js';
+import { initGanttEvents } from './screens/gantt.js';
+import { loadBoq, initBoqEvents } from './screens/boq.js';
+import { loadBudget, initBudgetEvents } from './screens/budget.js';
 import { loadActivity } from './screens/activity.js';
 
 registerScreen('dashboard', loadDashboard);
@@ -50,6 +53,8 @@ registerScreen('contractors', loadContractors);
 registerScreen('inventory', loadInventory);
 registerScreen('site', loadSite);
 registerScreen('accounts', loadAccounts);
+registerScreen('planning', loadPlanning);
+registerScreen('boq', loadBoq);
 registerScreen('budget', loadBudget);
 registerScreen('payplans', loadPayPlans);
 registerScreen('agents', loadAgents);
@@ -164,6 +169,9 @@ async function init() {
   safe('parties', initPartyEvents);
   safe('contractors', initContractorEvents);
   safe('inventory', initInventoryEvents);
+  safe('planning', initPlanningEvents);
+  safe('gantt', initGanttEvents);
+  safe('boq', initBoqEvents);
   safe('budget', initBudgetEvents);
   safe('payplans', initPayPlanEvents);
   safe('documents', initDocumentEvents);

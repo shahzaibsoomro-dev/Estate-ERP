@@ -8,10 +8,20 @@ router = APIRouter(prefix="/api/contractors", tags=["contractors"])
 
 class ContractorWrite(BaseModel):
     name: str
+    company_name: str | None = None
+    father_name: str | None = None
     cnic: str | None = None
     contact: str | None = None
+    emergency_contact: str | None = None
+    email: str | None = None
+    address: str | None = None
+    city: str | None = None
     ntn: str | None = None
+    pec_no: str | None = None
     specialty: str | None = None
+    bank_name: str | None = None
+    account_title: str | None = None
+    account_no: str | None = None
     description: str | None = None
     status: str | None = "active"
 

@@ -41,3 +41,31 @@ export async function api(path, opts = {}) {
     throw e;
   }
 }
+
+export async function apiUpload(path, form, method = 'POST') {
+  const headers = {};
+  if (session.csrf) headers['X-CSRF-Token'] = session.csrf;
+  try {
+    const r = await fetch(path, { method, body: form, headers, credentials: 'same-origin' });
+    if (!r.ok) {
+      const txt = await r.text();
+      let msg = txt.slice(0, 150);
+      let detail = null;
+      let action = null;
+      try {
+        const j = JSON.parse(txt);
+        detail = j.detail;
+        action = j.action;
+        if (typeof j.detail === 'string') msg = j.detail;
+        else if (Array.isArray(j.detail)) msg = j.detail.map((d) => d.msg).join('; ');
+      } catch { /* plain text */ }
+      if (handleAuthFailure(r.status, detail)) throw new Error('Session ended');
+      throw new Error(friendlyError(r.status, detail, action) || msg);
+    }
+    return await r.json();
+  } catch (e) {
+    if (e.message !== 'Session ended') toast('⚠ ' + e.message, 'error');
+    console.error(e);
+    throw e;
+  }
+}

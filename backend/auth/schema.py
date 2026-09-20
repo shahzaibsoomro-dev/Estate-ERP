@@ -35,6 +35,85 @@ CREATE TABLE IF NOT EXISTS customer_documents (
     FOREIGN KEY (template_id) REFERENCES document_templates(id)
 );
 CREATE INDEX IF NOT EXISTS idx_customer_documents_customer ON customer_documents(customer_id);
+
+CREATE TABLE IF NOT EXISTS site_log_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_log_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    stored_name TEXT NOT NULL,
+    mime TEXT,
+    size INTEGER DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'file',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (site_log_id) REFERENCES site_logs(id)
+);
+CREATE INDEX IF NOT EXISTS idx_site_log_att_log ON site_log_attachments(site_log_id);
+
+CREATE TABLE IF NOT EXISTS project_stages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    name TEXT NOT NULL,
+    weight_bps INTEGER NOT NULL DEFAULT 0,
+    planned_start TEXT,
+    planned_end TEXT,
+    actual_start TEXT,
+    actual_end TEXT,
+    status TEXT DEFAULT 'not_started',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_stages_project ON project_stages(project_id);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    stage_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    name TEXT NOT NULL,
+    planned_start TEXT,
+    planned_end TEXT,
+    weight_bps INTEGER NOT NULL DEFAULT 0,
+    progress_pct INTEGER NOT NULL DEFAULT 0,
+    depends_on_task_id INTEGER,
+    lag_days INTEGER DEFAULT 0,
+    workers_skilled INTEGER DEFAULT 0,
+    workers_unskilled INTEGER DEFAULT 0,
+    skilled_rate INTEGER DEFAULT 0,
+    unskilled_rate INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'not_started',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (stage_id) REFERENCES project_stages(id),
+    FOREIGN KEY (depends_on_task_id) REFERENCES project_tasks(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_stage ON project_tasks(stage_id);
+
+CREATE TABLE IF NOT EXISTS project_boq_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    stage_id INTEGER,
+    task_id INTEGER,
+    item_id INTEGER,
+    category_id INTEGER,
+    name TEXT NOT NULL,
+    unit TEXT DEFAULT 'pcs',
+    qty REAL NOT NULL DEFAULT 0,
+    wastage_pct REAL DEFAULT 0,
+    rate INTEGER NOT NULL DEFAULT 0,
+    revision_no INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (stage_id) REFERENCES project_stages(id),
+    FOREIGN KEY (task_id) REFERENCES project_tasks(id),
+    FOREIGN KEY (category_id) REFERENCES budget_categories(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_boq_project ON project_boq_lines(project_id);
 """
 
 
@@ -70,6 +149,77 @@ def ensure_tenant_schema(conn: sqlite3.Connection) -> None:
            WHERE unit_type IS NULL OR lower(unit_type) NOT IN ('residential','commercial')"""
     )
     conn.execute("UPDATE units SET residential_type=NULL WHERE lower(unit_type)='commercial'")
+    _ensure_cols(conn)
     from backend.documents.defaults import seed_default_templates, upgrade_default_templates
     seed_default_templates(conn)
     upgrade_default_templates(conn)
+
+
+def _ensure_cols(conn: sqlite3.Connection) -> None:
+    cols = {
+        "purchase_orders": [
+            ("pack_qty", "REAL"),
+            ("pack_size", "REAL DEFAULT 1"),
+            ("pack_unit", "TEXT"),
+            ("total_units", "REAL"),
+            ("cancel_fee_pct", "REAL"),
+            ("cancel_fee_amount", "INTEGER DEFAULT 0"),
+            ("cancel_refund_amount", "INTEGER DEFAULT 0"),
+            ("cancelled_at", "TEXT"),
+            ("cancel_reason", "TEXT"),
+        ],
+        "agents": [
+            ("commission_mode", "TEXT DEFAULT 'percent'"),
+            ("default_flat_amount", "INTEGER DEFAULT 0"),
+            ("over_base_pct", "REAL DEFAULT 100"),
+        ],
+        "agent_commissions": [
+            ("mode", "TEXT DEFAULT 'percent'"),
+            ("flat_amount", "INTEGER DEFAULT 0"),
+            ("base_price", "INTEGER"),
+            ("surplus", "INTEGER"),
+        ],
+        "partner_distributions": [
+            ("occasion", "TEXT"),
+        ],
+        "investor_distributions": [
+            ("occasion", "TEXT"),
+        ],
+        "contractors": [
+            ("company_name", "TEXT"),
+            ("father_name", "TEXT"),
+            ("email", "TEXT"),
+            ("address", "TEXT"),
+            ("city", "TEXT"),
+            ("pec_no", "TEXT"),
+            ("bank_name", "TEXT"),
+            ("account_title", "TEXT"),
+            ("account_no", "TEXT"),
+            ("emergency_contact", "TEXT"),
+        ],
+        "site_logs": [
+            ("reporter", "TEXT"),
+            ("time_from", "TEXT"),
+            ("time_to", "TEXT"),
+            ("hours_worked", "REAL"),
+            ("extra_expenses", "INTEGER DEFAULT 0"),
+            ("expense_notes", "TEXT"),
+            ("notes", "TEXT"),
+            ("workforce_notes", "TEXT"),
+            ("materials_json", "TEXT"),
+        ],
+        "ledger_entries": [
+            ("kind", "TEXT DEFAULT 'manual'"),
+        ],
+        "projects": [
+            ("progress_mode", "TEXT DEFAULT 'auto'"),
+        ],
+        "project_budget_lines": [
+            ("source", "TEXT DEFAULT 'manual'"),
+            ("stage_id", "INTEGER"),
+        ],
+    }
+    for table, pairs in cols.items():
+        for col, spec in pairs:
+            if not _has_column(conn, table, col):
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {spec}")

@@ -20,21 +20,23 @@ function parBadge(p) {
   return ['bg-green', 'Active'];
 }
 
-function catchUpLabel(p) {
-  const policy = p.catch_up_policy || 'lump_sum';
-  if (policy === 'spread') return `Spread ${p.catch_up_months || '?'} mo`;
-  if (policy === 'none') return 'None';
-  return 'Lump sum';
+function basisLabel(b) {
+  if (b === 'monthly') b = 'project';
+  return ({
+    project: 'After completion',
+    milestone: 'On milestone',
+    quarterly: 'Quarterly',
+    occasional: 'Other occasions',
+  })[b] || b || 'After completion';
 }
 
-function syncPartnerFormVisibility() {
-  const type = $('np-type')?.value || 'Profit Sharing';
-  const catchUp = $('np-catch-up')?.value || 'lump_sum';
-  if ($('np-catch-up-months-row')) {
-    $('np-catch-up-months-row').style.display = catchUp === 'spread' ? '' : 'none';
-  }
-  const basisFg = $('np-profit-basis')?.closest('.fg');
-  if (basisFg) basisFg.style.display = type === 'Profit Sharing' ? '' : 'none';
+function occasionLabel(o) {
+  return ({
+    completion: 'Project completion',
+    milestone: 'Milestone',
+    quarterly: 'Quarterly share',
+    other: 'Other occasion',
+  })[o] || o || '—';
 }
 
 export async function loadPartners() {
@@ -67,23 +69,21 @@ function renderPartners() {
         const [cls, label] = parBadge(p);
         const inn = p.investment_amount || 0;
         const out = p.total_return_received || 0;
-        const due = p.return_due ?? Math.max((p.accrued_return || 0) - out, 0);
         const sub = [p.email, p.description].filter(Boolean).join(' · ');
-        const rtype = p.partner_type || p.investor_type || '—';
+        const share = p.profit_share_pct != null ? `${p.profit_share_pct}%` : '—';
+        const when = basisLabel(p.profit_share_basis);
         return `
       <tr>
         <td class="td-b">${esc(p.name)}${sub ? `<div style="font-size:11px;color:var(--g400);font-weight:400;max-width:220px;white-space:normal">${esc(sub)}</div>` : ''}</td>
         <td>${esc(p.cnic || '—')}</td>
         <td>${esc(p.mobile_number || p.contact || '—')}</td>
-        <td>${esc(rtype)}</td>
+        <td>${esc(share)}</td>
+        <td>${esc(when)}</td>
         <td>${esc(p.project_name || 'Company')}</td>
         <td>${fmt(p.agreed_amount || 0)}</td>
-        <td>${esc(p.investment_date || '—')}</td>
         <td>${esc(p.returns_start_date || '—')}</td>
-        <td>${esc(catchUpLabel(p))}</td>
         <td class="td-green">${fmt(inn)}</td>
         <td>${fmt(out)}</td>
-        <td>${fmt(due)}</td>
         <td><span class="badge ${cls}">${esc(label)}</span></td>
         <td style="white-space:nowrap">
           <button type="button" class="btn sm" data-par-view="${p.id}">View</button>
@@ -92,7 +92,7 @@ function renderPartners() {
         </td>
       </tr>`;
       }).join('')
-    : '<tr><td colspan="14" style="text-align:center;color:var(--g400);padding:20px">No partners found</td></tr>';
+    : '<tr><td colspan="12" style="text-align:center;color:var(--g400);padding:20px">No partners found</td></tr>';
 
   tbody.querySelectorAll('[data-par-view]').forEach((b) => {
     b.addEventListener('click', () => openPartnerDetail(parseInt(b.dataset.parView, 10)));
@@ -126,34 +126,29 @@ export async function openPartnerDetail(id) {
     : '<tr><td colspan="3" style="text-align:center;color:var(--g400)">No contributions</td></tr>';
   const outRows = dists.length
     ? dists.map((c) => `
-        <tr><td>${esc(c.distribution_date)}</td><td>${fmt(c.amount)}</td><td>${esc(c.notes || '—')}</td></tr>`).join('')
-    : '<tr><td colspan="3" style="text-align:center;color:var(--g400)">No distributions</td></tr>';
-  const rtype = p.partner_type || p.investor_type || '—';
-  const basis = rtype === 'Profit Sharing' ? (p.profit_share_basis || 'project') : '—';
+        <tr><td>${esc(c.distribution_date)}</td><td>${fmt(c.amount)}</td><td>${esc(occasionLabel(c.occasion))}</td><td>${esc(c.notes || '—')}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--g400)">No distributions</td></tr>';
+  const basis = basisLabel(p.profit_share_basis);
   $('pd-body').innerHTML = `
     <div class="g2" style="margin-bottom:14px">
       <div>
         <div class="sum-row"><span class="sum-lbl">Mobile</span><span class="sum-val">${esc(p.mobile_number || p.contact || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">CNIC</span><span class="sum-val">${esc(p.cnic || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Email</span><span class="sum-val">${esc(p.email || '—')}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Type</span><span class="sum-val">${esc(rtype)}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Profit basis</span><span class="sum-val">${esc(basis)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Deal</span><span class="sum-val">Profit sharing${p.profit_share_pct != null ? ` · ${p.profit_share_pct}%` : ''}</span></div>
+        <div class="sum-row"><span class="sum-lbl">When paid</span><span class="sum-val">${esc(basis)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(p.project_name || 'Company')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${cls}">${esc(label)}</span></span></div>
       </div>
       <div>
         <div class="sum-row"><span class="sum-lbl">Agreed amount</span><span class="sum-val">${fmt(p.agreed_amount || 0)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Investment date</span><span class="sum-val">${esc(p.investment_date || '—')}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Returns start</span><span class="sum-val">${esc(p.returns_start_date || '—')}${p.returns_active ? ' · active' : ' · deferred'}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Catch-up</span><span class="sum-val">${esc(catchUpLabel(p))}${p.catch_up_total ? ` · ${fmt(p.catch_up_total)}` : ''}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Silent months</span><span class="sum-val">${p.silent_months ?? '—'}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Monthly return</span><span class="sum-val">${p.monthly_return_pct != null ? `${p.monthly_return_pct}%` : '—'}${p.monthly_return_amount ? ` (${fmt(p.monthly_return_amount)})` : ''}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Profit share</span><span class="sum-val">${p.profit_share_pct != null ? `${p.profit_share_pct}%` : '—'}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Received (cash)</span><span class="sum-val">${fmt(p.investment_amount)}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Payouts from</span><span class="sum-val">${esc(p.returns_start_date || '—')}${p.returns_active ? '' : ' · locked'}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Contributed</span><span class="sum-val">${fmt(p.investment_amount)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Distributed</span><span class="sum-val">${fmt(p.total_return_received)}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Accrued / due</span><span class="sum-val">${fmt(p.accrued_return || 0)} / ${fmt(p.return_due || 0)}</span></div>
       </div>
     </div>
+    <div class="detail-block" style="margin-bottom:14px"><div class="detail-block-lbl">Payouts</div><div class="detail-block-txt">${esc(p.payout_note || 'Partners are paid after completion or on recorded occasions — not a monthly return.')}</div></div>
     <div class="detail-block" style="margin-bottom:14px"><div class="detail-block-lbl">Description</div><div class="detail-block-txt">${esc(p.description || '—')}</div></div>
     <div class="detail-section-title">Contributions</div>
     <div class="tbl-wrap" style="margin-bottom:14px"><table>
@@ -162,13 +157,13 @@ export async function openPartnerDetail(id) {
     </table></div>
     <div class="detail-section-title">Distributions</div>
     <div class="tbl-wrap" style="margin-bottom:14px"><table>
-      <thead><tr><th>Date</th><th>Amount</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Date</th><th>Amount</th><th>Occasion</th><th>Notes</th></tr></thead>
       <tbody>${outRows}</tbody>
     </table></div>
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button type="button" class="btn" data-par-edit="${p.id}">Edit</button>
       <button type="button" class="btn primary" data-par-in="${p.id}">Record in</button>
-      <button type="button" class="btn" data-par-out="${p.id}" ${p.returns_active ? '' : 'title="Returns start date not reached yet"'}>Pay out</button>
+      <button type="button" class="btn" data-par-out="${p.id}" ${p.returns_active ? '' : 'title="Payouts start date not reached yet"'}>Pay out</button>
     </div>`;
   $('pd-body').querySelector('[data-par-edit]')?.addEventListener('click', () => openPartnerForm(p.id));
   $('pd-body').querySelector('[data-par-in]')?.addEventListener('click', () => openPartnerMoney(p, 'in'));
@@ -176,18 +171,15 @@ export async function openPartnerDetail(id) {
 }
 
 function resetPartnerForm() {
-  ['np-id', 'np-name', 'np-contact', 'np-cnic', 'np-email', 'np-description', 'np-agreed', 'np-monthly', 'np-profit', 'np-catch-up-months'].forEach((id) => {
+  ['par-id', 'par-name', 'par-contact', 'par-cnic', 'par-email', 'par-description', 'par-agreed', 'par-profit'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
-  if ($('np-status')) $('np-status').value = 'active';
-  if ($('np-type')) $('np-type').value = 'Profit Sharing';
-  if ($('np-proj')) $('np-proj').value = '';
-  if ($('np-date')) $('np-date').value = todayISO();
-  if ($('np-returns-start')) $('np-returns-start').value = todayISO();
-  if ($('np-catch-up')) $('np-catch-up').value = 'lump_sum';
-  if ($('np-profit-basis')) $('np-profit-basis').value = 'project';
+  if ($('par-status')) $('par-status').value = 'active';
+  if ($('par-proj')) $('par-proj').value = '';
+  if ($('par-date')) $('par-date').value = todayISO();
+  if ($('par-payout-from')) $('par-payout-from').value = todayISO();
+  if ($('par-profit-basis')) $('par-profit-basis').value = 'project';
   if ($('par-modal-title')) $('par-modal-title').textContent = 'Add Partner';
-  syncPartnerFormVisibility();
 }
 
 export async function openPartnerForm(id = null) {
@@ -198,50 +190,43 @@ export async function openPartnerForm(id = null) {
   $('par-modal-title').textContent = 'Edit Partner';
   try {
     const p = await api(`/api/partners/${id}`);
-    $('np-id').value = String(p.id);
-    $('np-name').value = p.name || '';
-    $('np-contact').value = p.mobile_number || p.contact || '';
-    $('np-cnic').value = p.cnic || '';
-    $('np-email').value = p.email || '';
-    $('np-description').value = p.description || '';
+    $('par-id').value = String(p.id);
+    $('par-name').value = p.name || '';
+    $('par-contact').value = p.mobile_number || p.contact || '';
+    $('par-cnic').value = p.cnic || '';
+    $('par-email').value = p.email || '';
+    $('par-description').value = p.description || '';
     const st = (p.status || 'active').toLowerCase();
-    $('np-status').value = st === 'completed' ? 'completed' : (st === 'withdrawn' || st === 'inactive' ? 'withdrawn' : 'active');
-    const rtype = p.partner_type || p.investor_type;
-    if ($('np-type')) $('np-type').value = rtype === 'Monthly Return' ? 'Monthly Return' : 'Profit Sharing';
-    if ($('np-proj')) $('np-proj').value = p.project_id ? String(p.project_id) : '';
-    if ($('np-agreed')) $('np-agreed').value = p.agreed_amount ? String(p.agreed_amount) : '';
-    if ($('np-date')) $('np-date').value = p.investment_date || todayISO();
-    if ($('np-returns-start')) $('np-returns-start').value = p.returns_start_date || p.investment_date || todayISO();
-    if ($('np-catch-up')) $('np-catch-up').value = p.catch_up_policy || 'lump_sum';
-    if ($('np-catch-up-months')) $('np-catch-up-months').value = p.catch_up_months != null ? String(p.catch_up_months) : '';
-    if ($('np-monthly')) $('np-monthly').value = p.monthly_return_pct != null ? String(p.monthly_return_pct) : '';
-    if ($('np-profit')) $('np-profit').value = p.profit_share_pct != null ? String(p.profit_share_pct) : '';
-    if ($('np-profit-basis')) $('np-profit-basis').value = p.profit_share_basis || 'project';
-    syncPartnerFormVisibility();
+    $('par-status').value = st === 'completed' ? 'completed' : (st === 'withdrawn' || st === 'inactive' ? 'withdrawn' : 'active');
+    if ($('par-proj')) $('par-proj').value = p.project_id ? String(p.project_id) : '';
+    if ($('par-agreed')) $('par-agreed').value = p.agreed_amount ? String(p.agreed_amount) : '';
+    if ($('par-date')) $('par-date').value = p.investment_date || todayISO();
+    if ($('par-payout-from')) $('par-payout-from').value = p.returns_start_date || p.investment_date || todayISO();
+    if ($('par-profit')) $('par-profit').value = p.profit_share_pct != null ? String(p.profit_share_pct) : '';
+    const basis = p.profit_share_basis === 'monthly' ? 'project' : (p.profit_share_basis || 'project');
+    if ($('par-profit-basis')) $('par-profit-basis').value = ['project', 'milestone', 'quarterly', 'occasional'].includes(basis) ? basis : 'project';
   } catch {
     closeModal('par-modal');
   }
 }
 
 async function submitPartner() {
-  const catchUp = $('np-catch-up')?.value || 'lump_sum';
   const payload = {
-    name: $('np-name').value.trim(),
-    mobile_number: $('np-contact').value.trim(),
-    cnic: $('np-cnic').value.trim(),
-    email: $('np-email').value.trim(),
-    description: $('np-description').value.trim(),
-    status: $('np-status').value,
-    partner_type: $('np-type')?.value || 'Profit Sharing',
-    project_id: parseInt($('np-proj')?.value, 10) || null,
-    agreed_amount: parseInt($('np-agreed')?.value, 10) || 0,
-    investment_date: $('np-date')?.value || todayISO(),
-    returns_start_date: $('np-returns-start')?.value || $('np-date')?.value || todayISO(),
-    catch_up_policy: catchUp,
-    catch_up_months: catchUp === 'spread' ? (parseInt($('np-catch-up-months')?.value, 10) || null) : null,
-    monthly_return_pct: $('np-monthly')?.value === '' ? null : parseFloat($('np-monthly').value),
-    profit_share_pct: $('np-profit')?.value === '' ? null : parseFloat($('np-profit').value),
-    profit_share_basis: $('np-type')?.value === 'Profit Sharing' ? ($('np-profit-basis')?.value || 'project') : null,
+    name: $('par-name').value.trim(),
+    mobile_number: $('par-contact').value.trim(),
+    cnic: $('par-cnic').value.trim(),
+    email: $('par-email').value.trim(),
+    description: $('par-description').value.trim(),
+    status: $('par-status').value,
+    partner_type: 'Profit Sharing',
+    project_id: parseInt($('par-proj')?.value, 10) || null,
+    agreed_amount: parseInt($('par-agreed')?.value, 10) || 0,
+    investment_date: $('par-date')?.value || todayISO(),
+    returns_start_date: $('par-payout-from')?.value || $('par-date')?.value || todayISO(),
+    catch_up_policy: 'none',
+    monthly_return_pct: null,
+    profit_share_pct: $('par-profit')?.value === '' ? null : parseFloat($('par-profit').value),
+    profit_share_basis: $('par-profit-basis')?.value || 'project',
   };
   if (!payload.name) {
     toast('Partner name is required', 'error');
@@ -251,11 +236,7 @@ async function submitPartner() {
     toast('Select a project for this partner', 'error');
     return;
   }
-  if (catchUp === 'spread' && (!payload.catch_up_months || payload.catch_up_months < 1)) {
-    toast('Enter catch-up months (N)', 'error');
-    return;
-  }
-  const id = parseInt($('np-id').value, 10);
+  const id = parseInt($('par-id').value, 10);
   try {
     if (id) {
       await api(`/api/partners/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
@@ -290,9 +271,14 @@ function openPartnerMoney(p, kind) {
   $('pmoney-date').value = todayISO();
   $('pmoney-notes').value = '';
   $('pmoney-title').textContent = kind === 'in' ? 'Record contribution' : 'Pay distribution';
+  if ($('pmoney-occasion-fg')) $('pmoney-occasion-fg').hidden = kind !== 'out';
+  const basis = p.profit_share_basis || 'project';
+  if ($('pmoney-occasion')) {
+    $('pmoney-occasion').value = ({ project: 'completion', milestone: 'milestone', quarterly: 'quarterly', occasional: 'other' }[basis] || 'completion');
+  }
   const start = p.returns_start_date || '—';
   const lockNote = kind === 'out'
-    ? `<div class="sum-row"><span class="sum-lbl">Returns start</span><span class="sum-val">${esc(start)}${p.returns_active ? '' : ' · locked'}</span></div>
+    ? `<div class="sum-row"><span class="sum-lbl">Payouts from</span><span class="sum-val">${esc(start)}${p.returns_active ? '' : ' · locked'}</span></div>
        ${p.returns_active ? '' : `<div style="font-size:11px;color:var(--danger);margin-top:6px">Cannot pay before ${esc(start)}</div>`}`
     : '';
   if (kind === 'out' && p.returns_start_date && $('pmoney-date')) {
@@ -306,7 +292,7 @@ function openPartnerMoney(p, kind) {
     <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(p.project_name || '—')}</span></div>
     <div class="sum-row"><span class="sum-lbl">Contributed</span><span class="sum-val">${fmt(p.investment_amount)}</span></div>
     <div class="sum-row"><span class="sum-lbl">Distributed</span><span class="sum-val">${fmt(p.total_return_received)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Return due</span><span class="sum-val">${fmt(p.return_due || 0)}</span></div>
+    ${kind === 'out' ? `<div class="sum-row"><span class="sum-lbl">When paid</span><span class="sum-val">${esc(basisLabel(p.profit_share_basis))}</span></div>` : ''}
     ${lockNote}`;
   closeModal('par-detail-modal');
   openModal('pmoney-modal');
@@ -327,7 +313,7 @@ async function submitPartnerMoney() {
   const path = kind === 'in' ? `/api/partners/${id}/contribute` : `/api/partners/${id}/distribute`;
   const body = kind === 'in'
     ? { amount, contribution_date: $('pmoney-date').value || todayISO(), notes: $('pmoney-notes').value.trim() || null }
-    : { amount, distribution_date: $('pmoney-date').value || todayISO(), notes: $('pmoney-notes').value.trim() || null };
+    : { amount, distribution_date: $('pmoney-date').value || todayISO(), notes: $('pmoney-notes').value.trim() || null, occasion: $('pmoney-occasion')?.value || 'other' };
   try {
     await api(path, { method: 'POST', body: JSON.stringify(body) });
     closeModal('pmoney-modal');
@@ -341,6 +327,4 @@ export function initPartnerEvents() {
   $('btn-add-partner')?.addEventListener('click', () => openPartnerForm());
   $('btn-save-partner')?.addEventListener('click', submitPartner);
   $('btn-save-pmoney')?.addEventListener('click', submitPartnerMoney);
-  $('np-type')?.addEventListener('change', syncPartnerFormVisibility);
-  $('np-catch-up')?.addEventListener('change', syncPartnerFormVisibility);
 }

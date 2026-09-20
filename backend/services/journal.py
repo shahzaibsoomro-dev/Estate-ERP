@@ -24,6 +24,7 @@ ACCOUNTS = {
     "2500": ("Investor funds", "liability", "Funding"),
     "3000": ("Partner capital", "equity", "Capital"),
     "3100": ("Partner drawings", "equity", "Capital"),
+    "3200": ("Opening balances", "equity", "Capital"),
     "4000": ("Property sales", "income", "Sales"),
     "4090": ("Sales cancellations", "income", "Sales"),
     "4100": ("Transfer fee income", "income", "Other income"),
@@ -45,6 +46,8 @@ CASH_ACCOUNTS = ("1010", "1020")
 SOURCE_LABEL = {
     "payment": "Customer collections", "hold_in": "Hold tokens", "hold_refund": "Hold token refunds",
     "transfer": "Transfer fees", "cancel_refund": "Cancellation refunds", "vendor_payment": "Vendor payments",
+    "po_cancel_fee": "PO cancellation fees", "po_cancel_refund": "PO cancellation refunds",
+    "opening": "Opening balances", "balance_adjust": "Balance adjustments",
     "contractor_payment": "Contractor payments", "commission_payment": "Agent commissions",
     "agent_bonus": "Agent bonuses", "investor_in": "Investor funding", "investor_out": "Investor returns",
     "partner_in": "Partner capital", "partner_out": "Partner drawings", "manual": "Cashbook entries",
@@ -148,13 +151,28 @@ def build(conn, project_ids: list[int] | None = None, end: str | None = None) ->
            po["project_id"], po["vendor"], [("5000", po["total"], 0), ("2000", 0, po["total"])])
         if len(E) > e_start:
             E[-1]["category"] = po["category"]
+    for po in _safe(conn, """SELECT po.id, po.po_no, COALESCE(po.cancelled_at, po.order_date) AS cancelled_at,
+                                    COALESCE(po.cancel_fee_amount,0) AS fee, po.project_id, v.name AS vendor
+                             FROM purchase_orders po JOIN vendors v ON v.id=po.vendor_id
+                             WHERE po.status='cancelled' AND COALESCE(po.cancel_fee_amount,0) > 0"""):
+        _e(E, po["cancelled_at"], "po_cancel_fee", po["po_no"],
+           f"PO cancel fee · {po['po_no']} · {po['vendor']}", po["project_id"], po["vendor"],
+           [("5800", po["fee"], 0), ("2000", 0, po["fee"])])
     for vp in fetch_all(conn, """SELECT vp.id, vp.amount, vp.payment_date, vp.payment_method, vp.reference_number,
                                         v.name AS vendor, po.po_no, po.project_id
                                  FROM vendor_payments vp JOIN vendors v ON v.id=vp.vendor_id
                                  LEFT JOIN purchase_orders po ON po.id=vp.purchase_order_id"""):
-        _e(E, vp["payment_date"], "vendor_payment", vp["reference_number"] or vp["po_no"],
-           f"Paid vendor · {vp['vendor']} · {vp['po_no'] or ''}", vp["project_id"], vp["vendor"],
-           [("2000", vp["amount"], 0), (cash_account(vp["payment_method"]), 0, vp["amount"])])
+        cash = cash_account(vp["payment_method"])
+        amt = int(vp["amount"] or 0)
+        if amt < 0:
+            amt = -amt
+            _e(E, vp["payment_date"], "po_cancel_refund", vp["reference_number"] or vp["po_no"],
+               f"PO cancel refund · {vp['vendor']} · {vp['po_no'] or ''}", vp["project_id"], vp["vendor"],
+               [(cash, amt, 0), ("2000", 0, amt)])
+        elif amt > 0:
+            _e(E, vp["payment_date"], "vendor_payment", vp["reference_number"] or vp["po_no"],
+               f"Paid vendor · {vp['vendor']} · {vp['po_no'] or ''}", vp["project_id"], vp["vendor"],
+               [("2000", amt, 0), (cash, 0, amt)])
 
     for cp in _safe(conn, """SELECT cp.id, cp.amount, cp.payment_date, cp.payment_method, cp.reference_number,
                                     cp.project_id, c.name AS contractor
@@ -194,17 +212,29 @@ def build(conn, project_ids: list[int] | None = None, end: str | None = None) ->
 
     cols = {r[1] for r in conn.execute("PRAGMA table_info(ledger_entries)")}
     extra = ", payment_method, project_id" if {"payment_method", "project_id"} <= cols else ", NULL AS payment_method, NULL AS project_id"
+    extra += ", kind" if "kind" in cols else ", 'manual' AS kind"
     for m in fetch_all(conn, f"SELECT id, entry_date, narration, amount, direction, category{extra} FROM ledger_entries"):
         amt = m["amount"] or 0
         cash = cash_account(m["payment_method"])
-        if m["direction"] == "in":
+        kind = (m.get("kind") or "manual").lower()
+        cat = (m.get("category") or "").lower()
+        is_open = kind in ("opening", "adjust") or cat.startswith("opening") or cat.startswith("balance adjustment")
+        if is_open:
+            if m["direction"] == "in":
+                lines = [(cash, amt, 0), ("3200", 0, amt)]
+            else:
+                lines = [("3200", amt, 0), (cash, 0, amt)]
+            src = "opening" if kind == "opening" or cat.startswith("opening") else "balance_adjust"
+        elif m["direction"] == "in":
             lines = [(cash, amt, 0), ("4300", 0, amt)]
+            src = "manual"
         else:
             lines = [("5900", amt, 0), (cash, 0, amt)]
+            src = "manual"
         before = len(E)
-        _e(E, m["entry_date"], "manual", f"CB-{m['id']}", m["narration"], m["project_id"], None, lines)
+        _e(E, m["entry_date"], src, f"CB-{m['id']}", m["narration"], m["project_id"], None, lines)
         if len(E) > before:
-            E[-1]["category"] = m["category"] or ("Other income" if m["direction"] == "in" else "Other expenses")
+            E[-1]["category"] = m["category"] or ("Opening balances" if is_open else ("Other income" if m["direction"] == "in" else "Other expenses"))
 
     if project_ids is not None:
         allowed = set(project_ids)

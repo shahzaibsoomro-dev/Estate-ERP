@@ -22,7 +22,7 @@ export async function refreshProjectSelects() {
   if ($('sl-proj')) $('sl-proj').innerHTML = `<option value="">Select…</option>${opts}`;
   if ($('site-f-proj')) $('site-f-proj').innerHTML = `<option value="">All (top filter)</option>${opts}`;
   if ($('ni-proj')) $('ni-proj').innerHTML = `<option value="">Company (no project)</option>${opts}`;
-  if ($('np-proj')) $('np-proj').innerHTML = `<option value="">Select project…</option>${opts}`;
+  if ($('par-proj')) $('par-proj').innerHTML = `<option value="">Select project…</option>${opts}`;
 }
 
 export async function loadProjects() {
@@ -59,8 +59,9 @@ export async function loadProjects() {
         <button type="button" class="btn sm" data-proj-detail="${p.id}">Details</button>
         <button type="button" class="btn sm" data-proj-edit="${p.id}">Edit</button>
         <button type="button" class="btn sm" data-proj-units="${p.id}">View Units</button>
+        <button type="button" class="btn sm" data-screen="planning">Plan</button>
         <button type="button" class="btn sm" data-screen="site">Site Logs</button>
-        <button type="button" class="btn sm" data-screen="accounts">Financials</button>
+        <button type="button" class="btn sm" data-screen="budget">Budget</button>
         <button type="button" class="btn sm danger" data-delete-project="${p.id}">Delete</button>
       </div>
     </div></div>`).join('');
@@ -207,6 +208,7 @@ function resetProjectForm() {
     'np-area-ghaz', 'np-cost', 'np-progress', 'np-tmpl-name'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
+  if ($('np-progress')) $('np-progress').dataset.planned = '';
   if ($('np-type')) $('np-type').value = 'building';
   if ($('np-status')) $('np-status').value = 'under_construction';
   if ($('np-tmpl-enable')) $('np-tmpl-enable').value = '0';
@@ -226,10 +228,12 @@ function syncProjectFormUi() {
   if ($('np-units-lbl')) $('np-units-lbl').textContent = scheme ? 'Planned plots' : 'Planned Units';
   const prog = $('np-progress');
   const hint = $('np-progress-hint');
-  const locked = status === 'planning' || status === 'completed';
+  const planned = prog?.dataset.planned;
+  const locked = status === 'planning' || status === 'completed' || !!planned;
   if (prog) {
     if (status === 'planning') prog.value = '0';
     if (status === 'completed') prog.value = '100';
+    else if (planned) prog.value = planned;
     prog.readOnly = locked;
   }
   if (hint) {
@@ -237,7 +241,9 @@ function syncProjectFormUi() {
       ? 'Planning is always 0%'
       : status === 'completed'
         ? 'Completed is always 100%'
-        : 'Enter the current construction percentage';
+        : planned
+          ? 'Managed by the Structure of Work — turn on the owner override there to type it by hand'
+          : 'Enter the current construction percentage';
   }
 }
 
@@ -360,6 +366,16 @@ function fillProjectForm(p) {
   $('np-status').value = p.raw_status || 'under_construction';
   $('np-status').dataset.prev = p.raw_status || '';
   $('np-progress').value = p.current_progress ?? p.progress ?? '';
+  $('np-progress').dataset.planned = '';
+  if ((p.progress_mode || 'auto') === 'auto') {
+    api(`/api/planning/overview?project_id=${p.id}`)
+      .then((plan) => {
+        if (!plan.stages.length) return;
+        $('np-progress').dataset.planned = String(plan.computed_progress);
+        syncProjectFormUi();
+      })
+      .catch(() => { /* planning not visible to this user */ });
+  }
   $('np-floors').value = p.number_of_floors ?? '';
   $('np-units').value = p.number_of_units ?? '';
   $('np-area-ghaz').value = p.total_area_ghaz ?? '';

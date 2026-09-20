@@ -325,8 +325,7 @@ function filteredPOs() {
 
 function poNextAction(p) {
   if (p.status === 'cancelled') return '';
-  const cancel = (p.status === 'draft' || p.status === 'approved')
-    ? `<button type="button" class="btn sm danger" data-cancel-po="${p.id}">Cancel</button>` : '';
+  const cancel = `<button type="button" class="btn sm danger" data-cancel-po="${p.id}">Cancel</button>`;
   if (p.status === 'draft') {
     return `<button type="button" class="btn sm primary" data-approve-po="${p.id}">Approve</button> ${cancel}`;
   }
@@ -334,7 +333,7 @@ function poNextAction(p) {
     return `<button type="button" class="btn sm" data-grn-po="${p.id}">GRN</button> ${cancel}`;
   }
   if (p.status === 'payment_pending') {
-    return `<button type="button" class="btn sm primary" data-pay-po="${p.id}">Pay</button>`;
+    return `<button type="button" class="btn sm primary" data-pay-po="${p.id}">Pay</button> ${cancel}`;
   }
   return cancel;
 }
@@ -350,7 +349,7 @@ function renderPOs() {
         <td>${esc(p.order_date || '—')}</td>
         <td class="td-b">${esc(p.vendor_name)}</td>
         <td>${esc(p.material)}</td>
-        <td>${esc(p.quantity || p.qty || '—')}</td>
+        <td>${esc(p.qty_label || p.quantity || p.qty || '—')}</td>
         <td>${fmt(p.total)}</td>
         <td>${esc(p.project_name || '—')}</td>
         <td><span class="badge ${p.grn_status === 'done' ? 'bg-green' : p.grn_status === 'na' ? 'bg-grey' : 'bg-yellow'}">${esc(grnLabel(p.grn_status))}</span></td>
@@ -378,25 +377,120 @@ function renderPOs() {
     });
   });
   tbody.querySelectorAll('[data-cancel-po]').forEach((b) => {
-    b.addEventListener('click', () => setPOStatus(parseInt(b.dataset.cancelPo, 10), 'cancelled', 'Cancel this purchase order?'));
+    b.addEventListener('click', () => openCancelPO(parseInt(b.dataset.cancelPo, 10)));
   });
 }
 
 async function setPOStatus(id, status, msg) {
-  const danger = status === 'cancelled';
-  const title = status === 'cancelled' ? 'Cancel PO' : status === 'grn' ? 'Record GRN' : 'Approve PO';
-  const confirmLabel = status === 'cancelled' ? 'Cancel PO' : status === 'grn' ? 'Record GRN' : 'Approve';
-  if (!await askConfirm(msg, { title, confirmLabel, danger })) return;
+  const title = status === 'grn' ? 'Record GRN' : 'Approve PO';
+  const confirmLabel = status === 'grn' ? 'Record GRN' : 'Approve';
+  if (!await askConfirm(msg, { title, confirmLabel })) return;
   try {
     await api(`/api/purchase-orders/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
     });
     closeModal('po-detail-modal');
-    toast(status === 'grn' ? 'GRN recorded' : status === 'cancelled' ? 'PO cancelled' : 'PO approved');
+    toast(status === 'grn' ? 'GRN recorded' : 'PO approved');
     await loadProcurement();
     await loadVendors();
   } catch { /* toasted */ }
+}
+
+function poCancelMath() {
+  const paid = parseInt($('po-cancel-pct')?.dataset.paid || '0', 10) || 0;
+  const pct = parseFloat($('po-cancel-pct')?.value);
+  const feePct = Number.isFinite(pct) ? pct : 0;
+  const fee = Math.round(paid * feePct / 100);
+  const refund = Math.max(paid - fee, 0);
+  if ($('po-cancel-math')) {
+    $('po-cancel-math').innerHTML = paid
+      ? `<div class="sum-row"><span class="sum-lbl">Vendor keeps</span><span class="sum-val">${fmt(fee)}</span></div>
+         <div class="sum-row"><span class="sum-lbl">Refund to us</span><span class="sum-val">${fmt(refund)}</span></div>`
+      : 'Nothing has been paid on this PO — it will cancel with no fee.';
+  }
+}
+
+async function openCancelPO(id) {
+  let preview;
+  try {
+    preview = await api(`/api/purchase-orders/${id}/cancel-preview`);
+  } catch { return; }
+  if (!preview.needs_confirm) {
+    if (!await askConfirm('Cancel this purchase order? Nothing has been paid yet.', {
+      title: 'Cancel PO', confirmLabel: 'Cancel PO', danger: true,
+    })) return;
+    try {
+      await api(`/api/purchase-orders/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      closeModal('po-detail-modal');
+      toast('PO cancelled');
+      await loadProcurement();
+      await loadVendors();
+    } catch { /* toasted */ }
+    return;
+  }
+  $('po-cancel-id').value = String(id);
+  $('po-cancel-reason').value = '';
+  $('po-cancel-pct').value = String(preview.default_fee_pct ?? 30);
+  $('po-cancel-pct').dataset.paid = String(preview.paid || 0);
+  $('po-cancel-summary').innerHTML = `
+    <div class="bk-dname">${esc(preview.po_no || `PO ${id}`)}</div>
+    <div class="sum-row"><span class="sum-lbl">Paid so far</span><span class="sum-val">${fmt(preview.paid || 0)}</span></div>
+    ${preview.grn_done ? '<div style="font-size:11px;color:var(--g400);margin-top:8px">GRN stock will be reversed if it is still on hand.</div>' : ''}`;
+  poCancelMath();
+  openModal('po-cancel-modal');
+}
+
+async function confirmCancelPO() {
+  const id = parseInt($('po-cancel-id').value, 10);
+  const pct = parseFloat($('po-cancel-pct').value);
+  if (!id || !Number.isFinite(pct) || pct < 0 || pct > 100) {
+    toast('Enter a cancellation fee between 0 and 100%.', 'error');
+    return;
+  }
+  try {
+    await api(`/api/purchase-orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        status: 'cancelled',
+        cancel_fee_pct: pct,
+        cancel_reason: ($('po-cancel-reason').value || '').trim() || null,
+      }),
+    });
+    closeModal('po-cancel-modal');
+    closeModal('po-detail-modal');
+    toast('PO cancelled');
+    await loadProcurement();
+    await loadVendors();
+  } catch { /* toasted */ }
+}
+
+function calcPOTotal() {
+  const unit = parseFloat($('npo-unit')?.value);
+  const packs = parseFloat($('npo-qty')?.value);
+  const sizeRaw = parseFloat($('npo-pack-size')?.value);
+  const size = Number.isFinite(sizeRaw) && sizeRaw > 0 ? sizeRaw : 1;
+  const uom = ($('npo-pack-unit')?.value || 'kg').trim();
+  if (Number.isFinite(unit) && Number.isFinite(packs) && $('npo-total')) {
+    $('npo-total').value = String(Math.round(unit * packs));
+  }
+  const preview = $('npo-units-preview');
+  if (preview) {
+    if (Number.isFinite(packs) && packs > 0) {
+      const totalUnits = packs * size;
+      const perUnit = Number.isFinite(unit) && totalUnits
+        ? ` · ${fmt(Math.round((unit * packs) / totalUnits))} per ${esc(uom)}`
+        : '';
+      preview.textContent = size !== 1
+        ? `${packs} × ${size} ${uom} = ${totalUnits} ${uom}${perUnit}`
+        : `${packs} ${uom}${perUnit}`;
+    } else {
+      preview.textContent = 'Enter packs and size to see total units (e.g. 2 × 10 kg = 20 kg).';
+    }
+  }
 }
 
 export async function openPODetail(id) {
@@ -417,7 +511,8 @@ export async function openPODetail(id) {
         <div class="sum-row"><span class="sum-lbl">Vendor</span><span class="sum-val">${esc(p.vendor_name)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(p.project_name)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Material</span><span class="sum-val">${esc(p.material)}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Quantity</span><span class="sum-val">${esc(p.quantity || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Quantity</span><span class="sum-val">${esc(p.qty_label || p.quantity || '—')}</span></div>
+        ${p.total_units ? `<div class="sum-row"><span class="sum-lbl">Total units</span><span class="sum-val">${esc(String(p.total_units))} ${esc(p.pack_unit || '')}</span></div>` : ''}
         <div class="sum-row"><span class="sum-lbl">Site</span><span class="sum-val">${esc(p.site || '—')}</span></div>
       </div>
       <div>
@@ -425,6 +520,8 @@ export async function openPODetail(id) {
         <div class="sum-row"><span class="sum-lbl">Total</span><span class="sum-val">${fmt(p.total)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(p.paid || 0)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Remaining</span><span class="sum-val">${fmt(p.remaining || 0)}</span></div>
+        ${p.status === 'cancelled' && p.cancel_fee_amount ? `<div class="sum-row"><span class="sum-lbl">Cancel fee</span><span class="sum-val">${fmt(p.cancel_fee_amount)} (${esc(String(p.cancel_fee_pct || ''))}%)</span></div>` : ''}
+        ${p.status === 'cancelled' && p.cancel_refund_amount ? `<div class="sum-row"><span class="sum-lbl">Refunded</span><span class="sum-val">${fmt(p.cancel_refund_amount)}</span></div>` : ''}
         <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${poStatusBadge(p.status)}">${esc(p.status)}</span></span></div>
       </div>
     </div>
@@ -433,7 +530,7 @@ export async function openPODetail(id) {
       ${p.status === 'draft' ? `<button type="button" class="btn primary" data-approve-po="${p.id}">Approve</button>` : ''}
       ${p.status === 'approved' ? `<button type="button" class="btn" data-grn-po="${p.id}">GRN</button>` : ''}
       ${p.status === 'payment_pending' ? `<button type="button" class="btn primary" data-pay-po="${p.id}">Pay</button>` : ''}
-      ${p.status === 'draft' || p.status === 'approved' ? `<button type="button" class="btn danger" data-cancel-po="${p.id}">Cancel</button>` : ''}
+      ${p.status !== 'cancelled' ? `<button type="button" class="btn danger" data-cancel-po="${p.id}">Cancel</button>` : ''}
     </div>`;
   $('pod-body').querySelector('[data-approve-po]')?.addEventListener('click', () => {
     setPOStatus(p.id, 'approved', 'Approve this PO?');
@@ -443,24 +540,18 @@ export async function openPODetail(id) {
   });
   $('pod-body').querySelector('[data-pay-po]')?.addEventListener('click', () => openVendorPay({ po: p }));
   $('pod-body').querySelector('[data-cancel-po]')?.addEventListener('click', () => {
-    setPOStatus(p.id, 'cancelled', 'Cancel this purchase order?');
+    openCancelPO(p.id);
   });
-}
-
-function calcPOTotal() {
-  const unit = parseFloat($('npo-unit')?.value);
-  const qtyRaw = ($('npo-qty')?.value || '').trim();
-  const qtyN = parseFloat(qtyRaw);
-  if (Number.isFinite(unit) && Number.isFinite(qtyN) && $('npo-total')) {
-    $('npo-total').value = String(Math.round(unit * qtyN));
-  }
 }
 
 async function openNewPO(prefillVendorId) {
   openModal('po-modal');
-  ['npo-material', 'npo-qty', 'npo-unit', 'npo-total', 'npo-site', 'npo-notes', 'npo-pocat'].forEach((id) => {
+  ['npo-material', 'npo-qty', 'npo-pack-size', 'npo-unit', 'npo-total', 'npo-site', 'npo-notes', 'npo-pocat'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
+  if ($('npo-pack-unit')) $('npo-pack-unit').value = 'kg';
+  if ($('npo-pack-size')) $('npo-pack-size').value = '1';
+  calcPOTotal();
   if ($('npo-date')) $('npo-date').value = todayISO();
   if ($('npo-edd')) $('npo-edd').value = '';
   try {
@@ -498,6 +589,9 @@ async function submitPO() {
         project_id: projectId,
         material,
         qty: $('npo-qty').value.trim() || null,
+        pack_qty: parseFloat($('npo-qty').value) || null,
+        pack_size: parseFloat($('npo-pack-size')?.value) || 1,
+        pack_unit: ($('npo-pack-unit')?.value || '').trim() || null,
         unit_cost: parseInt($('npo-unit').value, 10) || null,
         total,
         site: $('npo-site').value.trim() || null,
@@ -524,5 +618,9 @@ export function initOperationsEvents() {
   $('btn-new-po')?.addEventListener('click', () => openNewPO());
   $('btn-save-po')?.addEventListener('click', submitPO);
   $('npo-qty')?.addEventListener('input', calcPOTotal);
+  $('npo-pack-size')?.addEventListener('input', calcPOTotal);
+  $('npo-pack-unit')?.addEventListener('change', calcPOTotal);
   $('npo-unit')?.addEventListener('input', calcPOTotal);
+  $('po-cancel-pct')?.addEventListener('input', poCancelMath);
+  $('btn-confirm-cancel-po')?.addEventListener('click', confirmCancelPO);
 }

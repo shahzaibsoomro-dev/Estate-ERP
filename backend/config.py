@@ -9,7 +9,7 @@ SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "db", "schema.sql")
 SCHEMA_VERSION = 2
 
 DEFAULT_SETTINGS = {
-    "cancellation_forfeit_pct": "30",
+    "po_cancel_fee_pct": "30",
     "late_fee_pct": "1",
     "default_agent_commission_pct": "2",
     "receipt_prefix": "RCP",

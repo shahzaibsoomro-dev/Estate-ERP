@@ -52,7 +52,7 @@ function renderAgents() {
         <td class="td-b">${esc(ag.name)}</td>
         <td>${esc(ag.category || '—')}</td>
         <td>${esc(ag.contact || '—')}</td>
-        <td>${ag.rate ?? ag.default_rate_pct ?? 0}%</td>
+        <td>${esc(ag.commission_label || `${ag.rate ?? ag.default_rate_pct ?? 0}%`)}</td>
         <td>${ag.bookings_count || 0}</td>
         <td>${fmt(ag.commission_earned)}</td>
         <td class="td-green">${fmt(ag.commission_paid)}</td>
@@ -114,7 +114,7 @@ export async function openAgentDetail(id) {
           <td class="td-mono">${esc(c.booking_no)}</td>
           <td>${esc(c.customer_name || '—')}</td>
           <td>${esc(c.unit_no || '—')}</td>
-          <td>${c.rate_pct}%</td>
+          <td>${esc(c.mode === 'flat' ? 'Fixed PKR' : c.mode === 'over_base' ? 'Above base' : `${c.rate_pct}%`)}</td>
           <td>${fmt(c.commission_amount)}</td>
           <td>${fmt(c.paid_amount)}</td>
           <td><span class="badge ${c.status === 'paid' ? 'bg-green' : c.status === 'reversed' ? 'bg-grey' : c.status === 'partial' ? 'bg-yellow' : 'bg-red'}">${esc(c.status)}</span></td>
@@ -145,7 +145,7 @@ export async function openAgentDetail(id) {
         <div class="sum-row"><span class="sum-lbl">Master ID</span><span class="sum-val td-mono">${esc(ag.master_id || `AGT-${ag.id}`)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Contact</span><span class="sum-val">${esc(ag.contact || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Category</span><span class="sum-val">${esc(ag.category || '—')}</span></div>
-        <div class="sum-row"><span class="sum-lbl">Rate</span><span class="sum-val">${ag.rate ?? ag.default_rate_pct ?? 0}%</span></div>
+        <div class="sum-row"><span class="sum-lbl">Deal</span><span class="sum-val">${esc(ag.commission_label || `${ag.rate ?? ag.default_rate_pct ?? 0}%`)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Status</span><span class="sum-val"><span class="badge ${cls}">${esc(label)}</span></span></div>
       </div>
       <div>
@@ -159,7 +159,7 @@ export async function openAgentDetail(id) {
     <div class="detail-block" style="margin-bottom:14px"><div class="detail-block-lbl">Description</div><div class="detail-block-txt">${esc(ag.description || '—')}</div></div>
     <div class="detail-section-title">Commissions</div>
     <div class="tbl-wrap" style="margin-bottom:14px"><table>
-      <thead><tr><th>Booking</th><th>Customer</th><th>Unit</th><th>Rate</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
+      <thead><tr><th>Booking</th><th>Customer</th><th>Unit</th><th>Deal</th><th>Amount</th><th>Paid</th><th>Status</th></tr></thead>
       <tbody>${commRows}</tbody>
     </table></div>
     <div class="detail-section-title">Commission payments</div>
@@ -182,15 +182,26 @@ export async function openAgentDetail(id) {
   $('ad-body').querySelector('[data-ag-bonus]')?.addEventListener('click', () => openAgentBonus(ag));
 }
 
+function syncAgentDealFields() {
+  const mode = $('na-mode')?.value || 'percent';
+  if ($('na-rate-row')) $('na-rate-row').style.display = mode === 'percent' ? '' : 'none';
+  if ($('na-flat-row')) $('na-flat-row').style.display = mode === 'flat' ? '' : 'none';
+  if ($('na-over-row')) $('na-over-row').style.display = mode === 'over_base' ? '' : 'none';
+}
+
 function resetAgentForm() {
   ['na-id', 'na-name', 'na-contact', 'na-category', 'na-description'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
+  if ($('na-mode')) $('na-mode').value = 'percent';
   if ($('na-rate')) $('na-rate').value = '2';
+  if ($('na-flat')) $('na-flat').value = '';
+  if ($('na-over')) $('na-over').value = '100';
   if ($('na-bonus-budget')) $('na-bonus-budget').value = '0';
   if ($('na-status')) $('na-status').value = 'active';
   if ($('agent-modal-title')) $('agent-modal-title').textContent = 'Add Agent';
   if ($('na-computed')) { $('na-computed').hidden = true; $('na-computed').innerHTML = ''; }
+  syncAgentDealFields();
 }
 
 export async function openAgentForm(id = null) {
@@ -206,9 +217,14 @@ export async function openAgentForm(id = null) {
     $('na-contact').value = ag.contact || '';
     if ($('na-category')) $('na-category').value = ag.category || '';
     $('na-description').value = ag.description || '';
+    const mode = ag.commission_mode || 'percent';
+    if ($('na-mode')) $('na-mode').value = mode;
     $('na-rate').value = String(ag.default_rate_pct ?? ag.rate ?? 2);
+    if ($('na-flat')) $('na-flat').value = ag.default_flat_amount ? String(ag.default_flat_amount) : '';
+    if ($('na-over')) $('na-over').value = String(ag.over_base_pct ?? 100);
     if ($('na-bonus-budget')) $('na-bonus-budget').value = String(ag.bonus_budget || 0);
     $('na-status').value = (ag.status || 'active').toLowerCase() === 'inactive' ? 'inactive' : 'active';
+    syncAgentDealFields();
     if ($('na-computed')) {
       $('na-computed').hidden = false;
       $('na-computed').innerHTML = `
@@ -224,12 +240,16 @@ export async function openAgentForm(id = null) {
 }
 
 async function submitAgent() {
+  const mode = $('na-mode')?.value || 'percent';
   const payload = {
     name: $('na-name').value.trim(),
     contact: $('na-contact').value.trim(),
     category: ($('na-category')?.value || '').trim(),
     description: $('na-description').value.trim(),
-    default_rate_pct: parseFloat($('na-rate').value) || 0,
+    commission_mode: mode,
+    default_rate_pct: mode === 'percent' ? (parseFloat($('na-rate').value) || 0) : 0,
+    default_flat_amount: mode === 'flat' ? (parseInt($('na-flat')?.value, 10) || 0) : 0,
+    over_base_pct: mode === 'over_base' ? (parseFloat($('na-over')?.value) || 100) : 100,
     bonus_budget: parseInt($('na-bonus-budget')?.value, 10) || 0,
     status: $('na-status').value,
   };
@@ -365,6 +385,7 @@ export function initAgentEvents() {
   $('agent-search')?.addEventListener('input', renderAgents);
   $('btn-add-agent')?.addEventListener('click', () => openAgentForm());
   $('btn-save-agent')?.addEventListener('click', submitAgent);
+  $('na-mode')?.addEventListener('change', syncAgentDealFields);
   $('btn-save-apay')?.addEventListener('click', submitAgentPay);
   $('btn-save-abonus')?.addEventListener('click', submitAgentBonus);
 }

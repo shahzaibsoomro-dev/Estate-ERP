@@ -105,7 +105,20 @@ def record_payment(conn, data: dict) -> dict:
             left -= take
     inst_svc.refresh_statuses(conn, booking_id)
 
+    ctx = fetch_one(
+        conn,
+        """SELECT c.name AS customer_name, u.unit_no, b.project_id, p.name AS project_name
+           FROM bookings b
+           JOIN customers c ON c.id=b.customer_id
+           JOIN units u ON u.id=b.unit_id
+           JOIN projects p ON p.id=b.project_id
+           WHERE b.id=?""",
+        (booking_id,),
+    ) or {}
     audit_svc.log(conn, "payment", payment_id, "recorded", {
         "amount": amount, "receipt_no": receipt_no, "installment_id": installment_id,
+        "customer_name": ctx.get("customer_name"), "unit_no": ctx.get("unit_no"),
+        "project_id": ctx.get("project_id"), "project_name": ctx.get("project_name"),
+        "payment_method": data.get("payment_method") or data.get("method"),
     })
     return {"ok": True, "receipt": receipt_no, "payment_id": payment_id}

@@ -24,6 +24,9 @@ class POCreate(BaseModel):
     total: int | None = None
     qty: str | None = None
     quantity: str | None = None
+    pack_qty: float | None = None
+    pack_size: float | None = None
+    pack_unit: str | None = None
     unit_cost: int | None = None
     budget_category_id: int | None = None
     category: str | None = None
@@ -35,6 +38,8 @@ class POCreate(BaseModel):
 
 class POStatusUpdate(BaseModel):
     status: str
+    cancel_fee_pct: float | None = None
+    cancel_reason: str | None = None
 
 
 class VendorPaymentCreate(BaseModel):
@@ -125,11 +130,23 @@ def create_po(body: POCreate):
             raise _http(e) from e
 
 
+@router.get("/purchase-orders/{po_id}/cancel-preview")
+def po_cancel_preview(po_id: int):
+    with get_db() as conn:
+        preview = svc.cancel_preview(conn, po_id)
+    if not preview:
+        raise HTTPException(404, "PO not found")
+    return preview
+
+
 @router.put("/purchase-orders/{po_id}/status")
 def update_po_status(po_id: int, body: POStatusUpdate):
     with get_db() as conn:
         try:
-            po = svc.update_po_status(conn, po_id, body.status)
+            po = svc.update_po_status(conn, po_id, body.status, extra={
+                "cancel_fee_pct": body.cancel_fee_pct,
+                "cancel_reason": body.cancel_reason,
+            })
         except ValueError as e:
             raise _http(e) from e
     if not po:

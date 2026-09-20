@@ -210,7 +210,75 @@ async function loadBookingAgents() {
   if (!$('bk-agent')) return;
   $('bk-agent').innerHTML = '<option value="">None</option>' +
     (state.agents || []).map((a) =>
-      `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+      `<option value="${a.id}">${esc(a.name)}${a.commission_label ? ` · ${esc(a.commission_label)}` : ''}</option>`).join('');
+  paintCommissionPreview();
+}
+
+function selectedBookingAgent() {
+  const id = parseInt($('bk-agent')?.value, 10);
+  return (state.agents || []).find((a) => a.id === id) || null;
+}
+
+function previewCommissionAmount(mode, sale, base, rate, flat, share) {
+  const surplus = Math.max((sale || 0) - (base || 0), 0);
+  if (mode === 'flat') return Math.max(parseInt(flat, 10) || 0, 0);
+  if (mode === 'over_base') {
+    const pct = share == null || Number.isNaN(share) ? 100 : share;
+    return Math.max(Math.round(surplus * pct / 100), 0);
+  }
+  const pct = rate == null || Number.isNaN(rate) ? 0 : rate;
+  return Math.max(Math.round((sale || 0) * pct / 100), 0);
+}
+
+function applyAgentDealToOverride(ag) {
+  if (!ag) return;
+  if ($('bk-comm-mode')) $('bk-comm-mode').value = ag.commission_mode || 'percent';
+  if ($('bk-comm-rate')) $('bk-comm-rate').value = String(ag.default_rate_pct ?? ag.rate ?? 2);
+  if ($('bk-comm-flat')) $('bk-comm-flat').value = String(ag.default_flat_amount || 0);
+  if ($('bk-comm-over')) $('bk-comm-over').value = String(ag.over_base_pct ?? 100);
+}
+
+function syncBkCommOverrideFields() {
+  const on = !!$('bk-comm-override')?.checked;
+  if ($('bk-comm-override-fields')) $('bk-comm-override-fields').hidden = !on;
+  const mode = $('bk-comm-mode')?.value || 'percent';
+  if ($('bk-comm-rate-fg')) $('bk-comm-rate-fg').hidden = mode !== 'percent';
+  if ($('bk-comm-flat-fg')) $('bk-comm-flat-fg').hidden = mode !== 'flat';
+  if ($('bk-comm-over-fg')) $('bk-comm-over-fg').hidden = mode !== 'over_base';
+  paintCommissionPreview();
+}
+
+function paintCommissionPreview() {
+  const box = $('bk-comm-preview');
+  const wrap = $('bk-comm-override-wrap');
+  const ag = selectedBookingAgent();
+  if (!box) return;
+  if (!ag) {
+    box.hidden = true;
+    if (wrap) { wrap.hidden = true; wrap.style.display = 'none'; }
+    if ($('bk-comm-override-fields')) $('bk-comm-override-fields').hidden = true;
+    return;
+  }
+  if (wrap) { wrap.hidden = false; wrap.style.display = 'flex'; }
+  box.hidden = false;
+  const override = !!$('bk-comm-override')?.checked;
+  const mode = override ? ($('bk-comm-mode')?.value || 'percent') : (ag.commission_mode || 'percent');
+  const sale = salePrice();
+  const base = parseInt(selectedUnit?.base_sale_price, 10) || sale;
+  const rate = override ? parseFloat($('bk-comm-rate')?.value) : parseFloat(ag.default_rate_pct ?? ag.rate ?? 0);
+  const flat = override ? parseInt($('bk-comm-flat')?.value, 10) : parseInt(ag.default_flat_amount, 10);
+  const share = override ? parseFloat($('bk-comm-over')?.value) : parseFloat(ag.over_base_pct ?? 100);
+  const amount = previewCommissionAmount(mode, sale, base, rate, flat, share);
+  const surplus = Math.max(sale - base, 0);
+  let how = ag.commission_label || '';
+  if (mode === 'percent') how = `${rate || 0}% of sale`;
+  else if (mode === 'flat') how = `${fmt(flat || 0)} fixed`;
+  else how = `${share == null || Number.isNaN(share) ? 100 : share}% of surplus over base (${fmt(base)})`;
+  box.innerHTML = `
+    <h4>Agent commission</h4>
+    <div class="sum-row"><span class="sum-lbl">Deal</span><span class="sum-val">${esc(how)}</span></div>
+    ${mode === 'over_base' ? `<div class="sum-row"><span class="sum-lbl">Surplus</span><span class="sum-val">${fmt(surplus)}</span></div>` : ''}
+    <div class="sum-row"><span class="sum-lbl">This booking</span><span class="sum-val">${fmt(amount)}</span></div>`;
 }
 
 async function loadBookingUnits() {
@@ -612,6 +680,7 @@ export function updateBookingSummary() {
     <div class="sum-row"><span class="sum-lbl">Remaining</span><span class="sum-val" style="color:var(--danger)">${fmt(remaining)}</span></div>
     <div class="sum-row"><span class="sum-lbl">Installments</span><span class="sum-val">${instPlanTotal() ? fmt(instPlanTotal()) : '—'}</span></div>
     <div class="prog" style="margin-top:10px"><div class="prog-fill g" style="width:${Math.min(Math.round(pct), 100)}%"></div></div>`;
+  paintCommissionPreview();
 }
 
 export function addInstRow(prefill = {}) {
@@ -698,6 +767,9 @@ export async function resetBookingForm() {
     if ($(id)) $(id).value = '';
   });
   if ($('bk-plan-source')) $('bk-plan-source').value = 'custom';
+  if ($('bk-agent')) $('bk-agent').value = '';
+  if ($('bk-comm-override')) $('bk-comm-override').checked = false;
+  if ($('bk-comm-override-fields')) $('bk-comm-override-fields').hidden = true;
   setUnitEnabled(false);
   hideAllLists();
   if ($('instRows')) $('instRows').innerHTML = '';
@@ -786,6 +858,13 @@ export async function submitBooking() {
     template_revision: planSource === 'template' ? (activeTemplateMeta?.revision || null) : null,
     template_name: planSource === 'template' ? (activeTemplateMeta?.name || null) : null,
   };
+  if (payload.agent_id && $('bk-comm-override')?.checked) {
+    const mode = $('bk-comm-mode')?.value || 'percent';
+    payload.commission_mode = mode;
+    if (mode === 'percent') payload.commission_rate_pct = parseFloat($('bk-comm-rate')?.value) || 0;
+    if (mode === 'flat') payload.commission_flat_amount = parseInt($('bk-comm-flat')?.value, 10) || 0;
+    if (mode === 'over_base') payload.commission_over_base_pct = parseFloat($('bk-comm-over')?.value) || 100;
+  }
 
   if (!await askConfirm(
     `Confirm booking ${selectedUnit.unit_no || ''} for ${selectedCustomer.name} at ${fmt(price)} (DP ${fmt(dp)})?`,
@@ -910,4 +989,17 @@ export function initBookingEvents() {
   });
   $('btn-reset-booking')?.addEventListener('click', resetBookingForm);
   $('btn-submit-booking')?.addEventListener('click', submitBooking);
+  $('bk-agent')?.addEventListener('change', () => {
+    applyAgentDealToOverride(selectedBookingAgent());
+    if ($('bk-comm-override')) $('bk-comm-override').checked = false;
+    syncBkCommOverrideFields();
+  });
+  $('bk-comm-override')?.addEventListener('change', () => {
+    if ($('bk-comm-override').checked) applyAgentDealToOverride(selectedBookingAgent());
+    syncBkCommOverrideFields();
+  });
+  $('bk-comm-mode')?.addEventListener('change', syncBkCommOverrideFields);
+  ['bk-comm-rate', 'bk-comm-flat', 'bk-comm-over'].forEach((id) => {
+    $(id)?.addEventListener('input', paintCommissionPreview);
+  });
 }

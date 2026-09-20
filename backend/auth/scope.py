@@ -27,6 +27,9 @@ _PATH_RESOLVERS = [
     (re.compile(r"^/api/purchase-orders/(\d+)(/|$)"), "SELECT project_id FROM purchase_orders WHERE id=?"),
     (re.compile(r"^/api/site-logs/(\d+)(/|$)"), "SELECT project_id FROM site_logs WHERE id=?"),
     (re.compile(r"^/api/budget/lines/(\d+)(/|$)"), "SELECT project_id FROM project_budget_lines WHERE id=?"),
+    (re.compile(r"^/api/planning/stages/(\d+)(/|$)"), "SELECT project_id FROM project_stages WHERE id=?"),
+    (re.compile(r"^/api/planning/tasks/(\d+)(/|$)"), "SELECT project_id FROM project_tasks WHERE id=?"),
+    (re.compile(r"^/api/boq/lines/(\d+)(/|$)"), "SELECT project_id FROM project_boq_lines WHERE id=?"),
     (re.compile(r"^/api/inventory/(\d+)(/|$)"),
      "SELECT project_id FROM inventory_items WHERE id=? AND project_id IS NOT NULL"),
 ]
@@ -40,6 +43,9 @@ _BODY_RESOLVERS = {
     "purchase_order_id": "SELECT project_id FROM purchase_orders WHERE id=?",
     "po_id": "SELECT project_id FROM purchase_orders WHERE id=?",
     "line_id": "SELECT project_id FROM project_budget_lines WHERE id=?",
+    "stage_id": "SELECT project_id FROM project_stages WHERE id=?",
+    "task_id": "SELECT project_id FROM project_tasks WHERE id=?",
+    "depends_on_task_id": "SELECT project_id FROM project_tasks WHERE id=?",
 }
 
 # list endpoints whose rows use "id" for the scoped entity

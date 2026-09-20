@@ -2,7 +2,6 @@ import { $, esc, loadingHtml } from '../dom.js';
 import { api, toast } from '../api.js';
 import { fmt, fmtShort } from '../format.js';
 import { closeModal, openModal } from '../modal.js';
-import { askConfirm } from '../dialog.js';
 import { state } from '../state.js';
 import { projectFilterQuery } from '../project-filter.js';
 
@@ -26,7 +25,7 @@ export async function loadContractors() {
 function renderCtr() {
   const q = ($('ctr-search')?.value || '').trim().toLowerCase();
   const rows = !q ? allCtr : allCtr.filter((c) =>
-    [c.name, c.specialty, c.ntn, c.contact, c.master_id].filter(Boolean).join(' ').toLowerCase().includes(q));
+    [c.name, c.company_name, c.specialty, c.ntn, c.contact, c.city, c.pec_no, c.master_id].filter(Boolean).join(' ').toLowerCase().includes(q));
   const tbody = $('ctr-tbody');
   if (!tbody) return;
   tbody.innerHTML = rows.length ? rows.map((c) => `
@@ -49,7 +48,7 @@ function renderCtr() {
   tbody.querySelectorAll('[data-ctr-edit]').forEach((b) => b.addEventListener('click', () => openCtrForm(+b.dataset.ctrEdit)));
 }
 
-async function openCtrDetail(id) {
+export async function openCtrDetail(id) {
   openModal('ctr-detail-modal');
   $('ctrd-title').textContent = 'Loading…';
   $('ctrd-body').innerHTML = loadingHtml('Loading…');
@@ -68,11 +67,17 @@ async function openCtrDetail(id) {
   $('ctrd-body').innerHTML = `
     <div class="g2" style="margin-bottom:14px">
       <div>
+        <div class="sum-row"><span class="sum-lbl">Company</span><span class="sum-val">${esc(c.company_name || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Specialty</span><span class="sum-val">${esc(c.specialty || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">NTN</span><span class="sum-val">${esc(c.ntn || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">PEC</span><span class="sum-val">${esc(c.pec_no || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Contact</span><span class="sum-val">${esc(c.contact || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">City</span><span class="sum-val">${esc(c.city || '—')}</span></div>
       </div>
       <div>
+        <div class="sum-row"><span class="sum-lbl">Email</span><span class="sum-val">${esc(c.email || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Bank</span><span class="sum-val">${esc(c.bank_name || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Account</span><span class="sum-val">${esc(c.account_no || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Contracted</span><span class="sum-val">${fmt(c.total_contracted)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(c.total_paid)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Balance</span><span class="sum-val">${fmt(c.balance)}</span></div>
@@ -127,7 +132,9 @@ function openCtrPay(id, c) {
 
 function openCtrForm(id = null) {
   closeModal('ctr-detail-modal');
-  ['nctr-id', 'nctr-name', 'nctr-specialty', 'nctr-contact', 'nctr-ntn', 'nctr-cnic', 'nctr-description'].forEach((x) => { if ($(x)) $(x).value = ''; });
+  ['nctr-id', 'nctr-name', 'nctr-company', 'nctr-father', 'nctr-specialty', 'nctr-contact', 'nctr-emergency',
+    'nctr-ntn', 'nctr-cnic', 'nctr-email', 'nctr-city', 'nctr-address', 'nctr-pec',
+    'nctr-bank', 'nctr-title', 'nctr-account', 'nctr-description'].forEach((x) => { if ($(x)) $(x).value = ''; });
   if ($('nctr-status')) $('nctr-status').value = 'active';
   $('ctr-modal-title').textContent = id ? 'Edit Contractor' : 'Add Contractor';
   openModal('ctr-modal');
@@ -135,10 +142,20 @@ function openCtrForm(id = null) {
   api(`/api/contractors/${id}`).then((c) => {
     $('nctr-id').value = String(c.id);
     $('nctr-name').value = c.name || '';
+    if ($('nctr-company')) $('nctr-company').value = c.company_name || '';
+    if ($('nctr-father')) $('nctr-father').value = c.father_name || '';
     $('nctr-specialty').value = c.specialty || '';
     $('nctr-contact').value = c.contact || '';
+    if ($('nctr-emergency')) $('nctr-emergency').value = c.emergency_contact || '';
     $('nctr-ntn').value = c.ntn || '';
     $('nctr-cnic').value = c.cnic || '';
+    if ($('nctr-email')) $('nctr-email').value = c.email || '';
+    if ($('nctr-city')) $('nctr-city').value = c.city || '';
+    if ($('nctr-address')) $('nctr-address').value = c.address || '';
+    if ($('nctr-pec')) $('nctr-pec').value = c.pec_no || '';
+    if ($('nctr-bank')) $('nctr-bank').value = c.bank_name || '';
+    if ($('nctr-title')) $('nctr-title').value = c.account_title || '';
+    if ($('nctr-account')) $('nctr-account').value = c.account_no || '';
     $('nctr-description').value = c.description || '';
     $('nctr-status').value = c.status || 'active';
   }).catch(() => closeModal('ctr-modal'));
@@ -146,9 +163,22 @@ function openCtrForm(id = null) {
 
 async function saveCtr() {
   const payload = {
-    name: $('nctr-name').value.trim(), specialty: $('nctr-specialty').value.trim(),
-    contact: $('nctr-contact').value.trim(), ntn: $('nctr-ntn').value.trim(),
-    cnic: $('nctr-cnic').value.trim(), description: $('nctr-description').value.trim(),
+    name: $('nctr-name').value.trim(),
+    company_name: ($('nctr-company')?.value || '').trim(),
+    father_name: ($('nctr-father')?.value || '').trim(),
+    specialty: $('nctr-specialty').value.trim(),
+    contact: $('nctr-contact').value.trim(),
+    emergency_contact: ($('nctr-emergency')?.value || '').trim(),
+    ntn: $('nctr-ntn').value.trim(),
+    cnic: $('nctr-cnic').value.trim(),
+    email: ($('nctr-email')?.value || '').trim(),
+    city: ($('nctr-city')?.value || '').trim(),
+    address: ($('nctr-address')?.value || '').trim(),
+    pec_no: ($('nctr-pec')?.value || '').trim(),
+    bank_name: ($('nctr-bank')?.value || '').trim(),
+    account_title: ($('nctr-title')?.value || '').trim(),
+    account_no: ($('nctr-account')?.value || '').trim(),
+    description: $('nctr-description').value.trim(),
     status: $('nctr-status').value,
   };
   if (!payload.name) { toast('Name required', 'error'); return; }
@@ -325,102 +355,6 @@ export function initInventoryEvents() {
   $('btn-save-invmat')?.addEventListener('click', saveInv);
 }
 
-/* ── Budget ──────────────────────────────────────────────── */
-let budCats = [];
-let budSummary = [];
-
-export async function loadBudget() {
-  const pid = parseInt($('bud-project')?.value, 10) || null;
-  const projects = state.projects?.length ? state.projects : await api('/api/projects');
-  if ($('bud-project') && !$('bud-project').dataset.ready) {
-    $('bud-project').innerHTML = '<option value="">All projects</option>' + projects.map((p) =>
-      `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-    $('bud-project').dataset.ready = '1';
-  }
-  [budCats, budSummary] = await Promise.all([
-    api('/api/budget/categories'),
-    api(`/api/budget/summary${pid ? `?project_id=${pid}` : ''}`),
-  ]);
-  const planned = budSummary.reduce((a, r) => a + (r.planned_amount || 0), 0);
-  const spent = budSummary.reduce((a, r) => a + (r.actual_spent || 0), 0);
-  if ($('bud-planned')) $('bud-planned').textContent = fmtShort(planned);
-  if ($('bud-spent')) $('bud-spent').textContent = fmtShort(spent);
-  if ($('bud-var')) $('bud-var').textContent = fmtShort(planned - spent);
-  if ($('bud-cat-tbody')) {
-    $('bud-cat-tbody').innerHTML = budCats.length ? budCats.map((c) => `
-      <tr><td class="td-b">${esc(c.name)}</td><td>${c.sort_order ?? 0}</td>
-      <td><button type="button" class="btn sm danger" data-bud-cat-del="${c.id}">Delete</button></td></tr>`).join('')
-      : '<tr><td colspan="3" style="text-align:center;color:var(--g400)">No categories</td></tr>';
-    $('bud-cat-tbody').querySelectorAll('[data-bud-cat-del]').forEach((b) => b.addEventListener('click', async () => {
-      if (!await askConfirm('Delete this category?', { title: 'Delete category', danger: true, confirmLabel: 'Delete' })) return;
-      try { await api(`/api/budget/categories/${b.dataset.budCatDel}`, { method: 'DELETE' }); toast('Deleted'); loadBudget(); }
-      catch { /* toasted */ }
-    }));
-  }
-  if ($('bud-sum-tbody')) {
-    $('bud-sum-tbody').innerHTML = budSummary.length ? budSummary.map((r) => `
-      <tr>
-        <td>${esc(r.project_name)}</td><td>${esc(r.category_name)}</td>
-        <td>${fmt(r.planned_amount)}</td><td>${fmt(r.actual_spent)}</td>
-        <td class="${r.variance < 0 ? 'td-red' : 'td-green'}">${fmt(r.variance)}</td>
-        <td>${r.pct_used}%</td>
-        <td><span class="badge ${r.status === 'Exceeded' ? 'bg-red' : r.status === 'Near Limit' ? 'bg-yellow' : 'bg-green'}">${esc(r.status)}</span></td>
-        <td><button type="button" class="btn sm" data-bud-rev="${r.project_id}:${r.category_id}:${r.planned_amount}">Revise</button></td>
-      </tr>`).join('')
-      : '<tr><td colspan="8" style="text-align:center;color:var(--g400)">No budget lines</td></tr>';
-    $('bud-sum-tbody').querySelectorAll('[data-bud-rev]').forEach((b) => b.addEventListener('click', async () => {
-      const [projectId, categoryId, oldAmt] = b.dataset.budRev.split(':');
-      const lines = await api(`/api/budget/lines?project_id=${projectId}`);
-      const line = lines.find((l) => String(l.category_id) === categoryId);
-      if (!line) { toast('Line not found', 'error'); return; }
-      const amt = parseInt(prompt('New planned amount?', String(oldAmt)) || '0', 10);
-      if (!amt) return;
-      try {
-        await api(`/api/budget/lines/${line.id}/revise`, { method: 'POST', body: JSON.stringify({ planned_amount: amt }) });
-        toast('Budget revised'); loadBudget();
-      } catch { /* toasted */ }
-    }));
-  }
-}
-
-async function openBudLineForm() {
-  const projects = state.projects?.length ? state.projects : await api('/api/projects');
-  if (!budCats.length) budCats = await api('/api/budget/categories');
-  $('bl-project').innerHTML = projects.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
-  $('bl-category').innerHTML = budCats.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  $('bl-planned').value = '';
-  $('bl-notes').value = '';
-  openModal('bud-line-modal');
-}
-
-export function initBudgetEvents() {
-  $('bud-project')?.addEventListener('change', () => loadBudget());
-  $('btn-add-bud-cat')?.addEventListener('click', async () => {
-    const name = (prompt('Category name?') || '').trim();
-    if (!name) return;
-    try {
-      await api('/api/budget/categories', { method: 'POST', body: JSON.stringify({ name, sort_order: budCats.length + 1 }) });
-      toast('Category added'); loadBudget();
-    } catch { /* toasted */ }
-  });
-  $('btn-add-bud-line')?.addEventListener('click', () => openBudLineForm());
-  $('btn-save-bud-line')?.addEventListener('click', async () => {
-    const payload = {
-      project_id: parseInt($('bl-project').value, 10),
-      category_id: parseInt($('bl-category').value, 10),
-      planned_amount: parseInt($('bl-planned').value, 10),
-      notes: $('bl-notes').value.trim() || null,
-    };
-    if (!payload.project_id || !payload.category_id || !payload.planned_amount) {
-      toast('Project, category and amount required', 'error'); return;
-    }
-    try {
-      await api('/api/budget/lines', { method: 'POST', body: JSON.stringify(payload) });
-      closeModal('bud-line-modal'); toast('Budget line added'); loadBudget();
-    } catch { /* toasted */ }
-  });
-}
-
 /* ── Pay plans ───────────────────────────────────────────── */
 function pctFromBps(bps) { return ((bps || 0) / 100).toFixed(2); }
 
@@ -463,10 +397,24 @@ async function openPayPlan(projectId) {
   $('payplan-modal-title').textContent = `Pay plan · ${row?.project_name || projectId}`;
   $('pp-name').value = tmpl?.name || 'Standard plan';
   $('pp-enable').value = tmpl?.id ? '1' : '0';
+  paintStageHint(projectId);
   const rules = tmpl?.rules?.length ? tmpl.rules : [{ label: 'Foundation', amount_bps: 2500, trigger_kind: 'construction', milestone_progress: 10 }];
   $('pp-rules').innerHTML = rules.map(ppRuleRow).join('');
   bindPpRules();
   openModal('payplan-modal');
+}
+
+/** Read-only reminder of where the project's stages sit, so thresholds line up with real milestones. */
+async function paintStageHint(projectId) {
+  const box = $('pp-stage-hint');
+  if (!box) return;
+  box.hidden = true;
+  let stages = [];
+  try { stages = await api(`/api/planning/stage-hints?project_id=${projectId}`); } catch { return; }
+  if (!stages.length) return;
+  box.innerHTML = `<b>Stages in this project</b> — a threshold fires when the Structure of Work reaches it.<br>${
+    stages.map((s) => `${esc(s.name)} → <b>${s.cumulative_pct}%</b>`).join(' · ')}`;
+  box.hidden = false;
 }
 
 function bindPpRules() {

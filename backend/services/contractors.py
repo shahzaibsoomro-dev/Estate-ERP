@@ -24,10 +24,20 @@ def normalize(data: dict) -> dict:
         raise ValueError("Contractor name is required")
     return {
         "name": name,
+        "company_name": _clean(data.get("company_name")),
+        "father_name": _clean(data.get("father_name")),
         "cnic": _clean(data.get("cnic")),
         "contact": _clean(data.get("contact")),
+        "emergency_contact": _clean(data.get("emergency_contact")),
+        "email": _clean(data.get("email")),
+        "address": _clean(data.get("address")),
+        "city": _clean(data.get("city")),
         "ntn": _clean(data.get("ntn")),
+        "pec_no": _clean(data.get("pec_no")),
         "specialty": _clean(data.get("specialty")),
+        "bank_name": _clean(data.get("bank_name")),
+        "account_title": _clean(data.get("account_title")),
+        "account_no": _clean(data.get("account_no")),
         "description": _clean(data.get("description")),
         "status": _status(data.get("status")),
     }
@@ -98,11 +108,17 @@ def get_contractor(conn, contractor_id: int) -> dict | None:
 def create_contractor(conn, data: dict) -> dict:
     payload = normalize(data)
     cur = conn.execute(
-        """INSERT INTO contractors(name, cnic, contact, ntn, specialty, description, status)
-           VALUES(?,?,?,?,?,?,?)""",
+        """INSERT INTO contractors(
+             name, company_name, father_name, cnic, contact, emergency_contact, email,
+             address, city, ntn, pec_no, specialty, bank_name, account_title, account_no,
+             description, status)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
-            payload["name"], payload["cnic"], payload["contact"], payload["ntn"],
-            payload["specialty"], payload["description"], payload["status"],
+            payload["name"], payload["company_name"], payload["father_name"], payload["cnic"],
+            payload["contact"], payload["emergency_contact"], payload["email"],
+            payload["address"], payload["city"], payload["ntn"], payload["pec_no"],
+            payload["specialty"], payload["bank_name"], payload["account_title"],
+            payload["account_no"], payload["description"], payload["status"],
         ),
     )
     audit_svc.log(conn, "contractor", cur.lastrowid, "created", {"name": payload["name"]})
@@ -114,11 +130,16 @@ def update_contractor(conn, contractor_id: int, data: dict) -> dict | None:
         return None
     payload = normalize(data)
     conn.execute(
-        """UPDATE contractors SET name=?, cnic=?, contact=?, ntn=?, specialty=?, description=?, status=?
+        """UPDATE contractors SET name=?, company_name=?, father_name=?, cnic=?, contact=?,
+           emergency_contact=?, email=?, address=?, city=?, ntn=?, pec_no=?, specialty=?,
+           bank_name=?, account_title=?, account_no=?, description=?, status=?
            WHERE id=?""",
         (
-            payload["name"], payload["cnic"], payload["contact"], payload["ntn"],
-            payload["specialty"], payload["description"], payload["status"], contractor_id,
+            payload["name"], payload["company_name"], payload["father_name"], payload["cnic"],
+            payload["contact"], payload["emergency_contact"], payload["email"],
+            payload["address"], payload["city"], payload["ntn"], payload["pec_no"],
+            payload["specialty"], payload["bank_name"], payload["account_title"],
+            payload["account_no"], payload["description"], payload["status"], contractor_id,
         ),
     )
     return get_contractor(conn, contractor_id)

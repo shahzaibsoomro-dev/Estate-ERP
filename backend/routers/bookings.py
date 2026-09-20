@@ -42,6 +42,10 @@ class BookingCreate(BaseModel):
     possession_date: str | None = None
     agent: str | None = None
     agent_id: int | None = None
+    commission_mode: str | None = None
+    commission_rate_pct: float | None = None
+    commission_flat_amount: int | None = None
+    commission_over_base_pct: float | None = None
     payment_mode: str = "Cheque"
     installments: list[InstallmentRow] = []
     plan_source: str | None = "custom"

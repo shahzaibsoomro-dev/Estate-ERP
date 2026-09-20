@@ -30,60 +30,70 @@ def list_entities(conn, q: str | None = None, entity_type: str | None = None) ->
     types = [entity_type] if entity_type in ENTITY_META else list(ENTITY_META.keys())
     rows: list[dict] = []
 
+    def _row(entity_type, entity_id, name, subtitle, status, extra=None):
+        extra = extra or {}
+        blob = " ".join(str(x) for x in [
+            master_id(entity_type, entity_id), name, subtitle, entity_type,
+            extra.get("cnic"), extra.get("contact"), extra.get("email"), extra.get("ntn"),
+        ] if x)
+        return {
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "master_id": master_id(entity_type, entity_id),
+            "name": name,
+            "subtitle": subtitle,
+            "status": status or "active",
+            "cnic": extra.get("cnic"),
+            "contact": extra.get("contact"),
+            "email": extra.get("email"),
+            "ntn": extra.get("ntn"),
+            "_search": blob.lower(),
+        }
+
     if "customer" in types:
-        for c in fetch_all(conn, "SELECT id, name, cnic, contact_number FROM customers ORDER BY name"):
-            rows.append({
-                "entity_type": "customer",
-                "entity_id": c["id"],
-                "master_id": master_id("customer", c["id"]),
-                "name": c["name"],
-                "subtitle": c.get("contact_number") or c.get("cnic"),
-                "status": "active",
-            })
+        for c in fetch_all(conn, "SELECT id, name, cnic, contact_number, email FROM customers ORDER BY name"):
+            rows.append(_row(
+                "customer", c["id"], c["name"],
+                c.get("contact_number") or c.get("cnic"),
+                "active",
+                {"cnic": c.get("cnic"), "contact": c.get("contact_number"), "email": c.get("email")},
+            ))
     if "vendor" in types:
         for v in fetch_all(conn, "SELECT id, name, contact, category, ntn, status FROM vendors ORDER BY name"):
-            rows.append({
-                "entity_type": "vendor",
-                "entity_id": v["id"],
-                "master_id": master_id("vendor", v["id"]),
-                "name": v["name"],
-                "subtitle": " · ".join(x for x in [v.get("category"), v.get("ntn"), v.get("contact")] if x),
-                "status": v.get("status") or "active",
-            })
+            rows.append(_row(
+                "vendor", v["id"], v["name"],
+                " · ".join(x for x in [v.get("category"), v.get("ntn"), v.get("contact")] if x),
+                v.get("status") or "active",
+                {"contact": v.get("contact"), "ntn": v.get("ntn")},
+            ))
     if "agent" in types:
         for a in fetch_all(conn, "SELECT id, name, contact, category, status FROM agents ORDER BY name"):
-            rows.append({
-                "entity_type": "agent",
-                "entity_id": a["id"],
-                "master_id": master_id("agent", a["id"]),
-                "name": a["name"],
-                "subtitle": " · ".join(x for x in [a.get("category"), a.get("contact")] if x),
-                "status": a.get("status") or "active",
-            })
+            rows.append(_row(
+                "agent", a["id"], a["name"],
+                " · ".join(x for x in [a.get("category"), a.get("contact")] if x),
+                a.get("status") or "active",
+                {"contact": a.get("contact")},
+            ))
     if "investor" in types:
         for i in fetch_all(conn, "SELECT id, name, mobile_number, cnic, email, status FROM investors ORDER BY name"):
-            rows.append({
-                "entity_type": "investor",
-                "entity_id": i["id"],
-                "master_id": master_id("investor", i["id"]),
-                "name": i["name"],
-                "subtitle": " · ".join(x for x in [i.get("mobile_number"), i.get("cnic")] if x),
-                "status": i.get("status") or "active",
-            })
+            rows.append(_row(
+                "investor", i["id"], i["name"],
+                " · ".join(x for x in [i.get("mobile_number"), i.get("cnic")] if x),
+                i.get("status") or "active",
+                {"cnic": i.get("cnic"), "contact": i.get("mobile_number"), "email": i.get("email")},
+            ))
     if "partner" in types:
         try:
             partners = fetch_all(conn, "SELECT id, name, mobile_number, cnic, email, status FROM partners ORDER BY name")
         except Exception:
             partners = []
         for p in partners:
-            rows.append({
-                "entity_type": "partner",
-                "entity_id": p["id"],
-                "master_id": master_id("partner", p["id"]),
-                "name": p["name"],
-                "subtitle": " · ".join(x for x in [p.get("mobile_number"), p.get("cnic")] if x),
-                "status": p.get("status") or "active",
-            })
+            rows.append(_row(
+                "partner", p["id"], p["name"],
+                " · ".join(x for x in [p.get("mobile_number"), p.get("cnic")] if x),
+                p.get("status") or "active",
+                {"cnic": p.get("cnic"), "contact": p.get("mobile_number"), "email": p.get("email")},
+            ))
     if "contractor" in types:
         try:
             contractors = fetch_all(
@@ -92,25 +102,17 @@ def list_entities(conn, q: str | None = None, entity_type: str | None = None) ->
         except Exception:
             contractors = []
         for c in contractors:
-            rows.append({
-                "entity_type": "contractor",
-                "entity_id": c["id"],
-                "master_id": master_id("contractor", c["id"]),
-                "name": c["name"],
-                "subtitle": " · ".join(x for x in [c.get("specialty"), c.get("ntn"), c.get("contact")] if x),
-                "status": c.get("status") or "active",
-            })
+            rows.append(_row(
+                "contractor", c["id"], c["name"],
+                " · ".join(x for x in [c.get("specialty"), c.get("ntn"), c.get("contact")] if x),
+                c.get("status") or "active",
+                {"contact": c.get("contact"), "ntn": c.get("ntn")},
+            ))
 
     if needle:
-        rows = [
-            r for r in rows
-            if needle in " ".join([
-                r.get("master_id") or "",
-                r.get("name") or "",
-                r.get("subtitle") or "",
-                r.get("entity_type") or "",
-            ]).lower()
-        ]
+        rows = [r for r in rows if needle in (r.get("_search") or "")]
+    for r in rows:
+        r.pop("_search", None)
     rows.sort(key=lambda r: ((r.get("name") or "").lower(), r.get("entity_type") or "", r.get("entity_id") or 0))
     return rows
 

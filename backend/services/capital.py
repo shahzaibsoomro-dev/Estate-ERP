@@ -10,7 +10,9 @@ from backend.services import audit as audit_svc
 
 RETURN_TYPES = ("Monthly Return", "Profit Sharing")
 CATCH_UP_POLICIES = ("none", "lump_sum", "spread")
-PROFIT_SHARE_BASES = ("monthly", "milestone", "quarterly", "project")
+PROFIT_SHARE_BASES = ("monthly", "milestone", "quarterly", "project", "occasional")
+PARTNER_PROFIT_BASES = ("project", "milestone", "quarterly", "occasional")
+PAYOUT_OCCASIONS = ("completion", "milestone", "quarterly", "other")
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,13 @@ def _normalize_profit_basis(raw) -> str | None:
         "whole_project": "project",
         "end": "project",
         "project_end": "project",
+        "completion": "project",
+        "after_completion": "project",
+        "adhoc": "occasional",
+        "ad_hoc": "occasional",
+        "other": "occasional",
+        "occasion": "occasional",
+        "occasions": "occasional",
     }
     text = aliases.get(text, text)
     return text if text in PROFIT_SHARE_BASES else None
@@ -132,7 +141,31 @@ def _add_months(d: date, months: int) -> date:
     return date(y, m, day)
 
 
-def _compute_return_metrics(ag: dict, principal: int, as_of: date | None = None) -> dict:
+def _normalize_occasion(raw) -> str | None:
+    text = (_clean(raw) or "").lower().replace(" ", "_").replace("-", "_")
+    if not text:
+        return None
+    aliases = {
+        "complete": "completion",
+        "completed": "completion",
+        "project": "completion",
+        "project_end": "completion",
+        "end": "completion",
+        "milestones": "milestone",
+        "construction": "milestone",
+        "quarter": "quarterly",
+        "quarters": "quarterly",
+        "ad_hoc": "other",
+        "adhoc": "other",
+        "occasional": "other",
+        "occasion": "other",
+    }
+    text = aliases.get(text, text)
+    return text if text in PAYOUT_OCCASIONS else "other"
+
+
+def _compute_return_metrics(ag: dict, principal: int, as_of: date | None = None,
+                            allow_monthly: bool = True) -> dict:
     as_of = as_of or date.today()
     inv_date = _parse_date(ag.get("investment_date")) or as_of
     start = _parse_date(ag.get("returns_start_date")) or inv_date
@@ -159,7 +192,9 @@ def _compute_return_metrics(ag: dict, principal: int, as_of: date | None = None)
     regular_periods = 0
 
     rtype = _normalize_return_type(ag.get("investor_type") or ag.get("partner_type") or ag.get("return_type"))
-    basis = _normalize_profit_basis(ag.get("profit_share_basis")) or "project"
+    if not allow_monthly:
+        rtype = "Profit Sharing"
+    basis = _normalize_profit_basis(ag.get("profit_share_basis")) or ("project" if not allow_monthly else "project")
 
     if rtype == "Monthly Return" and monthly_amt > 0:
         if as_of >= start:
@@ -182,7 +217,7 @@ def _compute_return_metrics(ag: dict, principal: int, as_of: date | None = None)
             regular_periods = _months_between(start, as_of) + 1
         elif basis == "quarterly" and as_of >= start:
             regular_periods = (_months_between(start, as_of) // 3) + 1
-        elif basis in ("milestone", "project"):
+        elif basis in ("milestone", "project", "occasional"):
             regular_periods = 1 if as_of >= start else 0
 
     return {
@@ -261,8 +296,17 @@ def _enrich(conn, cfg: CapitalConfig, person: dict) -> dict:
         ag["return_type"] = _normalize_return_type(ag.get(cfg.type_column))
         ag[cfg.type_column] = ag["return_type"]
         principal = ag["total_contributed"] or int(ag.get("investment_amount") or 0)
-        metrics = _compute_return_metrics(ag, principal)
+        metrics = _compute_return_metrics(ag, principal, allow_monthly=(cfg.entity != "partner"))
         ag.update(metrics)
+        if cfg.entity == "partner":
+            ag["return_type"] = "Profit Sharing"
+            ag[cfg.type_column] = "Profit Sharing"
+            ag["monthly_return_pct"] = None
+            ag["monthly_return_amount"] = None
+            ag["accrued_return"] = 0
+            ag["catch_up_policy"] = "none"
+            ag["catch_up_total"] = 0
+            ag["catch_up_due_expected"] = 0
         total_invested += ag["total_contributed"]
         total_return += ag["total_distributed"]
     person["agreements"] = agreements
@@ -291,6 +335,19 @@ def _enrich(conn, cfg: CapitalConfig, person: dict) -> dict:
     person["catch_up_total"] = first.get("catch_up_total")
     person["accrued_return"] = first.get("accrued_return")
     person["return_due"] = max((first.get("accrued_return") or 0) - total_return, 0) if agreements else 0
+    if cfg.entity == "partner":
+        person["return_type"] = "Profit Sharing"
+        person[cfg.type_column] = "Profit Sharing"
+        person["investor_type"] = "Profit Sharing"
+        person["monthly_return_pct"] = None
+        person["monthly_return_amount"] = None
+        person["accrued_return"] = 0
+        person["return_due"] = 0
+        person["catch_up_policy"] = "none"
+        person["payout_note"] = (
+            "Partners are not on a monthly return. Pay out after project completion, "
+            "a construction milestone, or another recorded occasion."
+        )
     if first.get("project_id"):
         proj = fetch_one(conn, "SELECT name FROM projects WHERE id=?", (first["project_id"],))
         person["project_name"] = proj["name"] if proj else None
@@ -313,7 +370,8 @@ def _ensure_agreement(conn, cfg: CapitalConfig, person_id: int) -> int:
            VALUES(?,?,?,?,?,?,?,?)""",
         (
             person_id, None, "Profit Sharing", 0, date.today().isoformat(), "active",
-            "lump_sum", "project",
+            "none" if cfg.entity == "partner" else "lump_sum",
+            "project",
         ),
     )
     return cur.lastrowid
@@ -322,6 +380,9 @@ def _ensure_agreement(conn, cfg: CapitalConfig, person_id: int) -> int:
 def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> None:
     ag_id = _ensure_agreement(conn, cfg, person_id)
     inv_type = _normalize_return_type(data.get("investor_type") or data.get("partner_type") or data.get("return_type"))
+    is_partner = cfg.entity == "partner"
+    if is_partner:
+        inv_type = "Profit Sharing"
     project_id = data.get("project_id")
     if project_id in ("", None):
         project_id = None
@@ -340,7 +401,7 @@ def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> Non
         agreed = 0
     inv_date = _clean(data.get("investment_date")) or date.today().isoformat()
     returns_start = _clean(data.get("returns_start_date")) or inv_date
-    catch_up = _normalize_catch_up(data.get("catch_up_policy"))
+    catch_up = "none" if is_partner else _normalize_catch_up(data.get("catch_up_policy"))
     try:
         catch_up_months = int(data.get("catch_up_months") or 0) if catch_up == "spread" else None
     except (TypeError, ValueError):
@@ -354,6 +415,9 @@ def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> Non
     profit_basis = _normalize_profit_basis(data.get("profit_share_basis"))
     if inv_type == "Profit Sharing" and not profit_basis:
         profit_basis = "project"
+    if is_partner:
+        if profit_basis not in PARTNER_PROFIT_BASES:
+            profit_basis = "project"
     if inv_type != "Profit Sharing":
         profit_basis = profit_basis  # allow storing for later switch; UI may clear
 
@@ -368,6 +432,8 @@ def _sync_agreement(conn, cfg: CapitalConfig, person_id: int, data: dict) -> Non
 
     monthly = _pct("monthly_return_pct")
     profit = _pct("profit_share_pct")
+    if is_partner:
+        monthly = None
     ag_status = _person_status(data.get("status"))
     conn.execute(
         f"""UPDATE {cfg.agreement_table} SET project_id=?, {cfg.type_column}=?, investment_amount=?,
@@ -480,10 +546,14 @@ def add_distribution(conn, cfg: CapitalConfig, person_id: int, data: dict) -> di
             f"Cannot pay returns before {start.isoformat()} "
             f"(returns start date - silent period still active)"
         )
+    occasion = _normalize_occasion(data.get("occasion"))
+    if cfg.entity == "partner" and not occasion:
+        basis = _normalize_profit_basis(ag.get("profit_share_basis")) or "project"
+        occasion = {"project": "completion", "milestone": "milestone", "quarterly": "quarterly"}.get(basis, "other")
     conn.execute(
-        f"""INSERT INTO {cfg.distribution_table}(agreement_id, amount, distribution_date, notes)
-           VALUES(?,?,?,?)""",
-        (agreement_id, amount, pay_date, _clean(data.get("notes"))),
+        f"""INSERT INTO {cfg.distribution_table}(agreement_id, amount, distribution_date, notes, occasion)
+           VALUES(?,?,?,?,?)""",
+        (agreement_id, amount, pay_date, _clean(data.get("notes")), occasion),
     )
     audit_svc.log(conn, cfg.entity, person_id, "distribution", {"amount": amount})
     return get_person(conn, cfg, person_id)

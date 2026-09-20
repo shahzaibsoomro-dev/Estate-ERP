@@ -3,12 +3,112 @@ from datetime import date
 from backend.database import fetch_all, fetch_one
 from backend.services import audit as audit_svc
 
+COMMISSION_MODES = ("percent", "flat", "over_base")
+
 
 def _clean(value):
     if value is None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def normalize_commission_mode(raw) -> str:
+    text = (_clean(raw) or "percent").lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "percentage": "percent",
+        "pct": "percent",
+        "rate": "percent",
+        "amount": "flat",
+        "pkr": "flat",
+        "fixed": "flat",
+        "fixed_pkr": "flat",
+        "fixed_amount": "flat",
+        "surplus": "over_base",
+        "above_base": "over_base",
+        "overbase": "over_base",
+        "over_base_price": "over_base",
+        "milestone": "over_base",
+    }
+    text = aliases.get(text, text)
+    return text if text in COMMISSION_MODES else "percent"
+
+
+def _pct(raw, default: float | None = None) -> float | None:
+    if raw in (None, ""):
+        return default
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return value
+
+
+def compute_booking_commission(
+    mode,
+    sale_price: int,
+    base_price: int | None = None,
+    rate_pct: float | None = None,
+    flat_amount: int | None = None,
+    over_base_pct: float | None = None,
+) -> dict:
+    """Resolve commission for a sale. over_base = anything above the unit's base price."""
+    mode = normalize_commission_mode(mode)
+    sale = int(sale_price or 0)
+    base = int(base_price or 0)
+    surplus = max(sale - base, 0)
+    rate = _pct(rate_pct, 0.0) or 0.0
+    share = _pct(over_base_pct, 100.0)
+    if share is None:
+        share = 100.0
+    try:
+        flat = int(flat_amount or 0)
+    except (TypeError, ValueError):
+        flat = 0
+    if flat < 0:
+        flat = 0
+
+    if mode == "flat":
+        amount = flat
+        stored_rate = 0.0
+    elif mode == "over_base":
+        if share < 0 or share > 100:
+            raise ValueError("Over-base share must be between 0 and 100")
+        amount = int(round(surplus * share / 100.0))
+        stored_rate = share
+        flat = 0
+    else:
+        if rate < 0 or rate > 100:
+            raise ValueError("Commission rate must be between 0 and 100")
+        amount = int(round(sale * rate / 100.0))
+        stored_rate = rate
+        flat = 0
+        share = None
+
+    return {
+        "mode": mode,
+        "rate_pct": stored_rate,
+        "flat_amount": flat,
+        "base_price": base,
+        "sale_price": sale,
+        "surplus": surplus,
+        "over_base_pct": share if mode == "over_base" else None,
+        "commission_amount": max(amount, 0),
+    }
+
+
+def commission_label(ag: dict) -> str:
+    mode = normalize_commission_mode(ag.get("commission_mode"))
+    if mode == "flat":
+        amt = int(ag.get("default_flat_amount") or 0)
+        return f"PKR {amt:,} fixed"
+    if mode == "over_base":
+        share = ag.get("over_base_pct")
+        share = 100 if share in (None, "") else share
+        return f"Above base ({share:g}% of surplus)"
+    rate = ag.get("default_rate_pct") if ag.get("default_rate_pct") is not None else ag.get("rate")
+    rate = 0 if rate in (None, "") else rate
+    return f"{rate:g}% of sale"
 
 
 def normalize_agent(data: dict) -> dict:
@@ -18,12 +118,31 @@ def normalize_agent(data: dict) -> dict:
     status = (_clean(data.get("status")) or "active").lower()
     if status not in ("active", "inactive"):
         status = "active"
-    try:
-        rate = float(data.get("default_rate_pct") if data.get("default_rate_pct") is not None else 2.0)
-    except (TypeError, ValueError):
-        rate = 2.0
+    mode = normalize_commission_mode(data.get("commission_mode"))
+    rate = _pct(data.get("default_rate_pct"), 2.0 if mode == "percent" else 0.0)
+    if rate is None:
+        rate = 2.0 if mode == "percent" else 0.0
     if rate < 0 or rate > 100:
         raise ValueError("Commission rate must be between 0 and 100")
+    try:
+        flat = int(data.get("default_flat_amount") or 0)
+    except (TypeError, ValueError):
+        flat = 0
+    if flat < 0:
+        raise ValueError("Fixed commission cannot be negative")
+    share = _pct(data.get("over_base_pct"), None)
+    if share is None and mode == "over_base":
+        share = _pct(data.get("default_rate_pct"), 100.0)
+    if share is None:
+        share = 100.0
+    if share < 0 or share > 100:
+        raise ValueError("Over-base share must be between 0 and 100")
+    if mode != "percent":
+        rate = rate if mode == "over_base" else 0.0
+    if mode != "flat":
+        flat = 0
+    if mode != "over_base":
+        share = 100.0
     try:
         bonus_budget = int(data.get("bonus_budget") or 0)
     except (TypeError, ValueError):
@@ -35,7 +154,10 @@ def normalize_agent(data: dict) -> dict:
         "description": _clean(data.get("description")),
         "contact": _clean(data.get("contact")),
         "category": _clean(data.get("category")),
-        "default_rate_pct": rate,
+        "commission_mode": mode,
+        "default_rate_pct": rate if mode == "percent" else (share if mode == "over_base" else 0.0),
+        "default_flat_amount": flat,
+        "over_base_pct": share,
         "bonus_budget": bonus_budget,
         "status": status,
     }
@@ -72,7 +194,12 @@ def _attach_summary(conn, ag: dict) -> dict:
     ag["commission_paid"] = comm["paid"]
     ag["commission_unpaid"] = max((comm["earned"] or 0) - (comm["paid"] or 0), 0)
     ag["bookings_count"] = comm["bookings_count"]
+    ag["commission_mode"] = normalize_commission_mode(ag.get("commission_mode"))
+    ag["default_flat_amount"] = int(ag.get("default_flat_amount") or 0)
+    if ag.get("over_base_pct") is None:
+        ag["over_base_pct"] = 100.0
     ag["rate"] = ag.get("default_rate_pct")
+    ag["commission_label"] = commission_label(ag)
     ag["bonus_budget"] = budget
     ag["bonus_paid"] = paid_bonus
     ag["bonus_remaining"] = max(budget - paid_bonus, 0)
@@ -108,7 +235,8 @@ def get_agent(conn, agent_id: int) -> dict | None:
     ag["commissions"] = fetch_all(
         conn,
         """SELECT ac.*, b.booking_no, b.final_sale_price,
-                  u.unit_no, p.name AS project_name, c.name AS customer_name,
+                  u.unit_no, u.base_sale_price AS unit_base_price,
+                  p.name AS project_name, c.name AS customer_name,
                   (ac.commission_amount - ac.paid_amount) AS remaining
            FROM agent_commissions ac
            JOIN bookings b ON b.id=ac.booking_id
@@ -141,11 +269,13 @@ def get_agent(conn, agent_id: int) -> dict | None:
 def create_agent(conn, data: dict) -> dict:
     payload = normalize_agent(data)
     cur = conn.execute(
-        """INSERT INTO agents(name, description, contact, category, default_rate_pct, bonus_budget, status)
-           VALUES(?,?,?,?,?,?,?)""",
+        """INSERT INTO agents(name, description, contact, category, commission_mode,
+           default_rate_pct, default_flat_amount, over_base_pct, bonus_budget, status)
+           VALUES(?,?,?,?,?,?,?,?,?,?)""",
         (
             payload["name"], payload["description"], payload["contact"], payload["category"],
-            payload["default_rate_pct"], payload["bonus_budget"], payload["status"],
+            payload["commission_mode"], payload["default_rate_pct"], payload["default_flat_amount"],
+            payload["over_base_pct"], payload["bonus_budget"], payload["status"],
         ),
     )
     return get_agent(conn, cur.lastrowid)
@@ -156,12 +286,14 @@ def update_agent(conn, agent_id: int, data: dict) -> dict | None:
         return None
     payload = normalize_agent(data)
     conn.execute(
-        """UPDATE agents SET name=?, description=?, contact=?, category=?, default_rate_pct=?,
+        """UPDATE agents SET name=?, description=?, contact=?, category=?, commission_mode=?,
+           default_rate_pct=?, default_flat_amount=?, over_base_pct=?,
            bonus_budget=?, status=?
            WHERE id=?""",
         (
             payload["name"], payload["description"], payload["contact"], payload["category"],
-            payload["default_rate_pct"], payload["bonus_budget"], payload["status"], agent_id,
+            payload["commission_mode"], payload["default_rate_pct"], payload["default_flat_amount"],
+            payload["over_base_pct"], payload["bonus_budget"], payload["status"], agent_id,
         ),
     )
     return get_agent(conn, agent_id)
