@@ -37,12 +37,12 @@ Sales & CRM module
 - DESIGN for documents, receipts where necessary
 
 Construction
-- Understand procurement flow more in depth and verify it's status flow
-- in each order add total units such as 2x10kg cement bags = 20 units of cement (will be used in inventory and comparision with BOQ)
-- what if order gets cancelled
-- Ask More details about contractors
-- Materials page -- Inventory page -- BOQ - REDESIGN AND PLAN
-- Details for Entry of Site Management Logs
+- Understand procurement flow more in depth and verify it's status flow  [done — draft → approved → GRN → payment_pending → completed; cancel from any open status]
+- in each order add total units such as 2x10kg cement bags = 20 units of cement (will be used in inventory and comparision with BOQ)  [done — packs × size = total units, GRN uses total units]
+- what if order gets cancelled  [done — unpaid cancels immediately; paid keeps a dynamic fee (default 30% of amount paid), refunds the rest, reverses GRN]
+- Ask More details about contractors  [done — company, father, email, address, city, PEC, bank, emergency]
+- Materials page -- Inventory page -- BOQ - REDESIGN AND PLAN  [later]
+- Details for Entry of Site Management Logs  [done — material lines, time, workforce, expenses, reporter, notes, photos/videos/docs]
 
 FINANCE
 - Accounts should be global and project wise Both

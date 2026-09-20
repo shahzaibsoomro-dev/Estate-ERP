@@ -36,11 +36,53 @@ def list_vendors(conn) -> list[dict]:
     return vendors
 
 
+def _qty_num(value) -> float | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    for token in str(value).replace(",", " ").split():
+        try:
+            return float(token)
+        except ValueError:
+            continue
+    return None
+
+
+def compute_pack_units(data: dict) -> tuple[float | None, float, str | None, float | None, str]:
+    """2 packs × 10 kg = 20 kg. pack_size defaults to 1 when omitted."""
+    qty_text = _clean(data.get("qty") or data.get("quantity"))
+    packs = _qty_num(data.get("pack_qty"))
+    if packs is None:
+        packs = _qty_num(qty_text)
+    size = _qty_num(data.get("pack_size"))
+    if size is None or size <= 0:
+        size = 1.0
+    unit = _clean(data.get("pack_unit"))
+    if not unit and qty_text:
+        tokens = qty_text.replace("×", "x").replace("=", " ").split()
+        unit = next(
+            (t for t in reversed(tokens) if _qty_num(t) is None and t.lower() not in ("x",)),
+            None,
+        )
+    if not unit:
+        unit = "kg" if size != 1 else "pcs"
+    if not packs:
+        return None, size, unit, None, qty_text or "—"
+    total_units = round(packs * size, 6)
+    if size != 1:
+        label = f"{packs:g} × {size:g} {unit} = {total_units:g} {unit}"
+    else:
+        label = f"{packs:g} {unit}".strip()
+    return packs, size, unit, total_units, label
+
+
 def _attach_balances(conn, vendor: dict) -> dict:
     pos = fetch_one(
         conn,
-        """SELECT COALESCE(SUM(total),0) AS total_payable
-           FROM purchase_orders WHERE vendor_id=? AND status!='cancelled'""",
+        """SELECT COALESCE(SUM(CASE WHEN status!='cancelled' THEN total
+                                    ELSE COALESCE(cancel_fee_amount,0) END),0) AS total_payable
+           FROM purchase_orders WHERE vendor_id=?""",
         (vendor["id"],),
     )
     paid = fetch_one(
@@ -72,6 +114,7 @@ def _map_po_status(po: dict, paid: int = 0) -> dict:
     po["remaining"] = max((po.get("total") or 0) - paid, 0)
     if status == "cancelled":
         po["status"] = "cancelled"
+        po["remaining"] = 0
         return po
     if status == "closed":
         po["status"] = "completed"
@@ -87,7 +130,25 @@ def _map_po_status(po: dict, paid: int = 0) -> dict:
 
 
 def _mapped_po(conn, po: dict) -> dict:
-    return _map_po_status(dict(po), _po_paid(conn, po["id"]))
+    row = _map_po_status(dict(po), _po_paid(conn, po["id"]))
+    packs = row.get("pack_qty")
+    size = row.get("pack_size") or 1
+    unit = row.get("pack_unit") or ""
+    total_units = row.get("total_units")
+    if packs and total_units is None:
+        total_units = float(packs) * float(size)
+        row["total_units"] = total_units
+    if packs and size and float(size) != 1 and unit:
+        row["qty_label"] = f"{float(packs):g} × {float(size):g} {unit} = {float(total_units or 0):g} {unit}"
+    elif packs and unit:
+        row["qty_label"] = f"{float(packs):g} {unit}"
+    else:
+        row["qty_label"] = row.get("quantity") or "—"
+    if total_units and row.get("total"):
+        row["unit_cost_per_unit"] = int(round(row["total"] / float(total_units)))
+    else:
+        row["unit_cost_per_unit"] = None
+    return row
 
 
 def _check_ntn(conn, ntn, vendor_id=None):
@@ -212,13 +273,12 @@ def create_purchase_order(conn, data: dict) -> dict:
         raise ValueError("Vendor not found")
     if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
         raise ValueError("Project not found")
+    packs, size, unit, total_units, qty_label = compute_pack_units(data)
     total = data.get("total")
     unit_cost = data.get("unit_cost")
-    qty_raw = data.get("qty") or data.get("quantity")
     if total in (None, ""):
         try:
-            qty_n = float(str(qty_raw).split()[0]) if qty_raw else 0
-            total = int(round((unit_cost or 0) * qty_n))
+            total = int(round((unit_cost or 0) * packs)) if packs else 0
         except (TypeError, ValueError):
             total = 0
     total = int(total or 0)
@@ -230,13 +290,15 @@ def create_purchase_order(conn, data: dict) -> dict:
     order_date = _clean(data.get("order_date")) or date.today().isoformat()
     cur = conn.execute(
         """INSERT INTO purchase_orders(po_no, vendor_id, project_id, budget_category_id,
-           category, material, quantity, unit_cost, total, order_date,
+           category, material, quantity, pack_qty, pack_size, pack_unit, total_units,
+           unit_cost, total, order_date,
            expected_delivery_date, status, grn_status, site, notes)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             po_no, vendor_id, project_id,
             data.get("budget_category_id"), data.get("category"), material,
-            _clean(qty_raw), unit_cost, total, order_date,
+            qty_label, packs or None, size, unit, total_units or None,
+            unit_cost, total, order_date,
             _clean(data.get("expected_delivery_date")),
             "ordered", "na",
             _clean(data.get("site")), _clean(data.get("notes")),
@@ -245,10 +307,77 @@ def create_purchase_order(conn, data: dict) -> dict:
     return get_purchase_order(conn, cur.lastrowid)
 
 
-def update_po_status(conn, po_id: int, status: str) -> dict | None:
+def cancel_preview(conn, po_id: int) -> dict | None:
+    po = get_purchase_order(conn, po_id)
+    if not po:
+        return None
+    from backend.services import settings as settings_svc
+    default_pct = settings_svc.get_float(conn, "po_cancel_fee_pct", 30.0)
+    paid = po.get("paid") or 0
+    fee = int(round(paid * default_pct / 100.0)) if paid else 0
+    refund = max(paid - fee, 0)
+    return {
+        **po,
+        "default_fee_pct": default_pct,
+        "paid": paid,
+        "suggested_fee": fee,
+        "suggested_refund": refund,
+        "needs_confirm": paid > 0,
+        "grn_done": po.get("grn_status") == "done",
+    }
+
+
+def _cancel_po(conn, po: dict, fee_pct: float | None, reason: str | None) -> dict:
+    from backend.services import settings as settings_svc
+    mapped = _map_po_status(dict(po), _po_paid(conn, po["id"]))
+    if mapped["status"] == "cancelled":
+        raise ValueError("Purchase order is already cancelled")
+    paid = _po_paid(conn, po["id"])
+    default_pct = settings_svc.get_float(conn, "po_cancel_fee_pct", 30.0)
+    if paid > 0 and fee_pct is None:
+        fee = int(round(paid * default_pct / 100.0))
+        refund = paid - fee
+        raise ValueError(
+            f"This PO has PKR {paid:,} paid. Confirm cancel with cancel_fee_pct "
+            f"(default {default_pct:g}%: vendor keeps PKR {fee:,}, refund PKR {refund:,})."
+        )
+    pct = default_pct if fee_pct is None else float(fee_pct)
+    if pct < 0 or pct > 100:
+        raise ValueError("Cancellation fee must be between 0 and 100 percent")
+    fee = int(round(paid * pct / 100.0)) if paid else 0
+    refund = max(paid - fee, 0)
+    if mapped.get("grn_status") == "done":
+        from backend.services import inventory as inv_svc
+        inv_svc.reverse_po_grn(conn, po["id"])
+    if refund > 0:
+        conn.execute(
+            """INSERT INTO vendor_payments(vendor_id, purchase_order_id, amount,
+               payment_date, payment_method, reference_number, notes)
+               VALUES(?,?,?,?,?,?,?)""",
+            (
+                po["vendor_id"], po["id"], -refund, date.today().isoformat(),
+                "Bank Transfer", po.get("po_no"),
+                f"PO cancel refund · vendor kept {pct:g}% (PKR {fee:,})",
+            ),
+        )
+    conn.execute(
+        """UPDATE purchase_orders SET status='cancelled',
+           cancel_fee_pct=?, cancel_fee_amount=?, cancel_refund_amount=?,
+           cancelled_at=datetime('now'), cancel_reason=?
+           WHERE id=?""",
+        (pct, fee, refund, _clean(reason), po["id"]),
+    )
+    audit_svc.log(conn, "purchase_order", po["id"], "cancelled", {
+        "po_no": po.get("po_no"), "paid": paid, "fee_pct": pct, "fee": fee, "refund": refund,
+    })
+    return get_purchase_order(conn, po["id"])
+
+
+def update_po_status(conn, po_id: int, status: str, extra: dict | None = None) -> dict | None:
     po = fetch_one(conn, "SELECT * FROM purchase_orders WHERE id=?", (po_id,))
     if not po:
         return None
+    extra = extra or {}
     key = (status or "").lower()
     if key == "approved":
         conn.execute(
@@ -271,13 +400,15 @@ def update_po_status(conn, po_id: int, status: str) -> dict | None:
             (po_id,),
         )
     elif key == "cancelled":
-        mapped = _map_po_status(dict(po), _po_paid(conn, po_id))
-        if mapped["status"] not in ("draft", "approved"):
-            raise ValueError("Only draft or approved POs can be cancelled")
-        if _po_paid(conn, po_id) > 0:
-            raise ValueError("Cannot cancel a PO with payments")
-        conn.execute("UPDATE purchase_orders SET status='cancelled' WHERE id=?", (po_id,))
-        audit_svc.log(conn, "purchase_order", po_id, "cancelled", {"po_no": po.get("po_no")})
+        raw_pct = extra.get("cancel_fee_pct")
+        if raw_pct in ("", None):
+            raw_pct = None
+        else:
+            try:
+                raw_pct = float(raw_pct)
+            except (TypeError, ValueError) as e:
+                raise ValueError("Cancellation fee must be a number") from e
+        return _cancel_po(conn, po, raw_pct, extra.get("cancel_reason"))
     else:
         raise ValueError("Invalid PO status")
     return get_purchase_order(conn, po_id)

@@ -210,6 +210,10 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     category TEXT,
     material TEXT NOT NULL,
     quantity TEXT,
+    pack_qty REAL,
+    pack_size REAL DEFAULT 1,
+    pack_unit TEXT,
+    total_units REAL,
     unit_cost INTEGER,
     total INTEGER NOT NULL,
     order_date TEXT NOT NULL,
@@ -218,6 +222,11 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     grn_status TEXT DEFAULT 'pending',
     site TEXT,
     notes TEXT,
+    cancel_fee_pct REAL,
+    cancel_fee_amount INTEGER DEFAULT 0,
+    cancel_refund_amount INTEGER DEFAULT 0,
+    cancelled_at TEXT,
+    cancel_reason TEXT,
     FOREIGN KEY (vendor_id) REFERENCES vendors(id),
     FOREIGN KEY (project_id) REFERENCES projects(id),
     FOREIGN KEY (budget_category_id) REFERENCES budget_categories(id)
@@ -407,15 +416,37 @@ CREATE TABLE IF NOT EXISTS site_logs (
     workers_skilled INTEGER DEFAULT 0,
     workers_unskilled INTEGER DEFAULT 0,
     material_used TEXT,
+    materials_json TEXT,
     work_done TEXT NOT NULL,
+    reporter TEXT,
+    time_from TEXT,
+    time_to TEXT,
+    hours_worked REAL,
+    extra_expenses INTEGER DEFAULT 0,
+    expense_notes TEXT,
+    notes TEXT,
+    workforce_notes TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS site_log_attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_log_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    stored_name TEXT NOT NULL,
+    mime TEXT,
+    size INTEGER DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'file',
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (site_log_id) REFERENCES site_logs(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_po_vendor ON purchase_orders(vendor_id);
 CREATE INDEX IF NOT EXISTS idx_po_project ON purchase_orders(project_id);
 CREATE INDEX IF NOT EXISTS idx_site_logs_project ON site_logs(project_id);
 CREATE INDEX IF NOT EXISTS idx_site_logs_date ON site_logs(log_date);
+CREATE INDEX IF NOT EXISTS idx_site_log_att_log ON site_log_attachments(site_log_id);
 
 CREATE TABLE IF NOT EXISTS unit_holds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -517,6 +548,16 @@ CREATE TABLE IF NOT EXISTS contractors (
     contact TEXT,
     ntn TEXT,
     specialty TEXT,
+    company_name TEXT,
+    father_name TEXT,
+    email TEXT,
+    address TEXT,
+    city TEXT,
+    pec_no TEXT,
+    bank_name TEXT,
+    account_title TEXT,
+    account_no TEXT,
+    emergency_contact TEXT,
     description TEXT,
     status TEXT DEFAULT 'active'
 );

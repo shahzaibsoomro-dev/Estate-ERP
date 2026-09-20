@@ -137,6 +137,7 @@ _R = [
     ("GET", r"/documents/\d+", ("documents",), "view"),
     # --- procurement & vendors
     ("GET", r"/api/purchase-orders(/\d+)?", ("procurement",), "view"),
+    ("GET", r"/api/purchase-orders/\d+/cancel-preview", ("procurement",), "view"),
     ("POST", r"/api/purchase-orders", ("procurement",), "add"),
     ("PUT", r"/api/purchase-orders/\d+/status", ("procurement",), "edit"),
     ("POST", r"/api/vendor-payments", ("procurement",), "add"),
@@ -154,10 +155,13 @@ _R = [
     ("POST", r"/api/inventory", ("inventory",), "add"),
     ("PUT", r"/api/inventory/\d+", ("inventory",), "edit"),
     ("POST", r"/api/inventory/\d+/move", ("inventory",), "add"),
-    ("GET", r"/api/site-logs", ("site", "projects"), "view"),
+    ("GET", r"/api/site-logs(/\d+)?", ("site", "projects"), "view"),
     ("POST", r"/api/site-logs", ("site",), "add"),
     ("PUT", r"/api/site-logs/\d+", ("site",), "edit"),
     ("DELETE", r"/api/site-logs/\d+", ("site",), "delete"),
+    ("POST", r"/api/site-logs/\d+/attachments", ("site",), "add"),
+    ("GET", r"/api/site-logs/\d+/attachments/\d+", ("site", "projects"), "view"),
+    ("DELETE", r"/api/site-logs/\d+/attachments/\d+", ("site",), "delete"),
     # --- finance
     ("GET", r"/api/ledger", ("accounts",), "view"),
     ("POST", r"/api/ledger", ("accounts",), "add"),

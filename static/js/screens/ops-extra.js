@@ -26,7 +26,7 @@ export async function loadContractors() {
 function renderCtr() {
   const q = ($('ctr-search')?.value || '').trim().toLowerCase();
   const rows = !q ? allCtr : allCtr.filter((c) =>
-    [c.name, c.specialty, c.ntn, c.contact, c.master_id].filter(Boolean).join(' ').toLowerCase().includes(q));
+    [c.name, c.company_name, c.specialty, c.ntn, c.contact, c.city, c.pec_no, c.master_id].filter(Boolean).join(' ').toLowerCase().includes(q));
   const tbody = $('ctr-tbody');
   if (!tbody) return;
   tbody.innerHTML = rows.length ? rows.map((c) => `
@@ -68,11 +68,17 @@ async function openCtrDetail(id) {
   $('ctrd-body').innerHTML = `
     <div class="g2" style="margin-bottom:14px">
       <div>
+        <div class="sum-row"><span class="sum-lbl">Company</span><span class="sum-val">${esc(c.company_name || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Specialty</span><span class="sum-val">${esc(c.specialty || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">NTN</span><span class="sum-val">${esc(c.ntn || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">PEC</span><span class="sum-val">${esc(c.pec_no || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Contact</span><span class="sum-val">${esc(c.contact || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">City</span><span class="sum-val">${esc(c.city || '—')}</span></div>
       </div>
       <div>
+        <div class="sum-row"><span class="sum-lbl">Email</span><span class="sum-val">${esc(c.email || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Bank</span><span class="sum-val">${esc(c.bank_name || '—')}</span></div>
+        <div class="sum-row"><span class="sum-lbl">Account</span><span class="sum-val">${esc(c.account_no || '—')}</span></div>
         <div class="sum-row"><span class="sum-lbl">Contracted</span><span class="sum-val">${fmt(c.total_contracted)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Paid</span><span class="sum-val">${fmt(c.total_paid)}</span></div>
         <div class="sum-row"><span class="sum-lbl">Balance</span><span class="sum-val">${fmt(c.balance)}</span></div>
@@ -127,7 +133,9 @@ function openCtrPay(id, c) {
 
 function openCtrForm(id = null) {
   closeModal('ctr-detail-modal');
-  ['nctr-id', 'nctr-name', 'nctr-specialty', 'nctr-contact', 'nctr-ntn', 'nctr-cnic', 'nctr-description'].forEach((x) => { if ($(x)) $(x).value = ''; });
+  ['nctr-id', 'nctr-name', 'nctr-company', 'nctr-father', 'nctr-specialty', 'nctr-contact', 'nctr-emergency',
+    'nctr-ntn', 'nctr-cnic', 'nctr-email', 'nctr-city', 'nctr-address', 'nctr-pec',
+    'nctr-bank', 'nctr-title', 'nctr-account', 'nctr-description'].forEach((x) => { if ($(x)) $(x).value = ''; });
   if ($('nctr-status')) $('nctr-status').value = 'active';
   $('ctr-modal-title').textContent = id ? 'Edit Contractor' : 'Add Contractor';
   openModal('ctr-modal');
@@ -135,10 +143,20 @@ function openCtrForm(id = null) {
   api(`/api/contractors/${id}`).then((c) => {
     $('nctr-id').value = String(c.id);
     $('nctr-name').value = c.name || '';
+    if ($('nctr-company')) $('nctr-company').value = c.company_name || '';
+    if ($('nctr-father')) $('nctr-father').value = c.father_name || '';
     $('nctr-specialty').value = c.specialty || '';
     $('nctr-contact').value = c.contact || '';
+    if ($('nctr-emergency')) $('nctr-emergency').value = c.emergency_contact || '';
     $('nctr-ntn').value = c.ntn || '';
     $('nctr-cnic').value = c.cnic || '';
+    if ($('nctr-email')) $('nctr-email').value = c.email || '';
+    if ($('nctr-city')) $('nctr-city').value = c.city || '';
+    if ($('nctr-address')) $('nctr-address').value = c.address || '';
+    if ($('nctr-pec')) $('nctr-pec').value = c.pec_no || '';
+    if ($('nctr-bank')) $('nctr-bank').value = c.bank_name || '';
+    if ($('nctr-title')) $('nctr-title').value = c.account_title || '';
+    if ($('nctr-account')) $('nctr-account').value = c.account_no || '';
     $('nctr-description').value = c.description || '';
     $('nctr-status').value = c.status || 'active';
   }).catch(() => closeModal('ctr-modal'));
@@ -146,9 +164,22 @@ function openCtrForm(id = null) {
 
 async function saveCtr() {
   const payload = {
-    name: $('nctr-name').value.trim(), specialty: $('nctr-specialty').value.trim(),
-    contact: $('nctr-contact').value.trim(), ntn: $('nctr-ntn').value.trim(),
-    cnic: $('nctr-cnic').value.trim(), description: $('nctr-description').value.trim(),
+    name: $('nctr-name').value.trim(),
+    company_name: ($('nctr-company')?.value || '').trim(),
+    father_name: ($('nctr-father')?.value || '').trim(),
+    specialty: $('nctr-specialty').value.trim(),
+    contact: $('nctr-contact').value.trim(),
+    emergency_contact: ($('nctr-emergency')?.value || '').trim(),
+    ntn: $('nctr-ntn').value.trim(),
+    cnic: $('nctr-cnic').value.trim(),
+    email: ($('nctr-email')?.value || '').trim(),
+    city: ($('nctr-city')?.value || '').trim(),
+    address: ($('nctr-address')?.value || '').trim(),
+    pec_no: ($('nctr-pec')?.value || '').trim(),
+    bank_name: ($('nctr-bank')?.value || '').trim(),
+    account_title: ($('nctr-title')?.value || '').trim(),
+    account_no: ($('nctr-account')?.value || '').trim(),
+    description: $('nctr-description').value.trim(),
     status: $('nctr-status').value,
   };
   if (!payload.name) { toast('Name required', 'error'); return; }

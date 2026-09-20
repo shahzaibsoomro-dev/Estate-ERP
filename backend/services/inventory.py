@@ -202,27 +202,30 @@ def receive_from_po(conn, po_id: int) -> dict | None:
            ORDER BY id LIMIT 1""",
         (material, po["project_id"], po["project_id"]),
     )
+    # Prefer pack math (2 × 10kg = 20 kg); fall back to first number in quantity.
+    qty = _qty(po.get("total_units"))
+    if qty <= 0:
+        qty_raw = _clean(po.get("quantity")) or "1"
+        qty = 1.0
+        for token in qty_raw.replace(",", " ").split():
+            try:
+                qty = float(token)
+                break
+            except ValueError:
+                continue
+    item_unit = _clean(po.get("pack_unit")) or (item.get("unit") if item else None) or "kg"
     if not item:
         cur = conn.execute(
             """INSERT INTO inventory_items(sku, name, unit, category, project_id, min_stock, notes, status)
                VALUES(?,?,?,?,?,?,?,?)""",
             (
-                po.get("po_no"), material, "lot", po.get("category"),
+                po.get("po_no"), material, item_unit, po.get("category"),
                 po["project_id"], 0, f"Auto from {po.get('po_no')}", "active",
             ),
         )
         item_id = cur.lastrowid
     else:
         item_id = item["id"]
-    # Parse quantity if numeric; else 1 lot
-    qty_raw = _clean(po.get("quantity")) or "1"
-    qty = 1.0
-    for token in qty_raw.replace(",", " ").split():
-        try:
-            qty = float(token)
-            break
-        except ValueError:
-            continue
     unit_cost = int(po.get("unit_cost") or 0)
     if unit_cost <= 0 and po.get("total") and qty:
         unit_cost = int(round(po["total"] / qty))
@@ -246,3 +249,34 @@ def receive_from_po(conn, po_id: int) -> dict | None:
         "notes": f"GRN · {po.get('po_no')} · {po.get('vendor_name')}",
     })
     return get_item(conn, item_id)
+
+
+def reverse_po_grn(conn, po_id: int) -> None:
+    """Take GRN'd stock back out when a received PO is cancelled."""
+    existing = fetch_one(
+        conn,
+        """SELECT * FROM inventory_movements
+           WHERE reference_type='po_grn' AND reference_id=?
+           ORDER BY id DESC LIMIT 1""",
+        (po_id,),
+    )
+    if not existing:
+        return
+    already = fetch_one(
+        conn,
+        """SELECT id FROM inventory_movements
+           WHERE reference_type='po_grn_reverse' AND reference_id=?""",
+        (po_id,),
+    )
+    if already:
+        return
+    _add_movement(conn, existing["item_id"], {
+        "direction": "out",
+        "quantity": existing["quantity"],
+        "project_id": existing["project_id"],
+        "unit_cost": existing["unit_cost"],
+        "reference_type": "po_grn_reverse",
+        "reference_id": po_id,
+        "movement_date": date.today().isoformat(),
+        "notes": f"Reverse GRN · cancelled PO",
+    })

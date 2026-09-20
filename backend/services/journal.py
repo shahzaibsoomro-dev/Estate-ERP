@@ -45,6 +45,7 @@ CASH_ACCOUNTS = ("1010", "1020")
 SOURCE_LABEL = {
     "payment": "Customer collections", "hold_in": "Hold tokens", "hold_refund": "Hold token refunds",
     "transfer": "Transfer fees", "cancel_refund": "Cancellation refunds", "vendor_payment": "Vendor payments",
+    "po_cancel_fee": "PO cancellation fees", "po_cancel_refund": "PO cancellation refunds",
     "contractor_payment": "Contractor payments", "commission_payment": "Agent commissions",
     "agent_bonus": "Agent bonuses", "investor_in": "Investor funding", "investor_out": "Investor returns",
     "partner_in": "Partner capital", "partner_out": "Partner drawings", "manual": "Cashbook entries",
@@ -148,13 +149,28 @@ def build(conn, project_ids: list[int] | None = None, end: str | None = None) ->
            po["project_id"], po["vendor"], [("5000", po["total"], 0), ("2000", 0, po["total"])])
         if len(E) > e_start:
             E[-1]["category"] = po["category"]
+    for po in _safe(conn, """SELECT po.id, po.po_no, COALESCE(po.cancelled_at, po.order_date) AS cancelled_at,
+                                    COALESCE(po.cancel_fee_amount,0) AS fee, po.project_id, v.name AS vendor
+                             FROM purchase_orders po JOIN vendors v ON v.id=po.vendor_id
+                             WHERE po.status='cancelled' AND COALESCE(po.cancel_fee_amount,0) > 0"""):
+        _e(E, po["cancelled_at"], "po_cancel_fee", po["po_no"],
+           f"PO cancel fee · {po['po_no']} · {po['vendor']}", po["project_id"], po["vendor"],
+           [("5800", po["fee"], 0), ("2000", 0, po["fee"])])
     for vp in fetch_all(conn, """SELECT vp.id, vp.amount, vp.payment_date, vp.payment_method, vp.reference_number,
                                         v.name AS vendor, po.po_no, po.project_id
                                  FROM vendor_payments vp JOIN vendors v ON v.id=vp.vendor_id
                                  LEFT JOIN purchase_orders po ON po.id=vp.purchase_order_id"""):
-        _e(E, vp["payment_date"], "vendor_payment", vp["reference_number"] or vp["po_no"],
-           f"Paid vendor · {vp['vendor']} · {vp['po_no'] or ''}", vp["project_id"], vp["vendor"],
-           [("2000", vp["amount"], 0), (cash_account(vp["payment_method"]), 0, vp["amount"])])
+        cash = cash_account(vp["payment_method"])
+        amt = int(vp["amount"] or 0)
+        if amt < 0:
+            amt = -amt
+            _e(E, vp["payment_date"], "po_cancel_refund", vp["reference_number"] or vp["po_no"],
+               f"PO cancel refund · {vp['vendor']} · {vp['po_no'] or ''}", vp["project_id"], vp["vendor"],
+               [(cash, amt, 0), ("2000", 0, amt)])
+        elif amt > 0:
+            _e(E, vp["payment_date"], "vendor_payment", vp["reference_number"] or vp["po_no"],
+               f"Paid vendor · {vp['vendor']} · {vp['po_no'] or ''}", vp["project_id"], vp["vendor"],
+               [("2000", amt, 0), (cash, 0, amt)])
 
     for cp in _safe(conn, """SELECT cp.id, cp.amount, cp.payment_date, cp.payment_method, cp.reference_number,
                                     cp.project_id, c.name AS contractor
