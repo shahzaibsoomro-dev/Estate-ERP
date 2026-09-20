@@ -276,6 +276,20 @@ function bindAdminFromContact() {
   });
 }
 
+function bindOpeningToggle() {
+  const cb = $('f-record_opening_balance');
+  const ids = ['opening_cash', 'opening_bank', 'opening_date'];
+  const sync = () => {
+    const on = !!cb?.checked;
+    ids.forEach((n) => {
+      const wrap = $(`f-${n}`)?.closest('.fg');
+      if (wrap) wrap.hidden = !on;
+    });
+  };
+  cb?.addEventListener('change', sync);
+  sync();
+}
+
 function emailError(v) {
   if (!v) return null;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : 'Enter a valid email address';
@@ -710,6 +724,12 @@ function newCompany() {
         hint: 'Days after the period ends before the workspace becomes read-only' },
       { name: 'subscription_notes', label: 'Deal notes (discount, custom terms)', type: 'textarea', full: true, max: 1000 },
       { name: 'seed_sample', label: 'Start with sample demo data', type: 'checkbox', value: false },
+      { type: 'section', label: 'Opening cash (only if they already have money in hand)' },
+      { name: 'record_opening_balance', label: 'Record current cash / bank for this company', type: 'checkbox', value: false },
+      { name: 'opening_cash', label: 'Cash in hand (PKR)', type: 'number', min: 0, value: 0,
+        hint: 'Leave unchecked above if they start from zero' },
+      { name: 'opening_bank', label: 'Bank balance (PKR)', type: 'number', min: 0, value: 0 },
+      { name: 'opening_date', label: 'As of date', type: 'date', value: today() },
       { type: 'section', label: 'First admin account' },
       { name: 'admin_name', label: 'Admin full name', required: true },
       { name: 'admin_email', label: 'Admin email', type: 'email', required: true, validate: emailError },
@@ -718,11 +738,17 @@ function newCompany() {
       bindPhone();
       bindPlanPrice({ fillNow: true });
       bindAdminFromContact();
+      bindOpeningToggle();
     },
     onSubmit: async (v) => {
       v.plan_id = Number(v.plan_id);
       if (v.trial_days == null) v.trial_days = 0;
       if (v.grace_days == null) v.grace_days = 7;
+      if (!v.record_opening_balance) {
+        delete v.opening_cash;
+        delete v.opening_bank;
+        delete v.opening_date;
+      }
       const r = await api('/api/console/companies', { method: 'POST', body: v });
       showSecret({ title: `${r.company.name} created`, name: r.admin.name, password: r.temporary_password, email: r.admin.email });
       location.hash = `company/${r.company.id}`;

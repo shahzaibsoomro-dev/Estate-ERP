@@ -26,9 +26,13 @@ export const NAV = [
     { s: 'inventory', label: 'Materials', keywords: 'stock inventory' },
     { s: 'site', label: 'Site Management', keywords: 'site logs progress' },
   ] },
+  { id: 'planning', label: 'Planning', items: [
+    { s: 'planning', label: 'Structure of Work', keywords: 'sow stages tasks gantt schedule timeline programme' },
+    { s: 'boq', label: 'Bill of Quantities', keywords: 'boq material estimate quantities takeoff' },
+    { s: 'budget', label: 'Budget', keywords: 'cost plan planned vs actual' },
+  ] },
   { id: 'finance', label: 'Finance', items: [
     { s: 'accounts', label: 'Accounts', keywords: 'cashbook ledger' },
-    { s: 'budget', label: 'Budget' },
     { s: 'payplans', label: 'Pay Plans', keywords: 'installment template' },
     { s: 'reports', label: 'Reports', keywords: 'ageing sales' },
   ] },
@@ -36,7 +40,7 @@ export const NAV = [
     { s: 'agents', label: 'Agents', keywords: 'brokers commission' },
     { s: 'investors', label: 'Investors' },
     { s: 'partners', label: 'Partners' },
-    { s: 'parties', label: 'Parties', keywords: 'master ids' },
+    { s: 'parties', label: 'Parties', keywords: 'master ids search cnic person entity' },
   ] },
   { id: 'admin', label: 'Administration', items: [
     { s: 'employees', label: 'Employees & Access', keywords: 'staff team users roles permissions', adminOnly: true },
@@ -51,7 +55,8 @@ export const SCREEN_MODULE = {
   dashboard: 'dashboard', activity: 'activity', projects: 'projects', units: 'units', booking: 'booking',
   customers: 'customers', demand: 'demand', documents: 'documents', recovery: 'recovery',
   procurement: 'procurement', vendors: 'vendors', contractors: 'contractors', inventory: 'inventory',
-  site: 'site', accounts: 'accounts', budget: 'budget', payplans: 'payplans', reports: 'reports',
+  site: 'site', accounts: 'accounts', planning: 'planning', boq: 'boq', budget: 'budget',
+  payplans: 'payplans', reports: 'reports',
   agents: 'agents', investors: 'investors', partners: 'partners', parties: 'parties',
   access: 'customer_logins', portal: 'portal',
 };

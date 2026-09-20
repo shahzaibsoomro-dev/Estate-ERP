@@ -48,6 +48,72 @@ CREATE TABLE IF NOT EXISTS site_log_attachments (
     FOREIGN KEY (site_log_id) REFERENCES site_logs(id)
 );
 CREATE INDEX IF NOT EXISTS idx_site_log_att_log ON site_log_attachments(site_log_id);
+
+CREATE TABLE IF NOT EXISTS project_stages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    name TEXT NOT NULL,
+    weight_bps INTEGER NOT NULL DEFAULT 0,
+    planned_start TEXT,
+    planned_end TEXT,
+    actual_start TEXT,
+    actual_end TEXT,
+    status TEXT DEFAULT 'not_started',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_stages_project ON project_stages(project_id);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    stage_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    name TEXT NOT NULL,
+    planned_start TEXT,
+    planned_end TEXT,
+    weight_bps INTEGER NOT NULL DEFAULT 0,
+    progress_pct INTEGER NOT NULL DEFAULT 0,
+    depends_on_task_id INTEGER,
+    lag_days INTEGER DEFAULT 0,
+    workers_skilled INTEGER DEFAULT 0,
+    workers_unskilled INTEGER DEFAULT 0,
+    skilled_rate INTEGER DEFAULT 0,
+    unskilled_rate INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'not_started',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (stage_id) REFERENCES project_stages(id),
+    FOREIGN KEY (depends_on_task_id) REFERENCES project_tasks(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_stage ON project_tasks(stage_id);
+
+CREATE TABLE IF NOT EXISTS project_boq_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    stage_id INTEGER,
+    task_id INTEGER,
+    item_id INTEGER,
+    category_id INTEGER,
+    name TEXT NOT NULL,
+    unit TEXT DEFAULT 'pcs',
+    qty REAL NOT NULL DEFAULT 0,
+    wastage_pct REAL DEFAULT 0,
+    rate INTEGER NOT NULL DEFAULT 0,
+    revision_no INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (stage_id) REFERENCES project_stages(id),
+    FOREIGN KEY (task_id) REFERENCES project_tasks(id),
+    FOREIGN KEY (category_id) REFERENCES budget_categories(id)
+);
+CREATE INDEX IF NOT EXISTS idx_project_boq_project ON project_boq_lines(project_id);
 """
 
 
@@ -102,6 +168,23 @@ def _ensure_cols(conn: sqlite3.Connection) -> None:
             ("cancelled_at", "TEXT"),
             ("cancel_reason", "TEXT"),
         ],
+        "agents": [
+            ("commission_mode", "TEXT DEFAULT 'percent'"),
+            ("default_flat_amount", "INTEGER DEFAULT 0"),
+            ("over_base_pct", "REAL DEFAULT 100"),
+        ],
+        "agent_commissions": [
+            ("mode", "TEXT DEFAULT 'percent'"),
+            ("flat_amount", "INTEGER DEFAULT 0"),
+            ("base_price", "INTEGER"),
+            ("surplus", "INTEGER"),
+        ],
+        "partner_distributions": [
+            ("occasion", "TEXT"),
+        ],
+        "investor_distributions": [
+            ("occasion", "TEXT"),
+        ],
         "contractors": [
             ("company_name", "TEXT"),
             ("father_name", "TEXT"),
@@ -124,6 +207,16 @@ def _ensure_cols(conn: sqlite3.Connection) -> None:
             ("notes", "TEXT"),
             ("workforce_notes", "TEXT"),
             ("materials_json", "TEXT"),
+        ],
+        "ledger_entries": [
+            ("kind", "TEXT DEFAULT 'manual'"),
+        ],
+        "projects": [
+            ("progress_mode", "TEXT DEFAULT 'auto'"),
+        ],
+        "project_budget_lines": [
+            ("source", "TEXT DEFAULT 'manual'"),
+            ("stage_id", "INTEGER"),
         ],
     }
     for table, pairs in cols.items():

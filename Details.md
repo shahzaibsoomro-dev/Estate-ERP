@@ -19,14 +19,14 @@
         │                       │                       │
    ┌────┴────┐            ┌─────┴─────┐           Dashboard
    │         │            │           │           Reports
- Units    Budget      Customers   Bookings
-   │         │            │           │
- Site     Procure-    Payments   Installments
- Logs     ment           │           │
-          │          Receipts    Recovery
-       Vendors              │     Demand notices
-          │              Agents
-       Investors         Actions (receipts, PDF, WA, email)
+ Units    Planning     Customers   Bookings
+   │      (SOW·BOQ·      │           │
+ Site      Budget)    Payments   Installments
+ Logs        │           │           │
+          Procure-   Receipts    Recovery
+          ment           │     Demand notices
+       Vendors        Agents
+       Investors      Actions (receipts, PDF, WA, email)
 ```
 
 **Project** is the hub — units, budget, procurement, site work, sales, and (optionally) investors all tie to a project.
@@ -104,12 +104,31 @@ Available → Hold → Booked → Sold → Possession Delivered
 ## Flow 2 — Construction (project side)
 
 ```
-Create Project → Set Budget (by category, revisable)
+Create Project → Plan the work (stages, tasks, BOQ) → Budget rolls up
        → Raise Purchase Order → Material Delivered
        → Pay Vendor → Close PO
-       → Log Daily Site Activity
+       → Log Daily Site Activity → Tick off task progress
        → Compare Budget vs Actual Spend
 ```
+
+### Planning
+
+Planning is one project-scoped module with three linked parts.
+
+**Structure of Work** — the project broken into **stages**, each stage into **tasks**.
+
+- Stages carry a weight; tasks carry a weight within their stage. Weights are stored in basis points and normalised to 100%, with an even-split helper.
+- A task holds planned start/end, progress %, skilled/unskilled worker counts and day rates, and an optional finish-to-start dependency with lag.
+- Progress rolls up: task % × task weight × stage weight = **project construction progress**, which feeds the existing milestone installments. An owner can switch the project to **manual** progress and type the number instead.
+- The **Timeline** tab is an interactive Gantt: drag to move a bar, drag an edge to resize, week/month zoom, today marker, and dependency arrows. A dependency that is violated is flagged on the bar — nothing is auto-shifted.
+
+**Bill of Quantities** — estimated material requirements, before anything is bought.
+
+- A line sits on the project, or under a stage/task, and can point at a material item and a budget category.
+- Line amount = qty × (1 + wastage %) × rate.
+- Each line compares **estimated vs purchased vs consumed**: purchased comes from purchase orders, consumed from inventory movements out and site-log materials.
+
+**Budget** — see below. BOQ owns estimates; Materials in Construction stays the record of actual stock.
 
 ### Procurement
 
@@ -123,16 +142,22 @@ PO Created → Ordered → Delivered → Vendor Paid → Closed (fully paid)
 
 ### Budget
 
-- Per project, per **category** (Steel, Cement, Labor, etc. — categories are configurable).
-- Planned amount can be **revised** over time.
+Budget lives under **Planning**, not Finance, because most of it is now computed rather than typed.
+
+- Planned cost per **category** = **manual lines + BOQ material + Structure of Work labour**.
+- Manual lines cover what no other module knows about — land, approvals, overheads. They can be **revised** over time (a revision closes the old line and opens a new one, so history survives).
+- Material comes from BOQ lines, grouped by their category (falling back to Materials).
+- Labour comes from task worker counts × day rates × duration, posted to the Labour category.
 - Actual spend comes from procurement and recorded expenses.
-- Shows: planned, spent, variance, status (within budget / near limit / exceeded).
+- Shows: planned (with the three-way breakdown), spent, variance, status (within budget / near limit / exceeded).
+- Reports and the dashboard overrun alert read the same summary, so they pick up the roll-up automatically.
 
 ### Site logs
 
 - Daily record: who reported, workers, work done, materials used, issues, progress %, remarks.
 - Fields stay **open and flexible** for future needs.
-- For **visibility and progress tracking** — not used to calculate finances directly.
+- For **visibility and progress tracking** — not used to calculate finances directly. The number that moves money is the task progress in Structure of Work.
+- Materials used here also count as **consumed** in the BOQ comparison.
 - Photos/attachments — future.
 
 ---

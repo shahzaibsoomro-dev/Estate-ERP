@@ -1,24 +1,28 @@
-import json
 from fastapi import APIRouter, Query
-from backend.database import fetch_all, get_db
+from backend.database import get_db
+from backend.services import audit as audit_svc
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
 
 
 @router.get("")
-def list_audit(limit: int = Query(200, ge=1, le=500)):
+def list_audit(
+    limit: int = Query(200, ge=1, le=500),
+    q: str | None = None,
+    entity: str | None = Query(None, description="Filter by entity_type"),
+    module: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    project_id: int | None = None,
+):
     with get_db() as conn:
-        rows = fetch_all(
+        return audit_svc.list_activity(
             conn,
-            """SELECT id, entity_type, entity_id, action, details, created_at
-               FROM audit_log ORDER BY id DESC LIMIT ?""",
-            (limit,),
+            limit=limit,
+            q=q,
+            entity_type=entity,
+            module=module,
+            date_from=date_from,
+            date_to=date_to,
+            project_id=project_id,
         )
-    for r in rows:
-        raw = r.get("details")
-        if isinstance(raw, str) and raw:
-            try:
-                r["details"] = json.loads(raw)
-            except json.JSONDecodeError:
-                pass
-    return rows

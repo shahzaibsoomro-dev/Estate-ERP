@@ -33,6 +33,10 @@ class CompanyCreate(BaseModel):
     admin_name: str = Field(max_length=120)
     admin_email: str = Field(max_length=254)
     seed_sample: bool = False
+    record_opening_balance: bool = False
+    opening_cash: int | None = Field(None, ge=0)
+    opening_bank: int | None = Field(None, ge=0)
+    opening_date: str | None = Field(None, max_length=10)
 
 
 class CompanyUpdate(BaseModel):

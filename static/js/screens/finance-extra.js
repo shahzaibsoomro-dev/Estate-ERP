@@ -808,15 +808,27 @@ function renderShell() {
   const host = $('s-reports');
   if (host.dataset.ready) return;
   host.dataset.ready = '1';
+  const main = REPORTS.filter((r) => r.group === 'main');
+  const more = REPORTS.filter((r) => r.group === 'more');
   host.innerHTML = `
-    <div class="rp-tabs" role="tablist">${['main', 'more'].map((g) => `${g === 'more' ? '<span class="rp-tab-sep" aria-hidden="true">More</span>' : ''}${REPORTS.filter((r) => r.group === g).map((r) => `
-      <button type="button" role="tab" class="rp-tab" data-rp="${r.key}" title="${esc(r.desc)}">${icon(r.ico, 16)}<span>${esc(r.label)}</span></button>`).join('')}`).join('')}
+    <div class="rp-picker">
+      <div class="fg" style="min-width:220px;margin:0">
+        <label class="fg-hint" for="rp-select" style="margin:0">Report</label>
+        <select id="rp-select">
+          <optgroup label="Main">${main.map((r) => `<option value="${r.key}">${esc(r.label)}</option>`).join('')}</optgroup>
+          <optgroup label="More">${more.map((r) => `<option value="${r.key}">${esc(r.label)}</option>`).join('')}</optgroup>
+        </select>
+      </div>
+      <div class="rp-pills" role="tablist">${main.map((r) => `
+        <button type="button" role="tab" class="rp-tab" data-rp="${r.key}" title="${esc(r.desc)}">${icon(r.ico, 15)}<span>${esc(r.label)}</span></button>`).join('')}
+      </div>
     </div>
     <div class="card filter-card rp-filters">
       <div class="toolbar">
         <div class="rp-period" id="rp-period-wrap">
           <label class="fg-hint" for="rp-period" id="rp-period-lbl" style="margin:0">Period</label>
           <select id="rp-period"></select>
+          <button type="button" class="btn sm" id="rp-cal-toggle">${icon('clock', 14)} Calendar</button>
           <span id="rp-custom" hidden><input type="date" id="rp-from" aria-label="From"> <input type="date" id="rp-to" aria-label="To"></span>
         </div>
         <span class="rp-scope" id="rp-scope"></span>
@@ -825,17 +837,28 @@ function renderShell() {
           <button type="button" class="btn" id="rp-print" data-perm="view">${icon('file', 15)} Print / PDF</button>
         </div>
       </div>
+      <div class="rp-cal" id="rp-cal" hidden>
+        <div class="rp-cal-nav">
+          <button type="button" class="btn sm" id="rp-cal-prev">‹</button>
+          <b id="rp-cal-label"></b>
+          <button type="button" class="btn sm" id="rp-cal-next">›</button>
+        </div>
+        <div class="rp-cal-week">${['Mo','Tu','We','Th','Fr','Sa','Su'].map((d) => `<span>${d}</span>`).join('')}</div>
+        <div class="rp-cal-grid" id="rp-cal-grid"></div>
+        <div class="rp-cal-hint" id="rp-cal-hint">Pick a start date, then an end date. For as-of reports, pick one day.</div>
+      </div>
     </div>
     <div class="rp-head"><h2 id="rp-title"></h2><p id="rp-desc"></p></div>
     <div id="report-output"></div>`;
-  host.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => { current = b.dataset.rp; loadReports(); }));
+  const pick = (key) => { current = key; loadReports(); };
+  $('rp-select').addEventListener('change', (e) => pick(e.target.value));
+  host.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => pick(b.dataset.rp)));
   $('rp-period').addEventListener('change', () => {
     const v = $('rp-period').value;
     if (mode() === 'asof') asof = v; else period = v;
     syncPeriodControls();
     if (v !== 'custom') loadReports();
   });
-  // Clicks inside the report: open an account in the general ledger.
   $('report-output').addEventListener('click', (e) => {
     const b = e.target.closest('[data-gl]');
     if (!b) return;
@@ -847,9 +870,77 @@ function renderShell() {
     if (e.target.id === 'rp-gl-account') { glAccount = e.target.value; loadReports(); }
     if (e.target.id === 'rp-audit-entity') { auditEntity = e.target.value; loadReports(); }
   });
-  ['rp-from', 'rp-to'].forEach((id) => $(id).addEventListener('change', () => loadReports()));
+  ['rp-from', 'rp-to'].forEach((id) => $(id).addEventListener('change', () => {
+    period = 'custom';
+    asof = 'custom';
+    loadReports();
+  }));
   $('rp-csv').addEventListener('click', exportCsv);
   $('rp-print').addEventListener('click', () => window.print());
+  $('rp-cal-toggle').addEventListener('click', () => {
+    const cal = $('rp-cal');
+    cal.hidden = !cal.hidden;
+    if (!cal.hidden) drawCalendar();
+  });
+  $('rp-cal-prev').addEventListener('click', () => { calCursor.setMonth(calCursor.getMonth() - 1); drawCalendar(); });
+  $('rp-cal-next').addEventListener('click', () => { calCursor.setMonth(calCursor.getMonth() + 1); drawCalendar(); });
+}
+
+const calCursor = new Date();
+let calAnchor = null;
+
+function drawCalendar() {
+  const grid = $('rp-cal-grid');
+  if (!grid) return;
+  const y = calCursor.getFullYear();
+  const m = calCursor.getMonth();
+  $('rp-cal-label').textContent = calCursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const first = new Date(y, m, 1);
+  const startPad = (first.getDay() + 6) % 7; // Monday-first
+  const days = new Date(y, m + 1, 0).getDate();
+  const from = $('rp-from')?.value;
+  const to = $('rp-to')?.value || (mode() === 'asof' ? asofDate() : '');
+  let html = '';
+  for (let i = 0; i < startPad; i += 1) html += '<span></span>';
+  for (let d = 1; d <= days; d += 1) {
+    const isoD = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const inRange = from && to && isoD >= from && isoD <= to;
+    const isEnd = isoD === from || isoD === to;
+    html += `<button type="button" class="rp-cal-day${inRange ? ' in' : ''}${isEnd ? ' end' : ''}" data-day="${isoD}">${d}</button>`;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll('[data-day]').forEach((b) => {
+    b.addEventListener('click', () => pickCalDay(b.dataset.day));
+  });
+  $('rp-cal-hint').textContent = mode() === 'asof'
+    ? 'Click a day to run the report as of that date.'
+    : (calAnchor ? `Start ${calAnchor}. Click the end date.` : 'Click a start date, then an end date.');
+}
+
+function pickCalDay(isoD) {
+  if (mode() === 'asof') {
+    asof = 'custom';
+    $('rp-to').value = isoD;
+    $('rp-from').value = '';
+    syncPeriodControls();
+    loadReports();
+    drawCalendar();
+    return;
+  }
+  if (!calAnchor || isoD < calAnchor) {
+    calAnchor = isoD;
+    $('rp-from').value = isoD;
+    $('rp-to').value = '';
+    drawCalendar();
+    return;
+  }
+  period = 'custom';
+  $('rp-from').value = calAnchor;
+  $('rp-to').value = isoD;
+  calAnchor = null;
+  syncPeriodControls();
+  loadReports();
+  drawCalendar();
 }
 
 function syncPeriodControls() {
@@ -871,6 +962,7 @@ let seq = 0;
 export async function loadReports() {
   renderShell();
   const def = REPORTS.find((r) => r.key === current);
+  if ($('rp-select')) $('rp-select').value = current;
   document.querySelectorAll('.rp-tab').forEach((b) => {
     b.classList.toggle('active', b.dataset.rp === current);
     b.setAttribute('aria-selected', String(b.dataset.rp === current));

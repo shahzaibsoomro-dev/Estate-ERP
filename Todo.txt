@@ -1,6 +1,6 @@
 
 Plan out modules and sub modules in it - PLAN & REDESIGN
-We need to work on Activity Log and make it more detailed
+We need to work on Activity Log and make it more detailed  [done - readable summary, who/when/module/project/amount/ref, expandable facts, filters]
 
 
 General:
@@ -41,21 +41,21 @@ Construction
 - in each order add total units such as 2x10kg cement bags = 20 units of cement (will be used in inventory and comparision with BOQ)  [done — packs × size = total units, GRN uses total units]
 - what if order gets cancelled  [done — unpaid cancels immediately; paid keeps a dynamic fee (default 30% of amount paid), refunds the rest, reverses GRN]
 - Ask More details about contractors  [done — company, father, email, address, city, PEC, bank, emergency]
-- Materials page -- Inventory page -- BOQ - REDESIGN AND PLAN  [later]
+- Materials page -- Inventory page -- BOQ - REDESIGN AND PLAN  [BOQ done in Planning; Materials/Inventory redesign still later]
 - Details for Entry of Site Management Logs  [done — material lines, time, workforce, expenses, reporter, notes, photos/videos/docs]
 
 FINANCE
-- Accounts should be global and project wise Both
-- What's Current balance 
-- Budget should be here? or BOQ? or work structure? or Should we need a planning module
+- Accounts should be global and project wise Both  [done — company-wide current + project filter / by-project split]
+- What's Current balance  [done — optional at company onboarding; owner can set/adjust cash & bank]
+- Budget should be here? or BOQ? or work structure? or Should we need a planning module  [done — yes: new Planning module holds Structure of Work, BOQ and Budget; Finance keeps Pay Plans and Reports]
 - Operating Costs Module - Calender View, should there be another page for employees - REDESIGN AND PLAN
-- Reports - Calendar View, Selection of reports  -  DESIGN
-
+- Reports - Calendar View, Selection of reports  -  DESIGN  [done — report picker + calendar date range]
 STAKEHOLDERS
-- Agents can get commision on basis of pkr ammount, percentage, or they deal i can sell a unit anything above base price and that would be milestone
-- Profit sharing recheck
-- partner can't get monthly returns
-- parties (It's basically a entity/person/master search)  -  REDESIGN AND PLAN
+- Agents can get commision on basis of pkr ammount, percentage, or they deal i can sell a unit anything above base price and that would be milestone  [done — percent / fixed PKR / surplus over unit base]
+- Profit sharing recheck  [done — partners profit-share only; amounts paid when recorded, not auto-accrued]
+- partner can't get monthly returns (partner gets after completion or on some other occasions which are not well defined)  [done — completion / milestone / quarterly / other occasion]
+- parties (It's basically a entity/person/master search)  -  REDESIGN AND PLAN  [done — master search by name/ID/CNIC/phone/NTN + type pills]
+
 
 
 What else we can add in dashboard?  - DESIGN & PLAN
@@ -63,10 +63,4 @@ Data Audit and validate on multiple scenarios
 QA 
 Validate reporting data
 
-New module for planning
-Planning  - PLAN & REDESIGN
- - BOQ
- - Structure of work
- - Budget
-
-do we need anyother module?
+c

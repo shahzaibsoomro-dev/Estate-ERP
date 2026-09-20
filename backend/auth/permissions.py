@@ -25,8 +25,10 @@ MODULES = [
     ("contractors", "Contractors", "Construction", ACTIONS, True),
     ("inventory", "Materials", "Construction", ("view", "add", "edit"), True),
     ("site", "Site management", "Construction", ACTIONS, True),
-    ("accounts", "Accounts / cashbook", "Finance", ("view", "add", "delete"), False),
-    ("budget", "Budget", "Finance", ACTIONS, True),
+    ("planning", "Structure of Work & Gantt", "Planning", ACTIONS, True),
+    ("boq", "Bill of Quantities", "Planning", ACTIONS, True),
+    ("budget", "Budget", "Planning", ACTIONS, True),
+    ("accounts", "Accounts / cashbook", "Finance", ("view", "add", "edit", "delete"), True),
     ("payplans", "Pay plans", "Finance", ("view", "edit", "delete"), True),
     ("reports", "Reports", "Finance", ("view",), False),
     ("agents", "Agents & commissions", "Stakeholders", ACTIONS, False),
@@ -39,7 +41,7 @@ MODULES = [
 MODULE_KEYS = [m[0] for m in MODULES]
 MODULE_ACTIONS = {m[0]: m[3] for m in MODULES}
 # Modules whose data is company-wide; employees limited to some projects cannot open them.
-NEEDS_ALL_PROJECTS = {"activity", "accounts", "reports", "parties"}
+NEEDS_ALL_PROJECTS = {"activity", "reports", "parties"}
 
 PRESETS = {
     "sales": {
@@ -54,13 +56,13 @@ PRESETS = {
     },
     "accountant": {
         "label": "Accountant",
-        "perms": {"dashboard": "v", "recovery": "va", "accounts": "va", "budget": "vae", "procurement": "v",
+        "perms": {"dashboard": "v", "recovery": "va", "accounts": "vaed", "budget": "vae", "procurement": "v",
                   "vendors": "v", "reports": "v", "agents": "ve", "investors": "ve", "partners": "ve"},
     },
     "site": {
         "label": "Site engineer",
         "perms": {"projects": "v", "units": "v", "site": "vae", "inventory": "vae", "procurement": "va",
-                  "contractors": "v"},
+                  "contractors": "v", "planning": "vae", "boq": "vae"},
     },
     "viewer": {
         "label": "Read-only manager",
@@ -77,7 +79,7 @@ _R = [
     ("GET", r"/api/customers", ("customers", "booking", "recovery", "documents", "portal", "customer_logins", "units"), "view"),
     ("GET", r"/api/agents", ("agents", "booking"), "view"),
     ("GET", r"/api/vendors", ("vendors", "procurement"), "view"),
-    ("GET", r"/api/budget/categories", ("budget", "procurement"), "view"),
+    ("GET", r"/api/budget/categories", ("budget", "procurement", "boq"), "view"),
     ("GET", r"/api/projects/pay-plans", ("payplans", "booking", "projects"), "view"),
     ("GET", r"/api/projects/\d+/installment-template", ("payplans", "booking", "projects"), "view"),
     ("GET", r"/api/possession/templates", ("units",), "view"),
@@ -165,13 +167,32 @@ _R = [
     # --- finance
     ("GET", r"/api/ledger", ("accounts",), "view"),
     ("POST", r"/api/ledger", ("accounts",), "add"),
+    ("PUT", r"/api/ledger/balance", ("accounts",), "add"),
     ("DELETE", r"/api/ledger/\d+", ("accounts",), "delete"),
-    ("GET", r"/api/budget/(lines|summary)", ("budget", "projects"), "view"),
+    ("GET", r"/api/budget/(lines|summary|rollup)", ("budget", "projects", "planning"), "view"),
     ("POST", r"/api/budget/categories", ("budget",), "add"),
     ("DELETE", r"/api/budget/categories/\d+", ("budget",), "delete"),
     ("POST", r"/api/budget/lines", ("budget",), "add"),
     ("POST", r"/api/budget/lines/\d+/revise", ("budget",), "edit"),
+    ("DELETE", r"/api/budget/lines/\d+", ("budget",), "delete"),
     ("GET", r"/api/reports/[a-z-]+", ("reports",), "view"),
+    # --- planning: structure of work, Gantt, BOQ
+    ("GET", r"/api/planning/(overview|stage-hints)", ("planning", "boq", "budget", "payplans", "projects"), "view"),
+    ("POST", r"/api/planning/stages", ("planning",), "add"),
+    ("POST", r"/api/planning/stages/reorder", ("planning",), "edit"),
+    ("PUT", r"/api/planning/stages/\d+", ("planning",), "edit"),
+    ("DELETE", r"/api/planning/stages/\d+", ("planning",), "delete"),
+    ("POST", r"/api/planning/stages/\d+/even-task-weights", ("planning",), "edit"),
+    ("POST", r"/api/planning/even-stage-weights", ("planning",), "edit"),
+    ("POST", r"/api/planning/tasks", ("planning",), "add"),
+    ("PUT", r"/api/planning/tasks/\d+", ("planning",), "edit"),
+    ("DELETE", r"/api/planning/tasks/\d+", ("planning",), "delete"),
+    ("POST", r"/api/planning/tasks/\d+/(move|progress)", ("planning",), "edit"),
+    ("POST", r"/api/planning/(recompute|progress-mode)", ("planning",), "edit"),
+    ("GET", r"/api/boq/(lines|summary)", ("boq", "planning", "budget", "procurement"), "view"),
+    ("POST", r"/api/boq/lines", ("boq",), "add"),
+    ("PUT", r"/api/boq/lines/\d+", ("boq",), "edit"),
+    ("DELETE", r"/api/boq/lines/\d+", ("boq",), "delete"),
     # --- stakeholders
     ("GET", r"/api/agents/\d+", ("agents",), "view"),
     ("POST", r"/api/agents", ("agents",), "add"),

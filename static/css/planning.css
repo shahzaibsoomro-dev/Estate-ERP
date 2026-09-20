@@ -1,0 +1,114 @@
+/* Planning module: Structure of Work, Gantt timeline, BOQ and the budget roll-up. */
+
+.plan-mode{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  background:var(--bluepale);border:1px solid #CFE0FF;border-radius:var(--r);padding:10px 14px;margin-bottom:14px;
+  font-size:12px;color:var(--navy3)}
+.plan-mode.manual{background:var(--warnp);border-color:#FBD38D;color:#8a4b12}
+.plan-switch{display:flex;align-items:center;gap:7px;font-weight:700;white-space:nowrap;cursor:pointer}
+.plan-switch input{width:auto;margin:0;cursor:pointer}
+
+.plan-tabs{display:inline-flex;gap:2px;background:var(--g100);border-radius:9px;padding:3px;margin-bottom:14px}
+.plan-tabs button{border:none;background:none;font-family:inherit;font-size:12px;font-weight:700;color:var(--g500);
+  padding:6px 16px;border-radius:7px;cursor:pointer;transition:var(--tr)}
+.plan-tabs button.active{background:#fff;color:var(--navy);box-shadow:var(--shadow)}
+.plan-tabs.sm{margin-bottom:0}
+.plan-tabs.sm button{padding:4px 11px;font-size:11px}
+
+.plan-section{font-size:10.5px;font-weight:800;color:var(--g400);text-transform:uppercase;letter-spacing:.5px;
+  margin:6px 0 10px;padding-top:10px;border-top:1px solid var(--g100)}
+.plan-readout{background:var(--g50);border:1px solid var(--g100);border-radius:var(--r2);padding:8px 11px;
+  font-size:12px;color:var(--g700);margin-bottom:12px}
+.plan-readout b{color:var(--navy)}
+
+/* ── Structure list ─────────────────────────────────────── */
+.stage-card{background:#fff;border:1px solid var(--g100);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.stage-hd{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--g100);flex-wrap:wrap}
+.stage-no{width:26px;height:26px;border-radius:8px;background:var(--navy);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.stage-name{font-size:13.5px;font-weight:800;color:var(--navy)}
+.stage-meta{font-size:11px;color:var(--g400);margin-top:1px}
+.stage-grow{flex:1;min-width:140px}
+.stage-prog{width:150px;flex-shrink:0}
+.stage-prog .prog{margin-top:4px}
+.stage-prog-v{font-size:11px;font-weight:800;color:var(--navy);display:flex;justify-content:space-between}
+.stage-acts{display:flex;gap:6px;flex-wrap:wrap}
+.stage-empty{padding:16px;text-align:center;color:var(--g400);font-size:12px}
+
+.task-row{display:grid;grid-template-columns:minmax(0,2fr) 110px 96px 1fr 120px auto;gap:10px;align-items:center;
+  padding:9px 16px;border-bottom:1px solid var(--g100);font-size:12px}
+.task-row:last-child{border-bottom:none}
+.task-row:hover{background:#FAFBFE}
+.task-name{font-weight:700;color:var(--navy);overflow:hidden;text-overflow:ellipsis}
+.task-sub{font-size:10.5px;color:var(--g400);font-weight:500}
+.task-prog-input{display:flex;align-items:center;gap:5px}
+.task-prog-input input{width:64px;padding:4px 7px;font-size:11.5px}
+.task-warn{color:var(--warn);font-size:10.5px;font-weight:700;display:flex;align-items:center;gap:4px}
+.task-warn::before{content:'⚠';font-size:11px}
+
+/* ── Gantt ──────────────────────────────────────────────── */
+.gantt{display:flex;max-height:62vh;overflow:auto;position:relative;scrollbar-width:thin}
+.gantt-names{position:sticky;left:0;z-index:3;background:#fff;border-right:1px solid var(--g200);flex-shrink:0;width:230px}
+.gantt-names-hd{height:46px;border-bottom:2px solid var(--g200);background:var(--g50);position:sticky;top:0;z-index:2;
+  display:flex;align-items:center;padding:0 14px;font-size:10px;font-weight:800;color:var(--g400);
+  text-transform:uppercase;letter-spacing:.7px}
+.gantt-name{height:30px;display:flex;align-items:center;gap:7px;padding:0 14px;font-size:11.5px;color:var(--g700);
+  border-bottom:1px solid var(--g100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-name.is-stage{font-weight:800;color:var(--navy);background:var(--g50)}
+.gantt-name.is-task{padding-left:28px}
+
+.gantt-scroll{flex:1;min-width:0;position:relative}
+.gantt-head{height:46px;position:sticky;top:0;z-index:2;background:var(--g50);border-bottom:2px solid var(--g200)}
+.gantt-head-top,.gantt-head-bot{position:relative;height:23px}
+.gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--g200);padding-left:5px;font-size:9.5px;
+  font-weight:700;color:var(--g500);display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.gantt-tick.minor{font-weight:600;color:var(--g400);border-left-color:var(--g100)}
+.gantt-tick.weekend{background:rgba(138,155,191,.10)}
+.gantt-body{position:relative}
+.gantt-grid{position:absolute;inset:0;pointer-events:none}
+.gantt-col{position:absolute;top:0;bottom:0;border-left:1px solid var(--g100)}
+.gantt-col.weekend{background:rgba(138,155,191,.07)}
+.gantt-row{position:absolute;left:0;right:0;height:30px;border-bottom:1px solid var(--g100)}
+.gantt-row.is-stage{background:var(--g50)}
+.gantt-today{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--danger);z-index:4;pointer-events:none}
+.gantt-today::after{content:'Today';position:absolute;top:-20px;left:3px;font-size:9px;font-weight:800;color:var(--danger)}
+.gantt-arrows{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}
+.gantt-arrows path{fill:none;stroke:var(--g300);stroke-width:1.4}
+.gantt-arrows path.bad{stroke:var(--warn);stroke-dasharray:4 3}
+.gantt-arrows marker path{fill:var(--g300);stroke:none}
+
+.gbar{position:absolute;height:18px;top:6px;border-radius:5px;background:var(--blue);cursor:grab;z-index:3;
+  box-shadow:0 1px 3px rgba(9,24,48,.2);user-select:none;overflow:hidden}
+.gbar:active{cursor:grabbing}
+.gbar.dragging{opacity:.85;box-shadow:var(--shadowmd)}
+.gbar.warn{background:var(--warn)}
+.gbar.done{background:var(--success)}
+.gbar.hold{background:var(--g400)}
+.gbar-fill{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.4)}
+.gbar-txt{position:relative;font-size:10px;font-weight:700;color:#fff;line-height:18px;padding:0 7px;white-space:nowrap;
+  pointer-events:none;text-shadow:0 1px 1px rgba(0,0,0,.2)}
+.gbar-h{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:2}
+.gbar-h.l{left:0}.gbar-h.r{right:0}
+.gbar.stage{height:10px;top:10px;border-radius:3px;background:var(--navy3);cursor:default;opacity:.85}
+.gantt-empty{padding:40px;text-align:center;color:var(--g400);font-size:12.5px;width:100%}
+
+.gantt-legend{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--g400);font-weight:600}
+.gantt-legend i{width:16px;height:8px;border-radius:3px;display:inline-block;margin-left:6px}
+.gantt-legend .gl-bar{background:var(--blue)}
+.gantt-legend .gl-warn{background:var(--warn)}
+
+.gantt-tip{position:fixed;z-index:10000;background:var(--navy);color:#fff;font-size:11px;padding:6px 9px;
+  border-radius:6px;pointer-events:none;box-shadow:var(--shadowmd);max-width:240px;line-height:1.5}
+
+/* ── Budget roll-up ─────────────────────────────────────── */
+.bud-rollup{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.bud-part{border:1px solid var(--g100);border-radius:var(--r2);padding:10px 12px;background:var(--g50)}
+.bud-part-l{font-size:10px;font-weight:800;color:var(--g400);text-transform:uppercase;letter-spacing:.5px}
+.bud-part-v{font-size:16px;font-weight:900;color:var(--navy);margin-top:3px}
+.bud-part-s{font-size:10.5px;color:var(--g400);margin-top:2px}
+.bud-part.total{background:var(--bluepale);border-color:#CFE0FF}
+
+@media(max-width:900px){
+  .task-row{grid-template-columns:1fr;gap:5px}
+  .gantt-names{width:150px}
+  .plan-mode{flex-direction:column;align-items:flex-start}
+}

@@ -15,6 +15,8 @@ const P = {
   site: '<path d="M14.5 5.5l4 4"/><path d="M3 21l9.5-9.5"/><path d="M13 3l8 8-3 3-8-8z"/>',
   accounts: '<path d="M4 4h12a3 3 0 013 3v13H7a3 3 0 01-3-3z"/><path d="M4 17a3 3 0 013-3h12"/><path d="M8 8h7"/>',
   budget: '<path d="M21 12A9 9 0 1112 3v9z"/><path d="M15 3.5A9 9 0 0120.5 9H15z"/>',
+  planning: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M6 8.5h7M6 12h10M6 15.5h5"/>',
+  boq: '<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/><path d="M9 12h6M9 16h3"/><path d="M9 8h2"/>',
   payplans: '<rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h.01M12 13.5h.01M16.5 13.5h.01M7.5 17h.01M12 17h.01"/>',
   agents: '<path d="M8 11l3 3 5-5"/><path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/>',
   investors: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',

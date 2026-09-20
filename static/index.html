@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/planning.css">
 <link rel="stylesheet" href="/static/css/theme.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%232563EB%22/%3E%3Cpath d=%22M8 25V12l8-5 8 5v13M13 25v-6h6v6%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E">
 <meta name="theme-color" content="#061a2c">
@@ -232,6 +233,24 @@
               </div>
             </div>
             <div class="fg"><label>Agent</label><select id="bk-agent"><option value="">None</option></select></div>
+          </div>
+          <div id="bk-comm-preview" class="bk-dcard" hidden style="margin-top:10px"></div>
+          <label style="display:none;align-items:center;gap:8px;font-size:13px;margin-top:8px" id="bk-comm-override-wrap" hidden>
+            <input type="checkbox" id="bk-comm-override"> Different deal for this booking
+          </label>
+          <div id="bk-comm-override-fields" hidden style="margin-top:8px">
+            <div class="form-row">
+              <div class="fg"><label>Deal</label>
+                <select id="bk-comm-mode">
+                  <option value="percent">Percent of sale</option>
+                  <option value="flat">Fixed PKR</option>
+                  <option value="over_base">Above base price</option>
+                </select>
+              </div>
+              <div class="fg" id="bk-comm-rate-fg"><label>Rate %</label><input id="bk-comm-rate" type="number" min="0" max="100" step="0.1"></div>
+              <div class="fg" id="bk-comm-flat-fg" hidden><label>Amount (PKR)</label><input id="bk-comm-flat" type="number" min="0"></div>
+              <div class="fg" id="bk-comm-over-fg" hidden><label>Share of surplus %</label><input id="bk-comm-over" type="number" min="0" max="100" step="0.1" value="100"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -498,34 +517,121 @@
   </div>
 </div>
 
+<div class="screen" id="s-planning">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div class="pg-title">Structure of Work</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Stages and tasks with weights — task progress rolls up into the project’s construction progress and releases milestone installments</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="plan-project" style="min-width:180px"></select>
+      <button type="button" class="btn" id="btn-plan-even">Even stage weights</button>
+      <button type="button" class="btn primary" id="btn-add-stage">+ Stage</button>
+    </div>
+  </div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="plan-progress">—</div><div class="sm-l">Project progress</div>
+      <div class="prog" style="margin-top:6px"><div class="prog-fill" id="plan-progress-bar" style="width:0%"></div></div></div>
+    <div class="sm"><div class="sm-v" id="plan-computed">—</div><div class="sm-l">Computed from tasks</div></div>
+    <div class="sm"><div class="sm-v" id="plan-labour">—</div><div class="sm-l">Planned labour</div></div>
+    <div class="sm"><div class="sm-v" id="plan-warnings">—</div><div class="sm-l">Schedule warnings</div></div>
+  </div>
+  <div class="plan-mode" id="plan-mode-row">
+    <div id="plan-mode-note">Progress is managed by the Structure of Work.</div>
+    <label class="plan-switch"><input type="checkbox" id="plan-mode-manual"> <span>Owner override</span></label>
+  </div>
+  <div class="plan-tabs" id="plan-tabs" role="tablist">
+    <button type="button" class="active" data-plan-tab="structure">Structure</button>
+    <button type="button" data-plan-tab="gantt">Timeline</button>
+  </div>
+  <div id="plan-structure"><div class="loading"><span class="spinner"></span>Loading plan…</div></div>
+  <div id="plan-gantt" hidden>
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title">Timeline</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="gantt-legend"><i class="gl-bar"></i>Task <i class="gl-warn"></i>Dependency conflict</span>
+          <div class="plan-tabs sm" id="gantt-zoom">
+            <button type="button" class="active" data-zoom="week">Week</button>
+            <button type="button" data-zoom="month">Month</button>
+          </div>
+          <button type="button" class="btn sm" id="btn-gantt-today">Today</button>
+        </div>
+      </div>
+      <div class="gantt" id="gantt-root"></div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="s-boq">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><div class="pg-title">Bill of Quantities</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Estimated material requirements per stage, compared with what was purchased and what the site actually used</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="boq-project" style="min-width:180px"></select>
+      <input type="search" id="boq-search" placeholder="Search material…" style="width:180px">
+      <button type="button" class="btn primary" id="btn-add-boq">+ BOQ line</button>
+    </div>
+  </div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" id="boq-lines">—</div><div class="sm-l">Lines</div></div>
+    <div class="sm"><div class="sm-v" id="boq-estimated">—</div><div class="sm-l">Estimated cost</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--accent)" id="boq-purchased">—</div><div class="sm-l">Purchased</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="boq-over">—</div><div class="sm-l">Over estimate</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">Estimated vs purchased vs used</span>
+      <span class="muted">Used is the larger of stock issued and material logged on site — the two describe the same consumption</span>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Material</th><th>Stage / task</th><th>Qty</th><th>+ Waste</th><th>Rate</th><th>Estimated</th><th>Purchased</th><th>Used</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="boq-tbody"><tr><td colspan="10" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
 <div class="screen" id="s-budget">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div><div class="pg-title">Project Budget</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Categories and planned vs actual (from purchase orders)</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Planned cost = BOQ material + Structure of Work labour + manual lines for land, approvals and overheads. Spent comes from purchase orders.</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="bud-project" style="min-width:180px"><option value="">All projects</option></select>
       <button type="button" class="btn" id="btn-add-bud-cat">+ Category</button>
-      <button type="button" class="btn primary" id="btn-add-bud-line">+ Budget line</button>
+      <button type="button" class="btn primary" id="btn-add-bud-line">+ Manual line</button>
     </div>
   </div>
-  <div class="g3" style="margin-bottom:14px">
+  <div class="g4" style="margin-bottom:14px">
     <div class="sm"><div class="sm-v" id="bud-planned">—</div><div class="sm-l">Planned</div></div>
     <div class="sm"><div class="sm-v" style="color:var(--accent)" id="bud-spent">—</div><div class="sm-l">Spent</div></div>
     <div class="sm"><div class="sm-v" id="bud-var">—</div><div class="sm-l">Variance</div></div>
+    <div class="sm"><div class="sm-v" id="bud-used">—</div><div class="sm-l">% Used</div></div>
   </div>
-  <div class="card" style="margin-bottom:14px">
-    <div class="card-hd"><span class="card-title">Categories</span></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Sort</th><th>Actions</th></tr></thead>
-      <tbody id="bud-cat-tbody"><tr><td colspan="3" class="loading"><span class="spinner"></span></td></tr></tbody>
-    </table></div>
+  <div class="card" id="bud-rollup-card" hidden>
+    <div class="card-hd"><span class="card-title">Where the planned cost comes from</span></div>
+    <div class="card-bd"><div class="bud-rollup" id="bud-rollup"></div></div>
   </div>
   <div class="card">
     <div class="card-hd"><span class="card-title">Budget vs actual</span></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Project</th><th>Category</th><th>Planned</th><th>Spent</th><th>Variance</th><th>% Used</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody id="bud-sum-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span></td></tr></tbody>
+      <thead><tr><th>Project</th><th>Category</th><th>Manual</th><th>BOQ</th><th>Labour</th><th>Planned</th><th>Spent</th><th>Variance</th><th>% Used</th><th>Status</th></tr></thead>
+      <tbody id="bud-sum-tbody"><tr><td colspan="10" class="loading"><span class="spinner"></span></td></tr></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">Manual budget lines</span>
+      <span class="muted">Land, approvals, overheads — anything the BOQ and Structure of Work do not cover</span>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Project</th><th>Category</th><th>Stage</th><th>Planned</th><th>Rev</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody id="bud-line-tbody"><tr><td colspan="7" class="loading"><span class="spinner"></span></td></tr></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">Categories</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Sort</th><th>Actions</th></tr></thead>
+      <tbody id="bud-cat-tbody"><tr><td colspan="3" class="loading"><span class="spinner"></span></td></tr></tbody>
     </table></div>
   </div>
 </div>
@@ -568,17 +674,22 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div>
       <div class="pg-title">Accounts</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Company-wide cash movement (all projects) — collections, vendors, agents, investors, partners</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px" id="gl-subtitle">Company-wide cash and project cash — collections, vendors, agents, investors, partners</div>
     </div>
-    <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn" id="btn-set-balance">Set current balance</button>
+      <button type="button" class="btn primary" id="btn-ledger-entry">+ Other entry</button>
+    </div>
   </div>
-  <div class="g3" style="margin-bottom:14px">
-    <div class="sm"><div class="sm-v" style="color:var(--success)" id="gl-rev">—</div><div class="sm-l">Money in</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--danger)" id="gl-exp">—</div><div class="sm-l">Money out</div></div>
-    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="gl-profit">—</div><div class="sm-l">Net cash</div></div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="sm"><div class="sm-v" style="color:var(--navy)" id="gl-current">—</div><div class="sm-l">Current balance</div></div>
+    <div class="sm"><div class="sm-v" id="gl-cash">—</div><div class="sm-l">Cash in hand</div></div>
+    <div class="sm"><div class="sm-v" id="gl-bank">—</div><div class="sm-l">Bank</div></div>
+    <div class="sm"><div class="sm-v" style="color:var(--blue)" id="gl-profit">—</div><div class="sm-l">Net in this view</div></div>
   </div>
+  <div id="gl-by-project" style="margin-bottom:14px"></div>
   <div class="card">
-    <div class="gl-hd"><span>Date</span><span>Narration</span><span>In</span><span>Out</span><span>Balance</span></div>
+    <div class="gl-hd"><span>Date</span><span>Narration</span><span>Project</span><span>In</span><span>Out</span><span>Balance</span></div>
     <div id="gl-entries"><div class="loading"><span class="spinner"></span>Loading…</div></div>
   </div>
 </div>
@@ -586,7 +697,7 @@
 <div class="screen" id="s-agents">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div><div class="pg-title">Agents</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Commissions plus performance bonuses from each agent's bonus budget</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Commission as a percent of sale, a fixed PKR amount, or everything above the unit’s base price</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="agent-search" style="width:200px">
@@ -601,7 +712,7 @@
   <div class="card">
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Agent</th><th>Category</th><th>Contact</th><th>Rate</th><th>Bookings</th><th>Payable</th><th>Paid</th><th>Bonus left</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>ID</th><th>Agent</th><th>Category</th><th>Contact</th><th>Deal</th><th>Bookings</th><th>Payable</th><th>Paid</th><th>Bonus left</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="agent-tbody"><tr><td colspan="11" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
@@ -609,30 +720,14 @@
 </div>
 
 <div class="screen" id="s-parties">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div class="pg-title">Parties / Master IDs</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Look up any customer, vendor, agent, investor or partner and see all related records</div>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="party-type" style="min-width:140px">
-        <option value="">All types</option>
-        <option value="customer">Customers</option>
-        <option value="vendor">Vendors</option>
-        <option value="agent">Agents</option>
-        <option value="investor">Investors</option>
-        <option value="partner">Partners</option>
-        <option value="contractor">Contractors</option>
-      </select>
-      <input type="search" placeholder="Search name or master id…" id="party-search" style="width:240px">
-    </div>
+  <div class="pg-title">Parties</div>
+  <div style="font-size:12px;color:var(--g400);margin-top:2px;margin-bottom:16px">Search any person or company — customers, vendors, agents, investors, partners, contractors — by name, master ID, CNIC, phone or NTN</div>
+  <div class="party-search-wrap">
+    <input type="search" id="party-search" placeholder="Search name, CUS-12, CNIC, phone, NTN…" autocomplete="off">
   </div>
-  <div class="card">
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>Master ID</th><th>Type</th><th>Name</th><th>Details</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="party-tbody"><tr><td colspan="6" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
-      </table>
-    </div>
+  <div class="party-pills" id="party-pills"></div>
+  <div id="party-results" class="party-grid">
+    <div class="loading"><span class="spinner"></span>Loading…</div>
   </div>
 </div>
 
@@ -668,7 +763,7 @@
 <div class="screen" id="s-partners">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div><div class="pg-title">Partners</div>
-      <div style="font-size:12px;color:var(--g400);margin-top:2px">Project-linked early capital — returns start after the silent period</div>
+      <div style="font-size:12px;color:var(--g400);margin-top:2px">Project capital on a profit share — paid after completion or on recorded occasions, not a monthly return</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <input type="search" placeholder="Search…" id="par-search" style="width:200px">
@@ -684,25 +779,53 @@
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>Partner</th><th>CNIC</th><th>Mobile</th><th>Type</th><th>Project</th>
-          <th>Agreed</th><th>Invested</th><th>Returns start</th><th>Catch-up</th>
-          <th>Contributed</th><th>Distributed</th><th>Return due</th><th>Status</th><th>Actions</th>
+          <th>Partner</th><th>CNIC</th><th>Mobile</th><th>Share</th><th>When paid</th><th>Project</th>
+          <th>Agreed</th><th>Payouts from</th>
+          <th>Contributed</th><th>Distributed</th><th>Status</th><th>Actions</th>
         </tr></thead>
-        <tbody id="par-tbody"><tr><td colspan="14" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        <tbody id="par-tbody"><tr><td colspan="12" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
 </div>
 
 <div class="screen" id="s-activity">
-  <div style="margin-bottom:16px"><div class="pg-title">Activity</div>
-    <div style="font-size:12px;color:var(--g400);margin-top:2px">Recent changes across bookings, units, payments and more</div>
+  <div style="margin-bottom:16px">
+    <div class="pg-title">Activity Log</div>
+    <div style="font-size:12px;color:var(--g400);margin-top:2px">
+      Who changed what across the company — payments, bookings, holds, procurement, planning and more.
+      Expand a row for the facts behind each event.
+    </div>
   </div>
+  <div class="card filter-card" style="margin-bottom:12px">
+    <div class="toolbar">
+      <input type="search" id="act-q" placeholder="Search customer, unit, receipt, project…">
+      <select id="act-module"><option value="">All modules</option></select>
+      <select id="act-entity"><option value="">All types</option></select>
+      <input type="date" id="act-from" title="From date">
+      <input type="date" id="act-to" title="To date">
+      <div class="toolbar-end">
+        <button type="button" class="btn" id="act-clear">Clear</button>
+      </div>
+    </div>
+  </div>
+  <div class="g4" style="margin-bottom:12px" id="act-stats"></div>
   <div class="card">
     <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>When</th><th>Entity</th><th>Action</th><th>Details</th></tr></thead>
-        <tbody id="audit-tbody"><tr><td colspan="4" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+      <table class="act-table">
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th>When</th>
+            <th>Who</th>
+            <th>What happened</th>
+            <th>Module</th>
+            <th>Project</th>
+            <th>Amount</th>
+            <th>Ref</th>
+          </tr>
+        </thead>
+        <tbody id="audit-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1114,6 +1237,26 @@
   </div>
 </div>
 
+<div class="modal-bg" id="balance-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title"><span id="bal-modal-title">Set current balance</span><button type="button" class="modal-close" data-close-modal="balance-modal">✕</button></div>
+    <div id="bal-summary" class="bk-dcard" style="margin-bottom:12px"></div>
+    <div class="form-row">
+      <div class="fg"><label>Cash in hand (PKR)</label><input id="bal-cash" type="number" min="0"></div>
+      <div class="fg"><label>Bank (PKR)</label><input id="bal-bank" type="number" min="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>As of</label><input id="bal-date" type="date"></div>
+    </div>
+    <div class="fg"><label>Note / reason</label><input id="bal-reason" type="text" placeholder="Counted till, opening from previous books…"></div>
+    <div class="bk-dsub">First time this is saved it becomes the opening balance. Later changes post an adjustment so the books match the till, without rewriting history.</div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="balance-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-balance">Save balance</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="agent-detail-modal">
   <div class="modal modal-wide">
     <div class="modal-title"><span id="ad-title">Agent</span><button type="button" class="modal-close" data-close-modal="agent-detail-modal">✕</button></div>
@@ -1139,7 +1282,28 @@
           <option value="Referral"></option>
         </datalist>
       </div>
+      <div class="fg"><label>Commission deal</label>
+        <select id="na-mode">
+          <option value="percent">Percent of sale</option>
+          <option value="flat">Fixed PKR amount</option>
+          <option value="over_base">Anything above base price</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="na-rate-row">
       <div class="fg"><label>Commission rate %</label><input id="na-rate" type="number" min="0" max="100" step="0.1" value="2"></div>
+      <div class="fg"></div>
+    </div>
+    <div class="form-row" id="na-flat-row" style="display:none">
+      <div class="fg"><label>Fixed commission (PKR)</label><input id="na-flat" type="number" min="0" step="1" placeholder="e.g. 150000"></div>
+      <div class="fg"></div>
+    </div>
+    <div class="form-row" id="na-over-row" style="display:none">
+      <div class="fg"><label>Share of surplus %</label>
+        <input id="na-over" type="number" min="0" max="100" step="0.1" value="100">
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">Agent keeps this share of (sale price − unit base price). 100% means the whole surplus is theirs.</div>
+      </div>
+      <div class="fg"></div>
     </div>
     <div class="form-row">
       <div class="fg"><label>Status</label>
@@ -1457,6 +1621,7 @@
           <option value="milestone">Milestone</option>
           <option value="project">Project</option>
         </select>
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">Profit share is not auto-accrued. Record a distribution when profit is declared.</div>
       </div>
       <div class="fg"><label>Status</label>
         <select id="ni-status">
@@ -1484,68 +1649,50 @@
 <div class="modal-bg" id="par-modal">
   <div class="modal" style="max-width:640px">
     <div class="modal-title"><span id="par-modal-title">Add Partner</span><button type="button" class="modal-close" data-close-modal="par-modal">✕</button></div>
-    <input type="hidden" id="np-id" value="">
+    <input type="hidden" id="par-id" value="">
     <div class="form-row">
-      <div class="fg"><label>Partner name *</label><input id="np-name" type="text"></div>
-      <div class="fg"><label>CNIC</label><input id="np-cnic" type="text"></div>
+      <div class="fg"><label>Partner name *</label><input id="par-name" type="text"></div>
+      <div class="fg"><label>CNIC</label><input id="par-cnic" type="text"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Mobile number</label><input id="np-contact" type="text"></div>
-      <div class="fg"><label>Email</label><input id="np-email" type="email"></div>
+      <div class="fg"><label>Mobile number</label><input id="par-contact" type="text"></div>
+      <div class="fg"><label>Email</label><input id="par-email" type="email"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Return type</label>
-        <select id="np-type">
-          <option value="Profit Sharing">Profit Sharing</option>
-          <option value="Monthly Return">Monthly Return</option>
-        </select>
-      </div>
       <div class="fg"><label>Project *</label>
-        <select id="np-proj"><option value="">Select project…</option></select>
+        <select id="par-proj"><option value="">Select project…</option></select>
       </div>
+      <div class="fg"><label>Profit share %</label><input id="par-profit" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Investment amount (PKR)</label><input id="np-agreed" type="number" min="0" placeholder="0"></div>
-      <div class="fg"><label>Investment date</label><input id="np-date" type="date"></div>
-    </div>
-    <div class="form-row">
-      <div class="fg"><label>Returns start date</label><input id="np-returns-start" type="date">
-        <div style="font-size:11px;color:var(--g400);margin-top:4px">No payouts allowed before this date</div>
-      </div>
-      <div class="fg"><label>Catch-up policy</label>
-        <select id="np-catch-up">
-          <option value="lump_sum">Lump sum at start</option>
-          <option value="spread">Spread over N months</option>
-          <option value="none">No catch-up (waive silent months)</option>
+      <div class="fg"><label>When they get paid</label>
+        <select id="par-profit-basis">
+          <option value="project">After project completion</option>
+          <option value="milestone">On a construction milestone</option>
+          <option value="quarterly">Quarterly profit share</option>
+          <option value="occasional">Other occasions (record when paying)</option>
         </select>
-      </div>
-    </div>
-    <div class="form-row" id="np-catch-up-months-row" style="display:none">
-      <div class="fg"><label>Catch-up months (N)</label><input id="np-catch-up-months" type="number" min="1" placeholder="e.g. 6"></div>
-      <div class="fg"></div>
-    </div>
-    <div class="form-row">
-      <div class="fg"><label>Monthly return %</label><input id="np-monthly" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
-      <div class="fg"><label>Profit share %</label><input id="np-profit" type="number" min="0" max="100" step="0.1" placeholder="—"></div>
-    </div>
-    <div class="form-row" id="np-profit-basis-row">
-      <div class="fg"><label>Profit share basis</label>
-        <select id="np-profit-basis">
-          <option value="monthly">Monthly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="milestone">Milestone</option>
-          <option value="project">Project</option>
-        </select>
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">Partners are not on a monthly return. Amounts are paid when you record a distribution.</div>
       </div>
       <div class="fg"><label>Status</label>
-        <select id="np-status">
+        <select id="par-status">
           <option value="active">Active</option>
           <option value="completed">Completed</option>
           <option value="withdrawn">Withdrawn</option>
         </select>
       </div>
     </div>
-    <div class="fg"><label>Description</label><textarea id="np-description"></textarea></div>
+    <div class="form-row">
+      <div class="fg"><label>Investment amount (PKR)</label><input id="par-agreed" type="number" min="0" placeholder="0"></div>
+      <div class="fg"><label>Investment date</label><input id="par-date" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Payouts allowed from</label><input id="par-payout-from" type="date">
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">No distributions before this date</div>
+      </div>
+      <div class="fg"></div>
+    </div>
+    <div class="fg"><label>Description</label><textarea id="par-description"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="par-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-partner">Save Partner</button>
@@ -1562,6 +1709,15 @@
     <div class="form-row">
       <div class="fg"><label>Amount (PKR) *</label><input id="pmoney-amount" type="number" min="1"></div>
       <div class="fg"><label>Date</label><input id="pmoney-date" type="date"></div>
+    </div>
+    <div class="fg" id="pmoney-occasion-fg" hidden>
+      <label>Occasion</label>
+      <select id="pmoney-occasion">
+        <option value="completion">Project completion</option>
+        <option value="milestone">Milestone</option>
+        <option value="quarterly">Quarterly share</option>
+        <option value="other">Other occasion</option>
+      </select>
     </div>
     <div class="fg"><label>Notes</label><textarea id="pmoney-notes"></textarea></div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
@@ -1835,14 +1991,149 @@
 
 <div class="modal-bg" id="bud-line-modal">
   <div class="modal" style="max-width:480px">
-    <div class="modal-title"><span>Add budget line</span><button type="button" class="modal-close" data-close-modal="bud-line-modal">✕</button></div>
+    <div class="modal-title"><span>Add manual budget line</span><button type="button" class="modal-close" data-close-modal="bud-line-modal">✕</button></div>
     <div class="fg"><label>Project *</label><select id="bl-project"></select></div>
     <div class="fg"><label>Category *</label><select id="bl-category"></select></div>
+    <div class="fg"><label>Stage (optional)</label><select id="bl-stage"><option value="">Whole project</option></select></div>
     <div class="fg"><label>Planned amount (PKR) *</label><input id="bl-planned" type="number" min="1"></div>
     <div class="fg"><label>Notes</label><textarea id="bl-notes"></textarea></div>
+    <div class="fg-hint" style="font-size:11px;color:var(--g400)">Material estimates belong in the BOQ and labour in the Structure of Work — both are added to this budget automatically.</div>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
       <button type="button" class="btn" data-close-modal="bud-line-modal">Cancel</button>
       <button type="button" class="btn primary" id="btn-save-bud-line">Save line</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="bud-cat-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title"><span>Add budget category</span><button type="button" class="modal-close" data-close-modal="bud-cat-modal">✕</button></div>
+    <div class="fg"><label>Name *</label><input id="bc-name" type="text" placeholder="Structural, Finishing…"></div>
+    <div class="fg"><label>Sort order</label><input id="bc-sort" type="number" min="0" value="0"></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="bud-cat-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-bud-cat">Save category</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="bud-revise-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title"><span>Revise budget line</span><button type="button" class="modal-close" data-close-modal="bud-revise-modal">✕</button></div>
+    <input type="hidden" id="br-line-id">
+    <div class="fg"><label>Line</label><div id="br-what" class="plan-readout">—</div></div>
+    <div class="fg"><label>New planned amount (PKR) *</label><input id="br-amount" type="number" min="1"></div>
+    <div class="fg"><label>Reason / notes</label><textarea id="br-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="bud-revise-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-bud-revise">Save revision</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="stage-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title"><span id="stage-modal-title">Add stage</span><button type="button" class="modal-close" data-close-modal="stage-modal">✕</button></div>
+    <input type="hidden" id="st-id">
+    <div class="fg"><label>Stage name *</label><input id="st-name" type="text" list="st-name-list" placeholder="Substructure, Grey structure…">
+      <datalist id="st-name-list">
+        <option value="Site preparation"></option><option value="Substructure"></option>
+        <option value="Grey structure"></option><option value="Masonry"></option>
+        <option value="Services (electrical &amp; plumbing)"></option><option value="Finishes"></option>
+        <option value="External works"></option><option value="Handover"></option>
+      </datalist>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Weight (% of project) *</label><input id="st-weight" type="number" min="0" max="100" step="0.01" value="0"></div>
+      <div class="fg"><label>Status</label>
+        <select id="st-status">
+          <option value="not_started">Not started</option><option value="in_progress">In progress</option>
+          <option value="done">Done</option><option value="on_hold">On hold</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Planned start</label><input id="st-start" type="date"></div>
+      <div class="fg"><label>Planned finish</label><input id="st-end" type="date"></div>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="st-notes"></textarea></div>
+    <div class="fg-hint" style="font-size:11px;color:var(--g400)">Leave the dates blank to take them from the stage’s tasks. Stage weights should add up to 100% — use “Even stage weights” to split them equally.</div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="stage-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-stage">Save stage</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="task-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-title"><span id="task-modal-title">Add task</span><button type="button" class="modal-close" data-close-modal="task-modal">✕</button></div>
+    <input type="hidden" id="tk-id">
+    <div class="form-row">
+      <div class="fg"><label>Stage *</label><select id="tk-stage"></select></div>
+      <div class="fg"><label>Task name *</label><input id="tk-name" type="text" placeholder="Excavation, Raft pour…"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Planned start</label><input id="tk-start" type="date"></div>
+      <div class="fg"><label>Planned finish</label><input id="tk-end" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Weight (% of stage)</label><input id="tk-weight" type="number" min="0" max="100" step="0.01" value="0"></div>
+      <div class="fg"><label>Progress (%)</label><input id="tk-progress" type="number" min="0" max="100" value="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Starts after</label><select id="tk-depends"><option value="">Nothing — can start any time</option></select></div>
+      <div class="fg"><label>Lag after that task (days)</label><input id="tk-lag" type="number" min="0" value="0"></div>
+    </div>
+    <div class="plan-section">Workforce &amp; daily rates — this is what feeds the labour line in the budget</div>
+    <div class="form-row">
+      <div class="fg"><label>Skilled workers</label><input id="tk-skilled" type="number" min="0" value="0"></div>
+      <div class="fg"><label>Skilled rate / day (PKR)</label><input id="tk-skilled-rate" type="number" min="0" value="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Unskilled workers</label><input id="tk-unskilled" type="number" min="0" value="0"></div>
+      <div class="fg"><label>Unskilled rate / day (PKR)</label><input id="tk-unskilled-rate" type="number" min="0" value="0"></div>
+    </div>
+    <div class="plan-readout" id="tk-labour-preview">Labour cost —</div>
+    <div class="fg"><label>Status</label>
+      <select id="tk-status">
+        <option value="">From progress</option><option value="on_hold">On hold</option>
+      </select>
+    </div>
+    <div class="fg"><label>Notes</label><textarea id="tk-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="task-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-task">Save task</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="boq-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-title"><span id="boq-modal-title">Add BOQ line</span><button type="button" class="modal-close" data-close-modal="boq-modal">✕</button></div>
+    <input type="hidden" id="bq-id">
+    <div class="form-row">
+      <div class="fg"><label>Material item</label><select id="bq-item"><option value="">Not linked — type a name below</option></select></div>
+      <div class="fg"><label>Name *</label><input id="bq-name" type="text" placeholder="Cement, Steel bar 12mm…"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Stage</label><select id="bq-stage"><option value="">Whole project</option></select></div>
+      <div class="fg"><label>Task</label><select id="bq-task"><option value="">Whole stage</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Quantity *</label><input id="bq-qty" type="number" min="0" step="0.01" value="0"></div>
+      <div class="fg"><label>Unit</label><input id="bq-unit" type="text" placeholder="bag, ton, cft…"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Wastage (%)</label><input id="bq-wastage" type="number" min="0" max="100" step="0.1" value="0"></div>
+      <div class="fg"><label>Rate per unit (PKR) *</label><input id="bq-rate" type="number" min="0" value="0"></div>
+    </div>
+    <div class="fg"><label>Budget category</label><select id="bq-category"><option value="">Materials</option></select></div>
+    <div class="plan-readout" id="bq-preview">Estimated —</div>
+    <div class="fg"><label>Notes</label><textarea id="bq-notes"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">
+      <button type="button" class="btn" data-close-modal="boq-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-save-boq">Save line</button>
     </div>
   </div>
 </div>
@@ -1858,6 +2149,7 @@
       </div>
     </div>
     <p style="font-size:12px;color:var(--g500);margin:0 0 10px">Percentages apply to financed balance (sale − booking) and must total 100%.</p>
+    <div class="plan-readout" id="pp-stage-hint" hidden></div>
     <div id="pp-rules"></div>
     <button type="button" class="add-inst" id="btn-add-pp-rule">+ Add rule</button>
     <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px">

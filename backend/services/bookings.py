@@ -163,20 +163,48 @@ def create_booking(conn, data: dict) -> dict:
         )
 
     if agent_id:
-        rate = settings_svc.get_float(conn, "default_agent_commission_pct", 2.0)
-        ag = fetch_one(conn, "SELECT default_rate_pct FROM agents WHERE id=?", (agent_id,))
-        if ag and ag["default_rate_pct"]:
-            rate = ag["default_rate_pct"]
-        commission = int(sale_price * rate / 100)
+        from backend.services import agents as agents_svc
+        ag = fetch_one(conn, "SELECT * FROM agents WHERE id=?", (agent_id,))
+        mode = data.get("commission_mode") or (ag.get("commission_mode") if ag else "percent")
+        if ag and not data.get("commission_mode"):
+            mode = ag.get("commission_mode") or "percent"
+        rate = data.get("commission_rate_pct")
+        if rate in (None, ""):
+            rate = (ag.get("default_rate_pct") if ag else None)
+            if rate in (None, ""):
+                rate = settings_svc.get_float(conn, "default_agent_commission_pct", 2.0)
+        flat = data.get("commission_flat_amount")
+        if flat in (None, ""):
+            flat = ag.get("default_flat_amount") if ag else 0
+        share = data.get("commission_over_base_pct")
+        if share in (None, ""):
+            share = ag.get("over_base_pct") if ag else 100
+        unit_base = data.get("base_sale_price")
+        if unit_base in (None, ""):
+            unit_base = unit.get("base_sale_price") or sale_price
+        deal = agents_svc.compute_booking_commission(
+            mode, sale_price, unit_base, rate, flat, share,
+        )
         conn.execute(
             """INSERT INTO agent_commissions(booking_id, agent_id, rate_pct,
-               commission_amount, paid_amount, status) VALUES(?,?,?,?,0,'earned')""",
-            (booking_id, agent_id, rate, commission),
+               commission_amount, paid_amount, status, mode, flat_amount, base_price, surplus)
+               VALUES(?,?,?,?,0,'earned',?,?,?,?)""",
+            (
+                booking_id, agent_id, deal["rate_pct"], deal["commission_amount"],
+                deal["mode"], deal["flat_amount"], deal["base_price"], deal["surplus"],
+            ),
         )
 
     holds_svc.convert_hold_to_booking(conn, data["unit_id"], booking_id, customer_id)
 
-    audit_svc.log(conn, "booking", booking_id, "created", {"booking_no": booking_no, "unit_id": data["unit_id"]})
+    cust = fetch_one(conn, "SELECT name FROM customers WHERE id=?", (customer_id,))
+    proj = fetch_one(conn, "SELECT name FROM projects WHERE id=?", (project_id,))
+    audit_svc.log(conn, "booking", booking_id, "created", {
+        "booking_no": booking_no, "unit_id": data["unit_id"], "unit_no": unit.get("unit_no"),
+        "customer_id": customer_id, "customer_name": (cust or {}).get("name"),
+        "project_id": project_id, "project_name": (proj or {}).get("name"),
+        "sale_price": sale_price, "booking_amount": booking_amount,
+    })
     inst_svc.refresh_statuses(conn, booking_id)
 
     return fetch_one(conn, "SELECT * FROM bookings WHERE id=?", (booking_id,))
@@ -220,8 +248,14 @@ def cancel_booking(conn, booking_id: int, reason: str | None = None) -> dict:
             (booking_id,),
         )
 
+    cust = fetch_one(conn, "SELECT name FROM customers WHERE id=?", (booking["customer_id"],))
+    unit = fetch_one(conn, "SELECT unit_no, project_id FROM units WHERE id=?", (booking["unit_id"],))
+    proj = fetch_one(conn, "SELECT name FROM projects WHERE id=?", (booking.get("project_id") or (unit or {}).get("project_id"),))
     audit_svc.log(conn, "booking", booking_id, "cancelled", {
-        "forfeit": forfeit, "refund": refund, "reason": reason,
+        "booking_no": booking.get("booking_no"), "forfeit": forfeit, "refund": refund, "reason": reason,
+        "customer_name": (cust or {}).get("name"), "unit_no": (unit or {}).get("unit_no"),
+        "project_id": booking.get("project_id") or (unit or {}).get("project_id"),
+        "project_name": (proj or {}).get("name"),
     })
     return {
         "ok": True,
@@ -283,8 +317,11 @@ def transfer_booking(conn, booking_id: int, new_customer_id: int, notes: str | N
            VALUES(?,?,?,?,?,?)""",
         (booking_id, from_id, new_customer_id, when, fee, (notes or "").strip() or None),
     )
+    from_c = fetch_one(conn, "SELECT name FROM customers WHERE id=?", (from_id,))
     audit_svc.log(conn, "booking", booking_id, "transferred", {
         "from_customer_id": from_id, "to_customer_id": new_customer_id, "transfer_fee": fee,
+        "from_customer": (from_c or {}).get("name"), "to_customer": new_c["name"],
+        "booking_no": booking.get("booking_no"), "project_id": booking.get("project_id"),
     })
     return fetch_one(conn, "SELECT * FROM bookings WHERE id=?", (booking_id,))
 

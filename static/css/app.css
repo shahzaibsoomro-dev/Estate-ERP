@@ -151,7 +151,7 @@ textarea{resize:vertical;min-height:60px}
 .del-btn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:15px}
 .add-inst{background:none;border:1.5px dashed var(--blue);color:var(--blue);font-family:inherit;font-size:12px;font-weight:700;padding:7px;border-radius:7px;cursor:pointer;width:100%;margin-top:7px;transition:var(--tr)}
 .add-inst:hover{background:var(--bluepale)}
-.gl-hd,.gl-row{display:grid;grid-template-columns:95px 1fr 105px 105px 115px;gap:6px;padding:8px 15px;align-items:center;font-size:11.5px}
+.gl-hd,.gl-row{display:grid;grid-template-columns:95px minmax(0,1.4fr) minmax(90px,0.8fr) 105px 105px 115px;gap:6px;padding:8px 15px;align-items:center;font-size:11.5px}
 .gl-hd{background:var(--g50);border-bottom:2px solid var(--g200);font-size:9.5px;font-weight:800;color:var(--g400);text-transform:uppercase;letter-spacing:.7px}
 .gl-row{border-bottom:1px solid var(--g100)}.gl-row:hover{background:#FAFBFE}
 .dr{color:var(--danger);font-weight:700;font-family:monospace}.cr{color:var(--success);font-weight:700;font-family:monospace}

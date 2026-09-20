@@ -945,7 +945,8 @@ try:
         fail("investor cashbook", "no investor ledger rows")
 
     aud = get("/api/audit?limit=20")
-    if isinstance(aud, list) and aud:
+    rows = aud.get("rows") if isinstance(aud, dict) else aud
+    if isinstance(rows, list) and rows:
         ok("GET /api/audit")
     else:
         fail("GET audit", str(type(aud)))

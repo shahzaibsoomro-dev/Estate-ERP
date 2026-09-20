@@ -11,7 +11,10 @@ class AgentWrite(BaseModel):
     description: str | None = None
     contact: str | None = None
     category: str | None = None
-    default_rate_pct: float = 2.0
+    commission_mode: str | None = "percent"
+    default_rate_pct: float | None = None
+    default_flat_amount: int | None = 0
+    over_base_pct: float | None = None
     bonus_budget: int | None = 0
     status: str | None = "active"
 

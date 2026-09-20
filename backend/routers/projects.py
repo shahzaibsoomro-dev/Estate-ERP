@@ -47,6 +47,7 @@ class ProjectUpdate(BaseModel):
     project_attributes: list | None = None
     total_area_ghaz: float | None = None
     estimated_cost: int | None = None
+    progress_mode: str | None = None
 
 
 @router.get("")

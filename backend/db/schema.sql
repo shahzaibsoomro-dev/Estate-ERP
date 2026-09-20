@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS projects (
     status TEXT DEFAULT 'under_construction',
     project_type TEXT NOT NULL DEFAULT 'building',
     current_progress INTEGER DEFAULT 0,
+    progress_mode TEXT DEFAULT 'auto',
     number_of_floors INTEGER DEFAULT 0,
     number_of_units INTEGER DEFAULT 0,
     project_attributes TEXT DEFAULT '[]',
@@ -53,7 +54,10 @@ CREATE TABLE IF NOT EXISTS agents (
     description TEXT,
     contact TEXT,
     category TEXT,
+    commission_mode TEXT DEFAULT 'percent',
     default_rate_pct REAL DEFAULT 2.0,
+    default_flat_amount INTEGER DEFAULT 0,
+    over_base_pct REAL DEFAULT 100,
     bonus_budget INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active'
 );
@@ -197,9 +201,78 @@ CREATE TABLE IF NOT EXISTS project_budget_lines (
     revision_no INTEGER DEFAULT 1,
     is_active INTEGER DEFAULT 1,
     notes TEXT,
+    source TEXT DEFAULT 'manual',
+    stage_id INTEGER,
     FOREIGN KEY (project_id) REFERENCES projects(id),
     FOREIGN KEY (category_id) REFERENCES budget_categories(id)
 );
+
+CREATE TABLE IF NOT EXISTS project_stages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    name TEXT NOT NULL,
+    weight_bps INTEGER NOT NULL DEFAULT 0,
+    planned_start TEXT,
+    planned_end TEXT,
+    actual_start TEXT,
+    actual_end TEXT,
+    status TEXT DEFAULT 'not_started',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    stage_id INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    name TEXT NOT NULL,
+    planned_start TEXT,
+    planned_end TEXT,
+    weight_bps INTEGER NOT NULL DEFAULT 0,
+    progress_pct INTEGER NOT NULL DEFAULT 0,
+    depends_on_task_id INTEGER,
+    lag_days INTEGER DEFAULT 0,
+    workers_skilled INTEGER DEFAULT 0,
+    workers_unskilled INTEGER DEFAULT 0,
+    skilled_rate INTEGER DEFAULT 0,
+    unskilled_rate INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'not_started',
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (stage_id) REFERENCES project_stages(id),
+    FOREIGN KEY (depends_on_task_id) REFERENCES project_tasks(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_boq_lines (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    stage_id INTEGER,
+    task_id INTEGER,
+    item_id INTEGER,
+    category_id INTEGER,
+    name TEXT NOT NULL,
+    unit TEXT DEFAULT 'pcs',
+    qty REAL NOT NULL DEFAULT 0,
+    wastage_pct REAL DEFAULT 0,
+    rate INTEGER NOT NULL DEFAULT 0,
+    revision_no INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (stage_id) REFERENCES project_stages(id),
+    FOREIGN KEY (task_id) REFERENCES project_tasks(id),
+    FOREIGN KEY (category_id) REFERENCES budget_categories(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_stages_project ON project_stages(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_tasks_stage ON project_tasks(stage_id);
+CREATE INDEX IF NOT EXISTS idx_project_boq_project ON project_boq_lines(project_id);
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -253,6 +326,10 @@ CREATE TABLE IF NOT EXISTS agent_commissions (
     commission_amount INTEGER NOT NULL,
     paid_amount INTEGER DEFAULT 0,
     status TEXT DEFAULT 'earned',
+    mode TEXT DEFAULT 'percent',
+    flat_amount INTEGER DEFAULT 0,
+    base_price INTEGER,
+    surplus INTEGER,
     FOREIGN KEY (booking_id) REFERENCES bookings(id),
     FOREIGN KEY (agent_id) REFERENCES agents(id)
 );
@@ -320,6 +397,7 @@ CREATE TABLE IF NOT EXISTS investor_distributions (
     amount INTEGER NOT NULL,
     distribution_date TEXT NOT NULL,
     notes TEXT,
+    occasion TEXT,
     FOREIGN KEY (agreement_id) REFERENCES investor_agreements(id)
 );
 
@@ -366,6 +444,7 @@ CREATE TABLE IF NOT EXISTS partner_distributions (
     amount INTEGER NOT NULL,
     distribution_date TEXT NOT NULL,
     notes TEXT,
+    occasion TEXT,
     FOREIGN KEY (agreement_id) REFERENCES partner_agreements(id)
 );
 
@@ -375,6 +454,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     entity_id INTEGER,
     action TEXT NOT NULL,
     details TEXT,
+    user_id INTEGER,
+    ip TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -405,6 +486,9 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
     direction TEXT NOT NULL,
     category TEXT,
     notes TEXT,
+    payment_method TEXT,
+    project_id INTEGER,
+    kind TEXT DEFAULT 'manual',
     created_at TEXT DEFAULT (datetime('now'))
 );
 

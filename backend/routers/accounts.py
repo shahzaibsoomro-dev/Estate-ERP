@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from backend.database import get_db
 from backend.services import accounts as svc
+from backend.services.project_filter import parse_project_ids
 
 router = APIRouter(prefix="/api", tags=["accounts"])
 
@@ -18,6 +19,14 @@ class LedgerCreate(BaseModel):
     notes: str | None = None
     payment_method: str | None = None
     project_id: int | None = None
+    kind: str | None = None
+
+
+class BalanceSet(BaseModel):
+    cash: int = 0
+    bank: int = 0
+    as_of: str | None = None
+    reason: str | None = None
 
 
 def _http(exc: ValueError) -> HTTPException:
@@ -28,9 +37,19 @@ def _http(exc: ValueError) -> HTTPException:
 
 
 @router.get("/ledger")
-def get_ledger():
+def get_ledger(project_id: int | None = Query(None), project_ids: str | None = Query(None)):
+    ids = parse_project_ids(project_ids, project_id)
     with get_db() as conn:
-        return svc.list_cashbook(conn)
+        return svc.list_cashbook(conn, ids)
+
+
+@router.put("/ledger/balance")
+def set_balance(body: BalanceSet):
+    with get_db() as conn:
+        try:
+            return svc.set_current_balance(conn, body.model_dump())
+        except ValueError as e:
+            raise _http(e) from e
 
 
 @router.post("/ledger")

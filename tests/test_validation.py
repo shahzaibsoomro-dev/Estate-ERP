@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 import pytest
+from conftest import login
 
 
 @pytest.fixture
@@ -216,6 +217,63 @@ def test_cashbook_entry_cash_or_bank(as_role):
                                            "direction": "out"}).status_code == 400
 
 
+def test_opening_and_current_balance(as_role):
+    admin = as_role("admin")
+    before = admin.get("/api/ledger").json()
+    cash0, bank0 = before["cash"], before["bank"]
+    r = admin.put("/api/ledger/balance", json={
+        "cash": cash0 + 25_000, "bank": bank0 + 100_000,
+        "as_of": date.today().isoformat(), "reason": "Till count",
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["cash"] == cash0 + 25_000
+    assert body["bank"] == bank0 + 100_000
+    assert body["current"] == cash0 + bank0 + 125_000
+    tb = admin.get("/api/reports/trial-balance").json()
+    assert tb["balanced"] is True
+    equity = next(a for a in tb["accounts"] if a["code"] == "3200")
+    assert equity["credit"] >= 125_000
+    same = admin.put("/api/ledger/balance", json={"cash": body["cash"], "bank": body["bank"]})
+    assert same.status_code == 400
+
+    pid = admin.post("/api/projects", json={"name": "Cash Site", "location": "Lahore"}).json()["id"]
+    admin.post("/api/ledger", json={
+        "entry_date": date.today().isoformat(), "narration": "Site petty", "amount": 1_000,
+        "direction": "out", "payment_method": "Cash", "project_id": pid,
+    })
+    scoped = admin.get(f"/api/ledger?project_id={pid}").json()
+    assert scoped["filtered"] is True
+    assert scoped["outflow"] >= 1_000
+    assert all(e.get("project_id") == pid for e in scoped["entries"])
+
+
+def test_company_opening_balance_is_optional(as_role):
+    sa = as_role("superadmin")
+    plan = sa.get("/api/console/plans").json()[0]
+    skip = sa.post("/api/console/companies", json={
+        "name": "Zero Start Co", "plan_id": plan["id"],
+        "admin_name": "Zed", "admin_email": "zed@zerostart.test",
+    })
+    assert skip.status_code == 200, skip.text
+    with_bal = sa.post("/api/console/companies", json={
+        "name": "Cash Start Co", "plan_id": plan["id"],
+        "admin_name": "Cash Owner", "admin_email": "owner@cashstart.test",
+        "record_opening_balance": True, "opening_cash": 40_000, "opening_bank": 210_000,
+        "opening_date": date.today().isoformat(),
+    })
+    assert with_bal.status_code == 200, with_bal.text
+    owner = as_role(None)
+    login(owner, "owner@cashstart.test", with_bal.json()["temporary_password"])
+    owner.post("/api/auth/change-password", json={
+        "current_password": with_bal.json()["temporary_password"], "new_password": "Quartz-Lamp-4822"})
+    books = owner.get("/api/ledger").json()
+    assert books["cash"] == 40_000 and books["bank"] == 210_000
+    assert books["has_opening"] is True
+    tb = owner.get("/api/reports/trial-balance").json()
+    assert tb["balanced"] is True
+
+
 def _po_setup(admin):
     pid = admin.post("/api/projects", json={"name": "PO Yard", "location": "Lahore"}).json()["id"]
     vid = admin.post("/api/vendors", json={"name": "Cement House"}).json()["id"]
@@ -323,4 +381,91 @@ def test_contractor_and_site_log_details(as_role):
     assert dl.status_code == 200
     assert admin.delete(f"/api/site-logs/{row['id']}/attachments/{atts[0]['id']}").status_code == 200
     assert admin.get(f"/api/site-logs/{row['id']}").json()["attachments"] == []
+
+
+def test_agent_commission_percent_flat_and_over_base(as_role, world):
+    admin = as_role("admin")
+    pid = world["scoped_project"]
+
+    def book(n, sale, base, agent_id, extra=None):
+        uid = admin.post("/api/units", json={"project_id": pid, "unit_no": f"STK-{n}",
+                                             "base_sale_price": base}).json()["id"]
+        cid = admin.post("/api/customers", json={"name": f"Stk Buyer {n}",
+                                                 "cnic": f"35111-{n:07d}-1"}).json()["id"]
+        body = {
+            "customer_id": cid, "unit_id": uid, "project_id": pid, "sale_price": sale,
+            "base_sale_price": base, "booking_amount": 100_000, "booking_date": "2026-03-01",
+            "agent_id": agent_id,
+            "installments": [{"amount": sale - 100_000, "due_date": "2026-04-01", "type": "Monthly"}],
+        }
+        if extra:
+            body.update(extra)
+        r = admin.post("/api/bookings", json=body)
+        assert r.status_code == 200, r.text
+        return admin.get(f"/api/agents/{agent_id}").json()["commissions"][0]
+
+    pct = admin.post("/api/agents", json={"name": "Pct Deal", "commission_mode": "percent",
+                                          "default_rate_pct": 2}).json()
+    row = book(1, 1_000_000, 1_000_000, pct["id"])
+    assert row["mode"] == "percent" and row["commission_amount"] == 20_000
+
+    flat = admin.post("/api/agents", json={"name": "Flat Deal", "commission_mode": "flat",
+                                           "default_flat_amount": 150_000}).json()
+    row = book(2, 2_000_000, 1_800_000, flat["id"])
+    assert row["mode"] == "flat" and row["commission_amount"] == 150_000
+
+    over = admin.post("/api/agents", json={"name": "Over Base Deal", "commission_mode": "over_base",
+                                           "over_base_pct": 100}).json()
+    row = book(3, 1_200_000, 1_000_000, over["id"])
+    assert row["mode"] == "over_base" and row["surplus"] == 200_000 and row["commission_amount"] == 200_000
+    row = book(4, 900_000, 1_000_000, over["id"])
+    assert row["commission_amount"] == 0 and row["surplus"] == 0
+
+    row = book(5, 1_000_000, 1_000_000, pct["id"],
+               {"commission_mode": "flat", "commission_flat_amount": 50_000})
+    assert row["mode"] == "flat" and row["commission_amount"] == 50_000
+
+
+def test_partner_no_monthly_return_and_occasion_payout(as_role, world):
+    admin = as_role("admin")
+    link = {"project_id": world["scoped_project"], "agreed_amount": 5000, "investment_date": "2026-01-01"}
+    r = admin.post("/api/partners", json={
+        "name": "No Monthly", "cnic": "11111-3333333-1", "partner_type": "Monthly Return",
+        "monthly_return_pct": 2, **link,
+    })
+    assert r.status_code == 200, r.text
+    p = r.json()
+    assert p["partner_type"] == "Profit Sharing"
+    assert p["monthly_return_pct"] is None
+    assert p["accrued_return"] == 0
+    assert p["return_due"] == 0
+
+    r = admin.post("/api/partners", json={
+        "name": "Share Partner", "cnic": "11111-3333333-2", "profit_share_pct": 15,
+        "profit_share_basis": "milestone", **link,
+    })
+    assert r.status_code == 200, r.text
+    p = r.json()
+    assert p["profit_share_basis"] == "milestone"
+    pid = p["id"]
+    assert admin.post(f"/api/partners/{pid}/contribute",
+                      json={"amount": 5000, "contribution_date": "2026-01-02"}).status_code == 200
+    d = admin.post(f"/api/partners/{pid}/distribute", json={
+        "amount": 800, "distribution_date": "2026-06-01", "occasion": "milestone",
+    })
+    assert d.status_code == 200, d.text
+    assert d.json()["distributions"][0]["occasion"] == "milestone"
+
+
+def test_parties_search_by_cnic_and_phone(as_role):
+    admin = as_role("admin")
+    admin.post("/api/customers", json={"name": "Find Me Party", "cnic": "42201-9988776-5",
+                                       "phone": "03001112233"})
+    rows = admin.get("/api/entities", params={"q": "42201-9988776-5"}).json()
+    assert any(r["name"] == "Find Me Party" for r in rows)
+    rows = admin.get("/api/entities", params={"q": "03001112233"}).json()
+    assert any(r["name"] == "Find Me Party" for r in rows)
+    rows = admin.get("/api/entities", params={"q": "CUS-", "type": "customer"}).json()
+    assert any(r["entity_type"] == "customer" for r in rows)
+
 

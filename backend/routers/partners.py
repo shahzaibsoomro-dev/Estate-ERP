@@ -33,7 +33,7 @@ class MoneyBody(BaseModel):
     contribution_date: str | None = None
     distribution_date: str | None = None
     agreement_id: int | None = None
-    notes: str | None = None
+    occasion: str | None = None
 
 
 def _http(exc: ValueError) -> HTTPException:

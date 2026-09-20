@@ -419,6 +419,9 @@ def _ensure_legacy_additive(conn: sqlite3.Connection) -> None:
             direction TEXT NOT NULL,
             category TEXT,
             notes TEXT,
+            payment_method TEXT,
+            project_id INTEGER,
+            kind TEXT DEFAULT 'manual',
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS unit_holds (

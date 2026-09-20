@@ -17,6 +17,7 @@ from backend.routers import (
     audit,
     auth,
     bookings,
+    boq,
     budget,
     company,
     console,
@@ -32,6 +33,7 @@ from backend.routers import (
     me,
     partners,
     payments,
+    planning,
     portal,
     portal_access,
     possession,
@@ -73,7 +75,7 @@ for mod in (
     dashboard, projects, units, customers, bookings, payments,
     recovery, vendors, budget, site_logs, accounts, agents, investors, partners, entities,
     contractors, inventory, possession, settings, portal, audit, reports, stubs,
-    holds,
+    holds, planning, boq,
 ):
     app.include_router(mod.router)
 

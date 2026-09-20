@@ -24,6 +24,7 @@ ACCOUNTS = {
     "2500": ("Investor funds", "liability", "Funding"),
     "3000": ("Partner capital", "equity", "Capital"),
     "3100": ("Partner drawings", "equity", "Capital"),
+    "3200": ("Opening balances", "equity", "Capital"),
     "4000": ("Property sales", "income", "Sales"),
     "4090": ("Sales cancellations", "income", "Sales"),
     "4100": ("Transfer fee income", "income", "Other income"),
@@ -46,6 +47,7 @@ SOURCE_LABEL = {
     "payment": "Customer collections", "hold_in": "Hold tokens", "hold_refund": "Hold token refunds",
     "transfer": "Transfer fees", "cancel_refund": "Cancellation refunds", "vendor_payment": "Vendor payments",
     "po_cancel_fee": "PO cancellation fees", "po_cancel_refund": "PO cancellation refunds",
+    "opening": "Opening balances", "balance_adjust": "Balance adjustments",
     "contractor_payment": "Contractor payments", "commission_payment": "Agent commissions",
     "agent_bonus": "Agent bonuses", "investor_in": "Investor funding", "investor_out": "Investor returns",
     "partner_in": "Partner capital", "partner_out": "Partner drawings", "manual": "Cashbook entries",
@@ -210,17 +212,29 @@ def build(conn, project_ids: list[int] | None = None, end: str | None = None) ->
 
     cols = {r[1] for r in conn.execute("PRAGMA table_info(ledger_entries)")}
     extra = ", payment_method, project_id" if {"payment_method", "project_id"} <= cols else ", NULL AS payment_method, NULL AS project_id"
+    extra += ", kind" if "kind" in cols else ", 'manual' AS kind"
     for m in fetch_all(conn, f"SELECT id, entry_date, narration, amount, direction, category{extra} FROM ledger_entries"):
         amt = m["amount"] or 0
         cash = cash_account(m["payment_method"])
-        if m["direction"] == "in":
+        kind = (m.get("kind") or "manual").lower()
+        cat = (m.get("category") or "").lower()
+        is_open = kind in ("opening", "adjust") or cat.startswith("opening") or cat.startswith("balance adjustment")
+        if is_open:
+            if m["direction"] == "in":
+                lines = [(cash, amt, 0), ("3200", 0, amt)]
+            else:
+                lines = [("3200", amt, 0), (cash, 0, amt)]
+            src = "opening" if kind == "opening" or cat.startswith("opening") else "balance_adjust"
+        elif m["direction"] == "in":
             lines = [(cash, amt, 0), ("4300", 0, amt)]
+            src = "manual"
         else:
             lines = [("5900", amt, 0), (cash, 0, amt)]
+            src = "manual"
         before = len(E)
-        _e(E, m["entry_date"], "manual", f"CB-{m['id']}", m["narration"], m["project_id"], None, lines)
+        _e(E, m["entry_date"], src, f"CB-{m['id']}", m["narration"], m["project_id"], None, lines)
         if len(E) > before:
-            E[-1]["category"] = m["category"] or ("Other income" if m["direction"] == "in" else "Other expenses")
+            E[-1]["category"] = m["category"] or ("Opening balances" if is_open else ("Other income" if m["direction"] == "in" else "Other expenses"))
 
     if project_ids is not None:
         allowed = set(project_ids)

@@ -202,8 +202,18 @@ def create_hold(conn, unit_id: int, data: dict) -> dict:
            WHERE id=?""",
         (customer_id, hold_until, notes, unit_id),
     )
+    unit_row = fetch_one(
+        conn,
+        """SELECT u.unit_no, u.project_id, p.name AS project_name FROM units u
+           JOIN projects p ON p.id=u.project_id WHERE u.id=?""",
+        (unit_id,),
+    ) or {}
+    cust_row = fetch_one(conn, "SELECT name FROM customers WHERE id=?", (customer_id,)) if customer_id else None
     audit_svc.log(conn, "unit_hold", hold_id, "created", {
-        "unit_id": unit_id, "token_amount": token, "receipt_no": receipt_no,
+        "unit_id": unit_id, "unit_no": unit_row.get("unit_no"),
+        "token_amount": token, "receipt_no": receipt_no,
+        "customer_name": (cust_row or {}).get("name"),
+        "project_id": unit_row.get("project_id"), "project_name": unit_row.get("project_name"),
     })
     return hold_detail(conn, hold_id)
 

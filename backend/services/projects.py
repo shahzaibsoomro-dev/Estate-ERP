@@ -1,7 +1,9 @@
 from backend.database import fetch_all, fetch_one
+from backend.services import audit as audit_svc
 
 PROJECT_TYPES = ("building", "housing_scheme")
 PROJECT_STATUSES = ("planning", "under_construction", "completed")
+PROGRESS_MODES = ("auto", "manual")
 STATUS_LABELS = {
     "planning": "Planning",
     "under_construction": "Under construction",
@@ -36,6 +38,13 @@ def normalize_type(raw) -> str:
     return ptype
 
 
+def normalize_progress_mode(raw) -> str:
+    mode = (raw or "auto").strip().lower()
+    if mode not in PROGRESS_MODES:
+        raise ValueError("Progress mode must be auto or manual")
+    return mode
+
+
 def progress_for_status(status: str, progress) -> int:
     if status == "planning":
         return 0
@@ -67,6 +76,34 @@ def prepare_project_fields(data: dict, existing: dict | None = None) -> dict:
         "number_of_units": units,
         "current_progress": progress_for_status(status, incoming_progress),
     }
+
+
+def set_progress(conn, project_id: int, progress, source: str = "manual") -> int:
+    """The one path that writes construction progress and fires milestone installments.
+
+    A project on manual mode ignores recomputes coming from Structure of Work.
+    """
+    row = fetch_one(
+        conn, "SELECT status, current_progress, progress_mode FROM projects WHERE id=?", (project_id,)
+    )
+    if not row:
+        raise ValueError("Project not found")
+    current = _int(row.get("current_progress"), 0)
+    if source == "planning" and (row.get("progress_mode") or "auto") == "manual":
+        return current
+    value = progress_for_status(row.get("status") or "planning", progress)
+    if value == current:
+        return current
+    conn.execute("UPDATE projects SET current_progress=? WHERE id=?", (value, project_id))
+    from datetime import date
+    from backend.services import installment_templates as tmpl_svc
+    tmpl_svc.activate_milestones_for_project(conn, project_id, value, date.today().isoformat())
+    name = fetch_one(conn, "SELECT name FROM projects WHERE id=?", (project_id,))
+    audit_svc.log(conn, "project", project_id, "progress", {
+        "progress_pct": value, "source": source, "name": (name or {}).get("name"),
+        "project_id": project_id, "project_name": (name or {}).get("name"),
+    })
+    return value
 
 
 INVENTORY_SQL = """
@@ -164,7 +201,12 @@ def create_project(conn, data: dict) -> dict:
             data.get("total_area_ghaz"), data.get("estimated_cost"),
         ),
     )
-    return get_project(conn, cur.lastrowid)
+    pid = cur.lastrowid
+    audit_svc.log(conn, "project", pid, "created", {
+        "name": name, "project_id": pid, "status": fields["status"],
+        "project_type": fields["project_type"],
+    })
+    return get_project(conn, pid)
 
 
 def delete_project(conn, project_id: int) -> None:
@@ -203,6 +245,9 @@ def delete_project(conn, project_id: int) -> None:
         raise ValueError(f"Cannot delete project — {logs['n']} site log(s). Remove them first.")
 
     conn.execute("DELETE FROM project_budget_lines WHERE project_id=?", (project_id,))
+    conn.execute("DELETE FROM project_boq_lines WHERE project_id=?", (project_id,))
+    conn.execute("DELETE FROM project_tasks WHERE project_id=?", (project_id,))
+    conn.execute("DELETE FROM project_stages WHERE project_id=?", (project_id,))
     conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
 
 
@@ -232,21 +277,19 @@ def update_project(conn, project_id: int, data: dict) -> dict | None:
         persist.add("current_progress")
     if "project_type" in data:
         persist.add("number_of_floors")
-    for key in ("status", "project_type", "current_progress", "number_of_floors", "number_of_units"):
+    for key in ("status", "project_type", "number_of_floors", "number_of_units"):
         if key in persist:
             fields.append(f"{key}=?")
             values.append(resolved[key])
     if "project_attributes" in data:
         fields.append("project_attributes=?")
         values.append(json.dumps(data["project_attributes"] or []))
-    if not fields:
-        return get_project(conn, project_id)
-    values.append(project_id)
-    conn.execute(f"UPDATE projects SET {', '.join(fields)} WHERE id=?", values)
-    if resolved["current_progress"] != (existing.get("current_progress") or 0):
-        from backend.services import installment_templates as tmpl_svc
-        from datetime import date
-        tmpl_svc.activate_milestones_for_project(
-            conn, project_id, resolved["current_progress"], date.today().isoformat(),
-        )
+    if data.get("progress_mode") is not None:
+        fields.append("progress_mode=?")
+        values.append(normalize_progress_mode(data["progress_mode"]))
+    if fields:
+        values.append(project_id)
+        conn.execute(f"UPDATE projects SET {', '.join(fields)} WHERE id=?", values)
+    if "current_progress" in persist:
+        set_progress(conn, project_id, resolved["current_progress"], source="manual")
     return get_project(conn, project_id)
