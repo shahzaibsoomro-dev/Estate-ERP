@@ -131,10 +131,13 @@
         <div id="u-search-menu" class="bk-menu" hidden></div>
       </div>
       <select id="u-proj" title="Filter by project"><option value="">All projects</option></select>
+      <select id="u-type" title="Filter by type">
+        <option value="">All types</option>
+        <option value="residential">Residential</option>
+        <option value="commercial">Commercial</option>
+      </select>
       <select id="u-floor" title="Filter by floor">
         <option value="">All floors</option>
-        <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
       </select>
       <select id="u-status" title="Filter by status">
         <option value="">All statuses</option>
@@ -144,7 +147,7 @@
         <option value="delivered">Delivered</option>
       </select>
       <div class="toolbar-end">
-        <button type="button" class="btn" id="btn-bulk-units" title="Coming soon">Bulk CSV upload</button>
+        <button type="button" class="btn" id="btn-bulk-units">Bulk upload</button>
         <button type="button" class="btn primary" id="btn-add-unit">+ Add unit</button>
       </div>
     </div>
@@ -286,24 +289,25 @@
 </div>
 
 <div class="screen" id="s-demand">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div><div class="pg-title">Demand Notices</div></div>
-    <div style="font-size:12px;color:var(--g400);max-width:360px;text-align:right">Preview only — WhatsApp, email and PDF are not connected yet</div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div>
-      <div class="card">
-        <div class="card-hd"><span class="card-title">Pending Notices</span></div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Customer</th><th>Unit</th><th>Amount</th><th>Days</th><th>Action</th></tr></thead>
-            <tbody id="demand-tbody"><tr><td colspan="5" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
-          </table>
-        </div>
+      <div class="pg-title">Demand Notices</div>
+      <div class="card-sub">Overdue installments with why they are due, when they were due, and what is still unpaid.</div>
+    </div>
+    <input type="search" id="demand-q" placeholder="Search customer, unit or installment…" style="width:260px">
+  </div>
+  <div class="demand-layout">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Overdue cases</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Customer / unit</th><th>Why / when</th><th>Unpaid</th><th>Age</th></tr></thead>
+          <tbody id="demand-tbody"><tr><td colspan="4" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        </table>
       </div>
     </div>
-    <div id="notice-area" style="display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--g400);flex-direction:column;gap:8px;font-size:13px">
-      <div style="font-size:38px">📄</div>No notice selected
+    <div id="notice-area" class="notice-area">
+      <div class="demand-empty">Select a case to see why it is overdue and issue a notice.</div>
     </div>
   </div>
 </div>
@@ -334,31 +338,20 @@
 
 <div class="screen" id="s-recovery">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-    <div><div class="pg-title">Recovery</div></div>
+    <div>
+      <div class="pg-title">Recovery</div>
+      <div class="card-sub">Collect overdue and upcoming installments, then issue a notice or receipt from the same case.</div>
+    </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <input type="search" placeholder="Search…" id="rec-search" style="width:200px">
+      <input type="search" placeholder="Search customer, unit, phone…" id="rec-search" style="width:220px">
       <button type="button" class="btn primary" id="btn-rec-pay">+ Record Payment</button>
     </div>
   </div>
   <div class="g4" style="margin-bottom:14px">
-    <div class="kpi navy"><div class="kpi-lbl">Total Receivable</div><div class="kpi-val" id="r-recv">—</div><div class="kpi-ico">📊</div></div>
-    <div class="kpi red"><div class="kpi-lbl">Overdue</div><div class="kpi-val" id="r-over">—</div><div class="kpi-ico">⚠️</div></div>
-    <div class="kpi green"><div class="kpi-lbl">Collected (30d)</div><div class="kpi-val" id="r-coll">—</div><div class="kpi-ico">✅</div></div>
-    <div class="kpi blue"><div class="kpi-lbl">Overdue Cases</div><div class="kpi-val" id="r-cases">—</div><div class="kpi-ico">📈</div></div>
-  </div>
-  <div class="card cal-wrap">
-    <div class="card-hd">
-      <span class="card-title">Payment calendar</span>
-      <div class="cal-nav">
-        <button type="button" class="btn sm" id="cal-prev">‹</button>
-        <strong id="cal-label">—</strong>
-        <button type="button" class="btn sm" id="cal-next">›</button>
-      </div>
-    </div>
-    <div class="card-bd">
-      <div class="cal-grid" id="rec-calendar"></div>
-      <div id="cal-day-list" class="cal-day-list" hidden></div>
-    </div>
+    <div class="kpi navy"><div class="kpi-lbl">Open receivable</div><div class="kpi-val" id="r-recv">—</div></div>
+    <div class="kpi red"><div class="kpi-lbl">Overdue now</div><div class="kpi-val" id="r-over">—</div></div>
+    <div class="kpi green"><div class="kpi-lbl">Collected (30d)</div><div class="kpi-val" id="r-coll">—</div></div>
+    <div class="kpi blue"><div class="kpi-lbl">Overdue cases</div><div class="kpi-val" id="r-cases">—</div></div>
   </div>
   <div class="age-grid" id="rec-ageing">
     <button type="button" class="age-card d30" data-age="d30">
@@ -377,13 +370,33 @@
       <div class="age-cnt" id="age-d90-cnt">0 cases</div>
     </button>
   </div>
-  <div class="card">
-    <div class="card-hd"><span class="card-title">Overdue Installments</span></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd rec-case-hd">
+      <div class="doc-tabs rec-tabs">
+        <button type="button" class="doc-tab active" data-rec-tab="overdue">Overdue</button>
+        <button type="button" class="doc-tab" data-rec-tab="soon">Due this month</button>
+      </div>
+      <span class="card-sub" id="rec-tab-hint"></span>
+    </div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Customer</th><th>Unit</th><th>Project</th><th>Amount</th><th>Due Date</th><th>Days Overdue</th><th>Phone</th><th>Actions</th></tr></thead>
-        <tbody id="recovery-tbody"><tr><td colspan="8" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
+        <thead><tr><th>Customer</th><th>Unit</th><th>Why</th><th>Amount</th><th>When</th><th>Actions</th></tr></thead>
+        <tbody id="recovery-tbody"><tr><td colspan="6" class="loading"><span class="spinner"></span>Loading…</td></tr></tbody>
       </table>
+    </div>
+  </div>
+  <div class="card cal-wrap">
+    <div class="card-hd">
+      <span class="card-title">Payment calendar</span>
+      <div class="cal-nav">
+        <button type="button" class="btn sm" id="cal-prev">‹</button>
+        <strong id="cal-label">—</strong>
+        <button type="button" class="btn sm" id="cal-next">›</button>
+      </div>
+    </div>
+    <div class="card-bd">
+      <div class="cal-grid" id="rec-calendar"></div>
+      <div id="cal-day-list" class="cal-day-list" hidden></div>
     </div>
   </div>
 </div>
@@ -847,6 +860,23 @@
   </div>
 </div>
 
+<div class="modal-bg" id="unit-bulk-modal">
+  <div class="modal modal-wide">
+    <div class="modal-title"><span>Bulk upload units</span><button type="button" class="modal-close" data-close-modal="unit-bulk-modal">✕</button></div>
+    <p class="fg-hint" style="margin:0 0 12px">Download the sample, fill one row per unit, then upload the same columns. Duplicates in the same project are skipped as errors; valid rows are still created.</p>
+    <div class="form-row">
+      <div class="fg"><label>Project *</label><select id="ub-proj"></select></div>
+      <div class="fg"><label>CSV file</label><input id="ub-file" type="file" accept=".csv,text/csv"></div>
+    </div>
+    <div id="ub-preview" class="fg-hint" style="margin:8px 0 0"></div>
+    <div style="display:flex;justify-content:flex-end;gap:9px;margin-top:16px;flex-wrap:wrap">
+      <button type="button" class="btn" id="btn-ub-sample">Download sample</button>
+      <button type="button" class="btn" data-close-modal="unit-bulk-modal">Cancel</button>
+      <button type="button" class="btn primary" id="btn-ub-import">Upload units</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="unit-form-modal">
   <div class="modal modal-wide">
     <div class="modal-title"><span id="unit-form-title">Add Unit</span><button type="button" class="modal-close" data-close-modal="unit-form-modal">✕</button></div>
@@ -877,6 +907,12 @@
           <div class="fg"><label>City</label><input id="np-city" type="text" placeholder="e.g. Lahore"></div>
           <div class="fg"><label>Start Date</label><input id="np-start" type="date"></div>
           <div class="fg"><label>Expected End Date</label><input id="np-end" type="date"></div>
+          <div class="fg"><label>Project type</label>
+            <select id="np-type">
+              <option value="building" selected>Building</option>
+              <option value="housing_scheme">Housing scheme</option>
+            </select>
+          </div>
           <div class="fg"><label>Status</label>
             <select id="np-status">
               <option value="planning">Planning</option>
@@ -884,9 +920,14 @@
               <option value="completed">Completed</option>
             </select>
           </div>
-          <div class="fg"><label>Construction Progress (%)</label><input id="np-progress" type="number" min="0" max="100" placeholder="0"></div>
-          <div class="fg"><label>Number of Floors</label><input id="np-floors" type="number" min="0" placeholder="e.g. 10"></div>
-          <div class="fg"><label>Planned Units</label><input id="np-units" type="number" min="0" placeholder="e.g. 120"></div>
+          <div class="fg"><label>Construction Progress (%)</label>
+            <input id="np-progress" type="number" min="0" max="100" placeholder="0">
+            <span class="fg-hint" id="np-progress-hint">Enter the current construction percentage</span>
+          </div>
+          <div class="fg" id="np-floors-fg"><label>Number of Floors</label><input id="np-floors" type="number" min="0" placeholder="e.g. 10">
+            <span class="fg-hint">Cannot be more than planned units</span>
+          </div>
+          <div class="fg"><label id="np-units-lbl">Planned Units</label><input id="np-units" type="number" min="0" placeholder="e.g. 120"></div>
           <div class="fg"><label>Total Area (Ghaz)</label><input id="np-area-ghaz" type="number" min="0" step="0.01" placeholder="e.g. 500"></div>
           <div class="fg"><label>Estimated Cost (PKR)</label><input id="np-cost" type="number" min="0" placeholder="e.g. 850000000"></div>
         </div>
@@ -903,19 +944,21 @@
             <label><input type="checkbox" value="commercial"> Commercial</label>
           </div>
         </div>
-        <div style="font-size:13px;font-weight:800;color:var(--navy);margin:18px 0 8px">Construction installment template (optional)</div>
-        <p style="font-size:12px;color:var(--g500);margin:0 0 10px">Percentages apply to financed balance (sale price − booking amount) and must total 100%.</p>
-        <div class="form-row">
-          <div class="fg"><label>Template name</label><input id="np-tmpl-name" type="text" placeholder="e.g. Standard construction plan"></div>
-          <div class="fg"><label>Enable template</label>
-            <select id="np-tmpl-enable">
-              <option value="0">No — bookers use custom plans</option>
-              <option value="1">Yes — default for bookings</option>
-            </select>
+        <div id="np-tmpl-block" hidden>
+          <div style="font-size:13px;font-weight:800;color:var(--navy);margin:18px 0 8px">Construction installment template (optional)</div>
+          <p style="font-size:12px;color:var(--g500);margin:0 0 10px">Percentages apply to financed balance (sale price − booking amount) and must total 100%. Set this after the project exists — on create, skip it.</p>
+          <div class="form-row">
+            <div class="fg"><label>Template name</label><input id="np-tmpl-name" type="text" placeholder="e.g. Standard construction plan"></div>
+            <div class="fg"><label>Enable template</label>
+              <select id="np-tmpl-enable">
+                <option value="0">No — bookers use custom plans</option>
+                <option value="1">Yes — default for bookings</option>
+              </select>
+            </div>
           </div>
+          <div id="np-tmpl-rules"></div>
+          <button type="button" class="add-inst" id="btn-add-tmpl-rule">+ Add milestone rule</button>
         </div>
-        <div id="np-tmpl-rules"></div>
-        <button type="button" class="add-inst" id="btn-add-tmpl-rule">+ Add milestone rule</button>
       </div>
       <div id="onboard-step-2" class="onboard-panel" hidden>
         <div id="np-units-list"></div>

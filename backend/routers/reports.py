@@ -10,6 +10,14 @@ from backend.services import budget as budget_svc
 from backend.services import installments as inst_svc
 from backend.services import journal
 from backend.services.project_filter import parse_project_ids, sql_in
+from backend.services.units import normalize_unit_type, type_label
+
+
+def _unit_type_label(raw):
+    try:
+        return type_label(normalize_unit_type(raw))
+    except (ValueError, AttributeError, TypeError):
+        return raw or "Other"
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -220,6 +228,10 @@ def sales_summary(project_ids: str | None = Query(None), date_from: str | None =
         )
         cancelled = fetch_one(conn, f"""SELECT COUNT(*) n FROM bookings b WHERE b.status='cancelled'
                                         AND b.booking_date BETWEEN ? AND ?{pf}""", (start, end, *pp))["n"]
+        for row in by_type:
+            row["unit_type"] = _unit_type_label(row.get("unit_type"))
+        for row in bookings:
+            row["unit_type"] = _unit_type_label(row.get("unit_type"))
     return {"by_project": by_project, "monthly": monthly, "by_type": by_type, "bookings": bookings,
             "cancelled": cancelled}
 
@@ -295,6 +307,8 @@ def inventory(project_ids: str | None = Query(None)):
                 FROM units u WHERE 1=1{pf_u} GROUP BY unit_type ORDER BY total DESC""",
             pp_u,
         )
+        for row in by_type:
+            row["unit_type"] = _unit_type_label(row.get("unit_type"))
         holds = fetch_all(
             conn,
             f"""SELECT h.id, u.unit_no, u.project_id, p.name AS project_name, c.name AS customer_name,

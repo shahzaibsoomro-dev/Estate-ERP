@@ -112,7 +112,8 @@ def run_seed(conn: sqlite3.Connection) -> None:
         agents,
     )
 
-    types = ["2 Bed", "3 Bed", "2 Bed", "Shop", "2 Bed", "3 Bed", "2 Bed", "2 Bed"]
+    layouts = ["2 Bed Lounge", "3 Bed DD", "2 Bed Lounge", None, "2 Bed Lounge", "3 Bed DD", "2 Bed Lounge", "2 Bed Lounge"]
+    kinds = ["residential", "residential", "residential", "commercial", "residential", "residential", "residential", "residential"]
     sizes = [1200, 1650, 1200, 450, 1200, 1650, 1100, 1200]
     prices = [8500000, 11500000, 8500000, 3500000, 8200000, 11000000, 7800000, 8500000]
     facings = ["East", "West", "North", "South", "East", "West", "Park View", "Main Road"]
@@ -121,7 +122,7 @@ def run_seed(conn: sqlite3.Connection) -> None:
     for proj_id, prefix, total in [(1, "A", 120), (2, "B", 96), (3, "C", 64)]:
         for i in range(1, total + 1):
             floor = ((i - 1) // 8) + 1
-            tidx = (i - 1) % len(types)
+            tidx = (i - 1) % len(layouts)
             if proj_id == 3:
                 status = "sold"
             elif i <= int(total * 0.667):
@@ -130,9 +131,8 @@ def run_seed(conn: sqlite3.Connection) -> None:
                 status = "hold"
             else:
                 status = "available"
-            utype = "Shop" if tidx == 3 else types[tidx]
             unit_rows.append((
-                proj_id, f"{prefix}-{i:03d}", None, utype, utype,
+                proj_id, f"{prefix}-{i:03d}", None, kinds[tidx], layouts[tidx],
                 floor, sizes[tidx] / 10, None, None, None, status,
                 prices[tidx], None, prices[tidx] // 3, "Builder condition",
                 json.dumps([facings[tidx % len(facings)]]), None, None,

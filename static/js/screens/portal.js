@@ -231,7 +231,7 @@ function renderPortal() {
     <div class="sum-row"><span class="sum-lbl">Booking</span><span class="sum-val">${esc(b.booking_no || '—')}</span></div>
     <div class="sum-row"><span class="sum-lbl">Unit</span><span class="sum-val">${esc(b.unit_no)}</span></div>
     <div class="sum-row"><span class="sum-lbl">Project</span><span class="sum-val">${esc(b.project_name)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Type</span><span class="sum-val">${esc(u.unit_type || u.type || '—')}</span></div>
+    <div class="sum-row"><span class="sum-lbl">Type</span><span class="sum-val">${esc(u.type_label || (String(u.unit_type || u.type).toLowerCase() === 'commercial' ? 'Commercial' : (u.unit_type || u.type || '—')))}</span></div>
     <div class="sum-row"><span class="sum-lbl">Floor</span><span class="sum-val">${esc(floorLabel(u.floor_number ?? u.floor))}</span></div>
     <div class="sum-row"><span class="sum-lbl">Size</span><span class="sum-val">${esc(size)}</span></div>
     <div class="sum-row"><span class="sum-lbl">Tags</span><span class="sum-val">${tagHtml}</span></div>

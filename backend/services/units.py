@@ -7,6 +7,27 @@ from backend.services import audit as audit_svc
 from backend.services import installments as inst_svc
 from backend.services.project_filter import sql_in
 
+UNIT_TYPES = ("residential", "commercial")
+TYPE_ALIASES = {
+    "shop": "commercial", "office": "commercial", "showroom": "commercial",
+    "warehouse": "commercial", "commercial": "commercial",
+    "flat": "residential", "house": "residential", "apartment": "residential",
+    "penthouse": "residential", "residential": "residential",
+}
+
+
+def normalize_unit_type(raw) -> str:
+    key = (raw or "residential").strip().lower()
+    if key in UNIT_TYPES:
+        return key
+    if key in TYPE_ALIASES:
+        return TYPE_ALIASES[key]
+    raise ValueError("Unit type must be residential or commercial")
+
+
+def type_label(unit_type: str | None) -> str:
+    return "Commercial" if (unit_type or "") == "commercial" else "Residential"
+
 
 def _parse_unit_attributes(attrs) -> list:
     if isinstance(attrs, str):
@@ -35,7 +56,12 @@ def _map_unit(row: dict) -> dict:
     u["raw_status"] = raw_status
     u["status"] = display_unit_status(raw_status)
     u["floor"] = u.get("floor_number")
-    u["type"] = u.get("unit_type")
+    try:
+        u["unit_type"] = normalize_unit_type(u.get("unit_type"))
+    except ValueError:
+        u["unit_type"] = "residential"
+    u["type"] = u["unit_type"]
+    u["type_label"] = type_label(u["unit_type"])
     ghaz = u.get("area_ghaz")
     u["size_sqft"] = int((ghaz or 0) * 9) if ghaz else None
     u["price"] = u.get("base_sale_price")
@@ -189,6 +215,8 @@ def create_unit(conn, data: dict) -> dict:
         raise ValueError("New units start as available — use a hold or booking to change that")
     if data.get("base_sale_price") is not None and int(data["base_sale_price"]) < 0:
         raise ValueError("Price cannot be negative")
+    unit_type = normalize_unit_type(data.get("unit_type"))
+    layout = data.get("residential_type") if unit_type == "residential" else None
     cur = conn.execute(
         """INSERT INTO units(project_id, unit_no, description, unit_type, residential_type,
            floor_number, area_ghaz, block_tower, bedrooms, bathrooms, status,
@@ -197,7 +225,7 @@ def create_unit(conn, data: dict) -> dict:
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             data["project_id"], data["unit_no"], data.get("description"),
-            data.get("unit_type", "Flat"), data.get("residential_type"),
+            unit_type, layout,
             data.get("floor_number", 1), data.get("area_ghaz"),
             data.get("block_tower"), data.get("bedrooms"), data.get("bathrooms"),
             data.get("status", "available"), data.get("base_sale_price"),
@@ -325,6 +353,7 @@ def update_unit(conn, unit_id: int, data: dict) -> dict:
         if dup:
             raise ValueError("Unit number already exists in this project")
 
+    unit_type = normalize_unit_type(data.get("unit_type") or unit["unit_type"])
     conn.execute(
         """UPDATE units SET unit_no=?, description=?, unit_type=?, residential_type=?,
            floor_number=?, area_ghaz=?, block_tower=?, bedrooms=?, bathrooms=?,
@@ -332,8 +361,9 @@ def update_unit(conn, unit_id: int, data: dict) -> dict:
            unit_attributes=?, additional_requirements=?, possession_date=?
            WHERE id=?""",
         (
-            new_no, data.get("description"), data.get("unit_type", unit["unit_type"]),
-            data.get("residential_type"), data.get("floor_number", unit["floor_number"]),
+            new_no, data.get("description"), unit_type,
+            data.get("residential_type") if unit_type == "residential" else None,
+            data.get("floor_number", unit["floor_number"]),
             data.get("area_ghaz"), data.get("block_tower"), data.get("bedrooms"),
             data.get("bathrooms"), data.get("base_sale_price"),
             data.get("booking_amount_required"), data.get("furnishing_status"),
@@ -367,3 +397,68 @@ def delete_unit(conn, unit_id: int) -> None:
     if hold_ids:
         conn.execute("DELETE FROM unit_holds WHERE unit_id=?", (unit_id,))
     conn.execute("DELETE FROM units WHERE id=?", (unit_id,))
+
+
+IMPORT_FIELDS = (
+    "unit_no", "unit_type", "residential_type", "floor_number", "block_tower",
+    "area_ghaz", "bedrooms", "bathrooms", "base_sale_price", "booking_amount_required",
+    "furnishing_status", "description", "unit_attributes",
+)
+
+
+def _import_row(raw: dict) -> dict:
+    def pick(*names):
+        for n in names:
+            for key, val in raw.items():
+                if str(key).strip().lower() == n:
+                    return val
+        return None
+
+    def as_int(v):
+        if v in (None, ""):
+            return None
+        return int(float(str(v).replace(",", "").strip()))
+
+    def as_float(v):
+        if v in (None, ""):
+            return None
+        return float(str(v).replace(",", "").strip())
+
+    unit_no = str(pick("unit_no", "unit") or "").strip()
+    if not unit_no:
+        raise ValueError("unit_no is required")
+    tags = pick("unit_attributes", "tags", "amenities")
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.replace("|", ";").split(";") if t.strip()]
+    elif not isinstance(tags, list):
+        tags = []
+    return {
+        "unit_no": unit_no,
+        "unit_type": pick("unit_type", "type") or "residential",
+        "residential_type": pick("residential_type", "layout") or None,
+        "floor_number": as_int(pick("floor_number", "floor")) if pick("floor_number", "floor") not in (None, "") else 0,
+        "block_tower": (str(pick("block_tower", "block") or "").strip() or None),
+        "area_ghaz": as_float(pick("area_ghaz", "area")),
+        "bedrooms": as_int(pick("bedrooms")),
+        "bathrooms": as_int(pick("bathrooms")),
+        "base_sale_price": as_int(pick("base_sale_price", "price")),
+        "booking_amount_required": as_int(pick("booking_amount_required", "booking_amount")),
+        "furnishing_status": (str(pick("furnishing_status", "furnishing") or "").strip() or None),
+        "description": (str(pick("description") or "").strip() or None),
+        "unit_attributes": tags,
+        "status": "available",
+    }
+
+
+def import_units(conn, project_id: int, rows: list[dict]) -> dict:
+    if not fetch_one(conn, "SELECT id FROM projects WHERE id=?", (project_id,)):
+        raise ValueError("Project not found")
+    created, errors = [], []
+    for i, raw in enumerate(rows, start=2):
+        try:
+            data = _import_row(raw)
+            data["project_id"] = project_id
+            created.append(create_unit(conn, data))
+        except (ValueError, TypeError) as e:
+            errors.append({"row": i, "unit_no": str((raw or {}).get("unit_no") or ""), "error": str(e)})
+    return {"created": len(created), "failed": len(errors), "errors": errors, "units": created}

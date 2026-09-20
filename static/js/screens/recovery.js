@@ -9,6 +9,8 @@ import { loadDashboard } from './dashboard.js';
 import { askConfirm } from '../dialog.js';
 
 let recoveryOverdue = [];
+let recoverySoon = [];
+let recTab = 'overdue';
 let payChoices = [];
 let ageFilter = null;
 let payContext = null;
@@ -43,25 +45,31 @@ function ageingFromRows() {
   return out;
 }
 
-function filteredOverdue() {
+function caseBlob(o) {
+  return [o.customer_name, o.unit_no, o.project_name, o.phone, o.cnic, o.type, o.trigger_label, o.reason, o.why]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+function filteredCases() {
   const q = ($('rec-search')?.value || '').trim().toLowerCase();
-  return recoveryOverdue.filter((o) => {
-    if (ageFilter && ageBucket(o.days_overdue || 0) !== ageFilter) return false;
+  const source = recTab === 'soon' ? recoverySoon : recoveryOverdue;
+  return source.filter((o) => {
+    if (recTab === 'overdue' && ageFilter && ageBucket(o.days_overdue || 0) !== ageFilter) return false;
     if (!q) return true;
-    const blob = [o.customer_name, o.unit_no, o.project_name, o.phone, o.cnic]
-      .filter(Boolean).join(' ').toLowerCase();
-    return blob.includes(q);
+    return caseBlob(o).includes(q);
   });
 }
 
 export async function loadRecovery() {
   const d = await api(`/api/recovery${projectFilterQuery()}`);
   recoveryOverdue = Array.isArray(d.overdue) ? d.overdue : [];
+  recoverySoon = Array.isArray(d.due_soon) ? d.due_soon : [];
   if ($('r-recv')) $('r-recv').textContent = fmtShort(d.receivable);
   if ($('r-over')) $('r-over').textContent = fmtShort(d.overdue_amt);
   if ($('r-coll')) $('r-coll').textContent = fmtShort(d.collected_month);
   if ($('r-cases')) $('r-cases').textContent = recoveryOverdue.length;
   paintAgeing(d.ageing && d.ageing.d30 ? d.ageing : ageingFromRows());
+  syncRecTabs();
   renderRecoveryTable();
   await loadCalendar();
 }
@@ -171,40 +179,85 @@ function paintAgeing(ageing) {
   });
 }
 
+function findCase(id) {
+  return recoveryOverdue.find((x) => x.id === id)
+    || recoverySoon.find((x) => x.id === id)
+    || payChoices.find((x) => x.id === id)
+    || null;
+}
+
+function syncRecTabs() {
+  document.querySelectorAll('[data-rec-tab]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.recTab === recTab);
+  });
+  const hint = $('rec-tab-hint');
+  if (hint) {
+    hint.textContent = recTab === 'soon'
+      ? `${recoverySoon.length} installment${recoverySoon.length === 1 ? '' : 's'} still upcoming this month`
+      : `${recoveryOverdue.length} overdue installment${recoveryOverdue.length === 1 ? '' : 's'}`;
+  }
+  document.querySelectorAll('.age-card').forEach((el) => {
+    el.disabled = recTab === 'soon';
+    el.classList.toggle('is-dim', recTab === 'soon');
+  });
+}
+
 function renderRecoveryTable() {
-  const rows = filteredOverdue();
+  const rows = filteredCases();
   const tbody = $('recovery-tbody');
   if (!tbody) return;
+  const empty = recTab === 'soon'
+    ? (recoverySoon.length ? 'No matching upcoming installments' : 'Nothing else due this month')
+    : (recoveryOverdue.length ? 'No matching installments' : 'No overdue installments');
   tbody.innerHTML = rows.length
     ? rows.map((o) => {
         const days = o.days_overdue || 0;
-        const bucket = ageBucket(days);
+        const bucket = recTab === 'overdue' ? ageBucket(days) : '';
+        const when = o.when || (recTab === 'overdue'
+          ? `${days}d overdue · ${o.due_date || ''}`
+          : o.due_date || '—');
         return `
-      <tr class="rec-${bucket}">
-        <td class="td-b">${esc(o.customer_name)}</td>
-        <td>${esc(o.unit_no)}</td>
-        <td>${esc(o.project_name)}</td>
-        <td class="td-red">${fmt(o.amount)}</td>
-        <td>${esc(o.due_date)}</td>
-        <td><span class="badge ${overdueBadge(days)}">${days} Days</span></td>
-        <td style="font-family:monospace;font-size:11px">${esc(o.phone || '—')}</td>
+      <tr class="${bucket ? `rec-${bucket}` : ''}">
+        <td>
+          <div class="td-b">${esc(o.customer_name)}</div>
+          <div class="td-sm">${esc(o.phone || '—')}</div>
+        </td>
+        <td>
+          <div>${esc(o.unit_no)}</div>
+          <div class="td-sm">${esc(o.project_name || '')}</div>
+        </td>
+        <td class="rec-why">
+          <div>${esc(o.why || o.trigger_label || o.type || 'Installment')}</div>
+          <div class="td-sm">${esc(o.what || '')}</div>
+        </td>
+        <td class="${recTab === 'overdue' ? 'td-red' : ''}">${fmt(o.amount)}</td>
+        <td>${recTab === 'overdue'
+          ? `<span class="badge ${overdueBadge(days)}">${esc(when)}</span>`
+          : esc(when)}</td>
         <td style="white-space:nowrap">
-          <button type="button" class="btn sm" data-rec-view="${o.customer_id}">View</button>
           <button type="button" class="btn sm primary" data-rec-pay="${o.id}">Pay</button>
+          ${recTab === 'overdue' ? `<button type="button" class="btn sm" data-rec-notice="${o.id}">Notice</button>` : ''}
+          <button type="button" class="btn sm" data-rec-view="${o.customer_id}">View</button>
         </td>
       </tr>`;
       }).join('')
-    : `<tr><td colspan="8" style="text-align:center;color:var(--g400);padding:20px">${
-      recoveryOverdue.length ? 'No matching installments' : 'No overdue installments'
-    }</td></tr>`;
+    : `<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:20px">${empty}</td></tr>`;
 
   tbody.querySelectorAll('[data-rec-view]').forEach((btn) => {
     btn.addEventListener('click', () => openCustomerDetail(parseInt(btn.dataset.recView, 10)));
   });
   tbody.querySelectorAll('[data-rec-pay]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const row = recoveryOverdue.find((x) => x.id === parseInt(btn.dataset.recPay, 10));
+      const row = findCase(parseInt(btn.dataset.recPay, 10));
       if (row) openPayModal(row);
+    });
+  });
+  tbody.querySelectorAll('[data-rec-notice]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const row = findCase(parseInt(btn.dataset.recNotice, 10));
+      if (!row) return;
+      const { openGenerate } = await import('./documents.js');
+      await openGenerate({ customerId: row.customer_id, bookingId: row.booking_id, kind: 'notice' });
     });
   });
 }
@@ -233,7 +286,8 @@ function fillPayFromRow(row) {
   $('pay-summary').innerHTML = `
     <div class="bk-dname">${esc(row.customer_name)}</div>
     <div class="sum-row"><span class="sum-lbl">Unit</span><span class="sum-val">${esc(row.unit_no)} · ${esc(row.project_name)}</span></div>
-    <div class="sum-row"><span class="sum-lbl">Due</span><span class="sum-val">${esc(row.due_date || '—')}${(row.days_overdue || 0) > 0 ? ` · ${row.days_overdue}d overdue` : ''}</span></div>
+    <div class="sum-row"><span class="sum-lbl">Why</span><span class="sum-val">${esc(row.why || row.trigger_label || row.type || 'Installment')}</span></div>
+    <div class="sum-row"><span class="sum-lbl">When</span><span class="sum-val">${esc(row.when || row.due_date || '—')}</span></div>
     <div class="sum-row"><span class="sum-lbl">Remaining</span><span class="sum-val td-red">${fmt(row.amount)}</span></div>`;
 }
 
@@ -301,9 +355,7 @@ async function submitPayment() {
   const bkId = parseInt($('pay-bk-id').value, 10);
   const custId = parseInt($('pay-cust-id').value, 10);
   const amount = parseInt($('pay-amount').value, 10);
-  const row = recoveryOverdue.find((x) => x.id === instId)
-    || payChoices.find((x) => x.id === instId)
-    || (payContext && payContext.id === instId ? payContext : null);
+  const row = findCase(instId) || (payContext && payContext.id === instId ? payContext : null);
   const due = row?.amount || row?.remaining_amount || 0;
   if (!instId || !bkId || !custId) {
     toast('Select an installment.', 'error');
@@ -348,6 +400,15 @@ async function submitPayment() {
 
 export function initRecoveryEvents() {
   $('rec-search')?.addEventListener('input', renderRecoveryTable);
+  document.querySelectorAll('[data-rec-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      recTab = btn.dataset.recTab || 'overdue';
+      if (recTab === 'soon') ageFilter = null;
+      syncRecTabs();
+      paintAgeing(ageingFromRows());
+      renderRecoveryTable();
+    });
+  });
   $('btn-rec-pay')?.addEventListener('click', () => { openPayModal(null); });
   $('pay-pick')?.addEventListener('change', onPayPickChange);
   $('btn-save-payment')?.addEventListener('click', submitPayment);

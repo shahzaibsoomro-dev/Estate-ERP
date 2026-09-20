@@ -39,7 +39,17 @@ def overview(company: str | None = None):
                 p["attributes"] = json.loads(p.pop("project_attributes") or "[]")
             except ValueError:
                 p["attributes"] = []
-            p["unit_types"] = [t for t in (p["unit_types"] or "").split(",") if t]
+            raw_types = [t.strip() for t in (p["unit_types"] or "").split(",") if t and t.strip()]
+            labels = []
+            for t in raw_types:
+                key = t.lower()
+                if key in ("commercial", "shop", "office", "showroom", "warehouse"):
+                    label = "Commercial"
+                else:
+                    label = "Residential"
+                if label not in labels:
+                    labels.append(label)
+            p["unit_types"] = labels
         name = fetch_one(conn, "SELECT value FROM company_settings WHERE key='company_name'")
         phone = fetch_one(conn, "SELECT value FROM company_settings WHERE key='company_phone'")
         email = fetch_one(conn, "SELECT value FROM company_settings WHERE key='company_email'")

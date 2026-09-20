@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from backend.auth.context import current_ip, current_user_id
 from backend.config import BASE_DIR, DB_PATH, TENANTS_DIR
 from backend.database import fetch_all, fetch_one
+from backend.saas.phone import normalize_email, normalize_phone
 
 STATE_LABELS = {
     "trial": "Trial",
@@ -215,11 +216,45 @@ def company_detail(conn, company_id: int) -> dict:
     return out
 
 
+def _blank(v) -> str | None:
+    s = (v or "").strip() if isinstance(v, str) else v
+    return s or None
+
+
+def plan_list_price(plan: dict, billing_cycle: str) -> int:
+    return int(plan["price_yearly"] if billing_cycle == "yearly" else plan["price_monthly"])
+
+
+_PROFILE_KEYS = {
+    "name": "company_name",
+    "contact_phone": "company_phone",
+    "contact_email": "company_email",
+    "address": "company_address",
+}
+
+
+def _write_tenant_profile(db_path: str, fields: dict) -> None:
+    settings = {dst: (fields[src] or "") for src, dst in _PROFILE_KEYS.items() if src in fields}
+    if not settings:
+        return
+    path = resolve_db_path(db_path)
+    if not os.path.exists(path):
+        return
+    tconn = sqlite3.connect(path)
+    try:
+        for key, val in settings.items():
+            tconn.execute("INSERT OR REPLACE INTO company_settings(key, value) VALUES(?, ?)", (key, val))
+        tconn.commit()
+    finally:
+        tconn.close()
+
+
 def create_company(conn, *, name: str, slug: str | None = None, contact_name: str | None = None,
                    contact_email: str | None = None, contact_phone: str | None = None,
-                   city: str | None = None, notes: str | None = None, plan_id: int,
-                   billing_cycle: str = "monthly", amount: int | None = None, trial_days: int = 14,
-                   grace_days: int = 7, db_path: str | None = None, seed_sample: bool = False) -> dict:
+                   city: str | None = None, address: str | None = None, notes: str | None = None,
+                   plan_id: int, billing_cycle: str = "monthly", amount: int | None = None,
+                   trial_days: int = 14, grace_days: int = 7, subscription_notes: str | None = None,
+                   db_path: str | None = None, seed_sample: bool = False) -> dict:
     from backend.db.seed import init_db
 
     name = (name or "").strip()
@@ -230,6 +265,13 @@ def create_company(conn, *, name: str, slug: str | None = None, contact_name: st
         raise ValueError("Choose a plan")
     if billing_cycle not in ("monthly", "yearly"):
         raise ValueError("Billing cycle must be monthly or yearly")
+    contact_name = _blank(contact_name)
+    contact_email = normalize_email(contact_email)
+    contact_phone = normalize_phone(contact_phone)
+    city = _blank(city)
+    address = _blank(address)
+    notes = _blank(notes)
+    sub_notes = _blank(subscription_notes)
     base = slugify(slug or name)
     slug_final, n = base, 2
     while fetch_one(conn, "SELECT id FROM companies WHERE slug=?", (slug_final,)):
@@ -241,34 +283,26 @@ def create_company(conn, *, name: str, slug: str | None = None, contact_name: st
         if os.path.exists(db_path):
             raise ValueError("A database file for this company already exists")
     init_db(path=db_path, seed=seed_sample)
-    tconn = sqlite3.connect(db_path)
-    try:
-        tconn.execute("INSERT OR REPLACE INTO company_settings(key, value) VALUES('company_name', ?)", (name,))
-        if contact_phone:
-            tconn.execute("INSERT OR REPLACE INTO company_settings(key, value) VALUES('company_phone', ?)", (contact_phone,))
-        if contact_email:
-            tconn.execute("INSERT OR REPLACE INTO company_settings(key, value) VALUES('company_email', ?)", (contact_email,))
-        tconn.commit()
-    finally:
-        tconn.close()
+    _write_tenant_profile(db_path, {"name": name, "contact_phone": contact_phone,
+                                   "contact_email": contact_email, "address": address})
     cur = conn.execute(
-        """INSERT INTO companies(name, slug, db_path, contact_name, contact_email, contact_phone, city, notes)
-           VALUES(?,?,?,?,?,?,?,?)""",
-        (name, slug_final, _store_db_path(db_path), contact_name, contact_email, contact_phone, city, notes),
+        """INSERT INTO companies(name, slug, db_path, contact_name, contact_email, contact_phone, city, address, notes)
+           VALUES(?,?,?,?,?,?,?,?,?)""",
+        (name, slug_final, _store_db_path(db_path), contact_name, contact_email, contact_phone, city, address, notes),
     )
     cid = cur.lastrowid
     today = date.today()
-    price = plan["price_yearly"] if billing_cycle == "yearly" else plan["price_monthly"]
+    price = plan_list_price(plan, billing_cycle)
     trial = max(int(trial_days or 0), 0)
     conn.execute(
         """INSERT INTO subscriptions(company_id, plan_id, billing_cycle, amount, is_trial, started_on,
-                                     current_period_end, grace_days)
-           VALUES(?,?,?,?,?,?,?,?)""",
+                                     current_period_end, grace_days, notes)
+           VALUES(?,?,?,?,?,?,?,?,?)""",
         (cid, plan_id, billing_cycle, price if amount is None else int(amount), int(trial > 0),
-         today.isoformat(), (today + timedelta(days=trial)).isoformat(), int(grace_days)),
+         today.isoformat(), (today + timedelta(days=trial)).isoformat(), int(grace_days), sub_notes),
     )
     audit(conn, "company.create", company_id=cid, target_type="company", target_id=cid,
-          details={"name": name, "plan": plan["name"], "trial_days": trial})
+          details={"name": name, "plan": plan["name"], "trial_days": trial, "amount": price if amount is None else int(amount)})
     return get_company(conn, cid)
 
 
@@ -276,15 +310,31 @@ def update_company(conn, company_id: int, data: dict) -> dict:
     c = get_company(conn, company_id)
     if not c:
         raise LookupError("Company not found")
-    fields = {k: data[k] for k in ("name", "contact_name", "contact_email", "contact_phone", "city", "notes", "status")
-              if k in data and data[k] is not None}
-    if "name" in fields and not str(fields["name"]).strip():
-        raise ValueError("Company name is required")
+    incoming = {k: data[k] for k in ("name", "contact_name", "contact_email", "contact_phone",
+                                     "city", "address", "notes", "status") if k in data}
+    fields = {}
+    for k, v in incoming.items():
+        if k == "status":
+            if v is None:
+                continue
+            fields[k] = v
+        elif k == "contact_phone":
+            fields[k] = normalize_phone(v)
+        elif k == "contact_email":
+            fields[k] = normalize_email(v)
+        elif k == "name":
+            name = (v or "").strip()
+            if not name:
+                raise ValueError("Company name is required")
+            fields[k] = name
+        else:
+            fields[k] = _blank(v) if isinstance(v, str) or v is None else v
     if "status" in fields and fields["status"] not in ("active", "suspended"):
         raise ValueError("Invalid status")
     if fields:
         sets = ", ".join(f"{k}=?" for k in fields)
         conn.execute(f"UPDATE companies SET {sets}, updated_at=datetime('now') WHERE id=?", (*fields.values(), company_id))
+        _write_tenant_profile(c["db_path"], fields)
     if fields.get("status") == "suspended" and c["status"] != "suspended":
         conn.execute(
             """UPDATE auth_sessions SET revoked_at=datetime('now')

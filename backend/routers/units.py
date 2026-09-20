@@ -10,7 +10,7 @@ class UnitCreate(BaseModel):
     project_id: int
     unit_no: str
     description: str | None = None
-    unit_type: str = "Flat"
+    unit_type: str = "residential"
     residential_type: str | None = None
     floor_number: int = 1
     area_ghaz: float | None = None
@@ -52,7 +52,7 @@ class PossessionBody(BaseModel):
 class UnitUpdate(BaseModel):
     unit_no: str
     description: str | None = None
-    unit_type: str = "Flat"
+    unit_type: str = "residential"
     residential_type: str | None = None
     floor_number: int = 1
     area_ghaz: float | None = None
@@ -65,6 +65,22 @@ class UnitUpdate(BaseModel):
     unit_attributes: list | None = None
     additional_requirements: str | None = None
     possession_date: str | None = None
+
+
+class UnitBulkBody(BaseModel):
+    project_id: int
+    units: list[dict]
+
+
+@router.post("/bulk")
+def bulk_import(body: UnitBulkBody):
+    if not body.units:
+        raise HTTPException(400, "Add at least one unit row")
+    with get_db() as conn:
+        try:
+            return svc.import_units(conn, body.project_id, body.units)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
 
 
 @router.get("")

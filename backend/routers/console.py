@@ -22,12 +22,14 @@ class CompanyCreate(BaseModel):
     contact_email: str | None = Field(None, max_length=254)
     contact_phone: str | None = Field(None, max_length=40)
     city: str | None = Field(None, max_length=80)
+    address: str | None = Field(None, max_length=300)
     notes: str | None = Field(None, max_length=1000)
     plan_id: int
     billing_cycle: Literal["monthly", "yearly"] = "monthly"
     amount: int | None = Field(None, ge=0)
     trial_days: int = Field(14, ge=0, le=90)
     grace_days: int = Field(7, ge=0, le=90)
+    subscription_notes: str | None = Field(None, max_length=1000)
     admin_name: str = Field(max_length=120)
     admin_email: str = Field(max_length=254)
     seed_sample: bool = False
@@ -39,6 +41,7 @@ class CompanyUpdate(BaseModel):
     contact_email: str | None = Field(None, max_length=254)
     contact_phone: str | None = Field(None, max_length=40)
     city: str | None = Field(None, max_length=80)
+    address: str | None = Field(None, max_length=300)
     notes: str | None = Field(None, max_length=1000)
     status: Literal["active", "suspended"] | None = None
 

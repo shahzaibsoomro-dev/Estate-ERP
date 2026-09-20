@@ -3,6 +3,7 @@ import { api, toast } from '../api.js';
 import { openModal, closeModal } from '../modal.js';
 import { askConfirm } from '../dialog.js';
 import { icon } from '../icons.js';
+import { customerOptionLabel } from '../customer-pick.js';
 
 let templates = [];
 let fields = {};
@@ -115,7 +116,7 @@ function renderFieldList() {
 async function fillCustomerSelect(sel, placeholder) {
   const list = await loadCustomers();
   sel.innerHTML = `<option value="">${esc(placeholder)}</option>` + list.map((c) =>
-    `<option value="${c.id}">${esc(c.name)}${c.cnic ? ` — ${esc(c.cnic)}` : ''}</option>`).join('');
+    `<option value="${c.id}">${esc(customerOptionLabel(c))}</option>`).join('');
 }
 
 async function openTemplate(id, duplicate = false) {
@@ -206,11 +207,15 @@ function syncTemplateHint() {
   $('gd-tmpl-desc').textContent = t ? `${t.description || ''}${t.requires_booking ? ' Requires a booking.' : ''}` : '';
 }
 
-export async function openGenerate({ customerId = null, bookingId = null, templateId = null } = {}) {
+export async function openGenerate({ customerId = null, bookingId = null, templateId = null, kind = null } = {}) {
   if (!templates.length) await loadTemplates();
   await fillCustomerSelect($('gd-customer'), '— Select customer —');
   $('gd-template').innerHTML = templates.filter((t) => t.is_active)
     .map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  if (!templateId && kind) {
+    const match = templates.find((t) => t.is_active && (t.kind === kind || t.code === kind));
+    if (match) templateId = match.id;
+  }
   if (templateId) $('gd-template').value = String(templateId);
   $('gd-customer').value = customerId ? String(customerId) : '';
   $('gd-title').value = '';

@@ -3,6 +3,36 @@ from backend.database import get_db, fetch_all, fetch_one
 from backend.services import dashboard as dash_svc
 from backend.services.project_filter import parse_project_ids, sql_in
 
+
+def _due_soon(conn, project_ids: list[int] | None) -> list[dict]:
+    clause, params = sql_in("u.project_id", project_ids)
+    rows = fetch_all(
+        conn,
+        f"""SELECT i.id, i.booking_id, i.customer_id, i.unit_id, i.amount, i.remaining_amount,
+                   i.paid_amount, i.due_date, i.type, i.notes, i.status,
+                   i.trigger_kind, i.trigger_label, i.trigger_progress,
+                   bk.booking_no,
+                   c.name AS customer_name, c.contact_number AS phone, c.cnic,
+                   u.unit_no, p.name AS project_name, u.project_id,
+                   CAST(julianday(i.due_date) - julianday('now') AS INT) AS days_until,
+                   (SELECT MAX(py.payment_date) FROM payments py WHERE py.booking_id=i.booking_id) AS last_payment
+            FROM installments i
+            JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
+            JOIN customers c ON c.id=i.customer_id
+            JOIN units u ON u.id=i.unit_id
+            JOIN projects p ON p.id=u.project_id
+            WHERE i.status IN ('pending','partial') AND i.remaining_amount > 0
+              AND i.due_date >= date('now')
+              AND i.due_date < date('now','start of month','+1 month'){clause}
+            ORDER BY i.due_date, c.name""",
+        params,
+    )
+    for r in rows:
+        r["original_amount"] = r.get("amount")
+        r["amount"] = r.get("remaining_amount") or r["amount"]
+        dash_svc.explain_installment(r, overdue=False)
+    return rows
+
 router = APIRouter(prefix="/api", tags=["recovery"])
 
 
@@ -63,6 +93,7 @@ def _recovery(conn, project_ids: list[int] | None):
         )
     return {
         "overdue": overdue,
+        "due_soon": _due_soon(conn, project_ids),
         "receivable": totals["receivable"] if totals else 0,
         "overdue_amt": totals["overdue_amt"] if totals else 0,
         "collected_month": collected["v"] if collected else 0,

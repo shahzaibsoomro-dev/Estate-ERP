@@ -59,6 +59,17 @@ def ensure_tenant_schema(conn: sqlite3.Connection) -> None:
             """UPDATE projects SET is_public=0
                WHERE name GLOB '*[0-9][0-9][0-9][0-9][0-9][0-9][0-9]*' OR name LIKE '%test%'"""
         )
+    if not _has_column(conn, "projects", "project_type"):
+        conn.execute("ALTER TABLE projects ADD COLUMN project_type TEXT NOT NULL DEFAULT 'building'")
+    conn.execute(
+        """UPDATE units SET unit_type='commercial'
+           WHERE lower(unit_type) IN ('shop','office','showroom','warehouse','commercial')"""
+    )
+    conn.execute(
+        """UPDATE units SET unit_type='residential'
+           WHERE unit_type IS NULL OR lower(unit_type) NOT IN ('residential','commercial')"""
+    )
+    conn.execute("UPDATE units SET residential_type=NULL WHERE lower(unit_type)='commercial'")
     from backend.documents.defaults import seed_default_templates, upgrade_default_templates
     seed_default_templates(conn)
     upgrade_default_templates(conn)

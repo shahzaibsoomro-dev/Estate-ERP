@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS companies (
     contact_email TEXT,
     contact_phone TEXT,
     city TEXT,
+    address TEXT,
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -159,12 +160,18 @@ DEFAULT_PLANS = [
 ]
 
 
+def _has_column(conn: sqlite3.Connection, table: str, col: str) -> bool:
+    return any(r[1] == col for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
 def ensure_platform_schema() -> None:
     os.makedirs(os.path.dirname(PLATFORM_DB_PATH), exist_ok=True)
     conn = sqlite3.connect(PLATFORM_DB_PATH)
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(PLATFORM_SQL)
+        if not _has_column(conn, "companies", "address"):
+            conn.execute("ALTER TABLE companies ADD COLUMN address TEXT")
         for row in DEFAULT_PLANS:
             conn.execute(
                 """INSERT OR IGNORE INTO plans(code, name, price_monthly, price_yearly, max_employees,

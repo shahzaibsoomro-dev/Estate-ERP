@@ -39,9 +39,9 @@ export async function loadProjects() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div class="card-click-title" style="font-size:16px;font-weight:900" data-proj-detail="${p.id}" title="View project details">${esc(p.name)}</div>
-          <div style="font-size:11.5px;color:var(--g400);margin-top:2px">📍 ${esc(p.location || '—')}${p.city ? ` · ${esc(p.city)}` : ''} &nbsp;|&nbsp; ${esc(p.start_date || '—')} → ${esc(p.end_date || '—')}</div>
+          <div style="font-size:11.5px;color:var(--g400);margin-top:2px">📍 ${esc(p.location || '—')}${p.city ? ` · ${esc(p.city)}` : ''} · ${esc(p.project_type_label || 'Building')} &nbsp;|&nbsp; ${esc(p.start_date || '—')} → ${esc(p.end_date || '—')}</div>
         </div>
-        <span class="badge ${p.status === 'Completed' ? 'bg-grey' : 'bg-green'}">${esc(p.status)}</span>
+        <span class="badge ${p.raw_status === 'completed' ? 'bg-grey' : p.raw_status === 'planning' ? 'bg-blue' : 'bg-green'}">${esc(p.status)}</span>
       </div>
       <div class="g4" style="margin-bottom:14px">
         <div class="sm"><div class="sm-v">${p.total_units}</div><div class="sm-l">Total</div></div>
@@ -207,6 +207,7 @@ function resetProjectForm() {
     'np-area-ghaz', 'np-cost', 'np-progress', 'np-tmpl-name'].forEach((id) => {
     if ($(id)) $(id).value = '';
   });
+  if ($('np-type')) $('np-type').value = 'building';
   if ($('np-status')) $('np-status').value = 'under_construction';
   if ($('np-tmpl-enable')) $('np-tmpl-enable').value = '0';
   const today = new Date().toISOString().split('T')[0];
@@ -214,6 +215,30 @@ function resetProjectForm() {
   if ($('np-end')) $('np-end').value = '';
   $('np-attributes')?.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = false; });
   resetTemplateRules();
+  syncProjectFormUi();
+}
+
+function syncProjectFormUi() {
+  const type = $('np-type')?.value || 'building';
+  const status = $('np-status')?.value || 'under_construction';
+  const scheme = type === 'housing_scheme';
+  if ($('np-floors-fg')) $('np-floors-fg').hidden = scheme;
+  if ($('np-units-lbl')) $('np-units-lbl').textContent = scheme ? 'Planned plots' : 'Planned Units';
+  const prog = $('np-progress');
+  const hint = $('np-progress-hint');
+  const locked = status === 'planning' || status === 'completed';
+  if (prog) {
+    if (status === 'planning') prog.value = '0';
+    if (status === 'completed') prog.value = '100';
+    prog.readOnly = locked;
+  }
+  if (hint) {
+    hint.textContent = status === 'planning'
+      ? 'Planning is always 0%'
+      : status === 'completed'
+        ? 'Completed is always 100%'
+        : 'Enter the current construction percentage';
+  }
 }
 
 function resetTemplateRules() {
@@ -331,7 +356,9 @@ function fillProjectForm(p) {
   $('np-notes').value = p.description || '';
   $('np-start').value = p.start_date || '';
   $('np-end').value = p.expected_end_date || p.end_date || '';
+  if ($('np-type')) $('np-type').value = p.project_type || 'building';
   $('np-status').value = p.raw_status || 'under_construction';
+  $('np-status').dataset.prev = p.raw_status || '';
   $('np-progress').value = p.current_progress ?? p.progress ?? '';
   $('np-floors').value = p.number_of_floors ?? '';
   $('np-units').value = p.number_of_units ?? '';
@@ -341,6 +368,7 @@ function fillProjectForm(p) {
   $('np-attributes')?.querySelectorAll('input[type=checkbox]').forEach((cb) => {
     cb.checked = attrs.has(cb.value);
   });
+  syncProjectFormUi();
 }
 
 function setProjectFormMode(mode) {
@@ -354,6 +382,7 @@ function setProjectFormMode(mode) {
   $('btn-onboard-skip').hidden = isEdit || onboardStep !== 2;
   $('btn-onboard-finish').hidden = isEdit || onboardStep !== 2;
   $('btn-save-project').hidden = !isEdit;
+  if ($('np-tmpl-block')) $('np-tmpl-block').hidden = !isEdit;
   if (isEdit) {
     $('onboard-step-1').hidden = false;
     $('onboard-step-2').hidden = true;
@@ -454,6 +483,15 @@ function collectProjectPayload() {
     toast('Project name and location are required', 'error');
     return null;
   }
+  const projectType = $('np-type')?.value || 'building';
+  const status = $('np-status').value;
+  const floors = projectType === 'housing_scheme' ? 0 : (intOrNull($('np-floors').value) || 0);
+  const units = intOrNull($('np-units').value) || 0;
+  if (floors > 0 && units > 0 && floors > units) {
+    toast('Planned floors cannot exceed planned units', 'error');
+    return null;
+  }
+  const progress = status === 'planning' ? 0 : status === 'completed' ? 100 : (intOrNull($('np-progress').value) || 0);
   return {
     name,
     location,
@@ -462,10 +500,11 @@ function collectProjectPayload() {
     description: valOrNull($('np-notes').value.trim()),
     start_date: valOrNull($('np-start').value),
     expected_end_date: valOrNull($('np-end').value),
-    status: $('np-status').value,
-    current_progress: intOrNull($('np-progress').value) || 0,
-    number_of_floors: intOrNull($('np-floors').value) || 0,
-    number_of_units: intOrNull($('np-units').value) || 0,
+    status,
+    project_type: projectType,
+    current_progress: progress,
+    number_of_floors: floors,
+    number_of_units: units,
     total_area_ghaz: floatOrNull($('np-area-ghaz').value),
     estimated_cost: intOrNull($('np-cost').value),
     project_attributes: readChecked($('np-attributes'), 'input:checked'),
@@ -488,6 +527,12 @@ function collectUnitPayloads() {
 async function saveProjectEdit() {
   const payload = collectProjectPayload();
   if (!payload || !editProjectId) return;
+  if (payload.status === 'completed' && $('np-status')?.dataset.prev !== 'completed') {
+    if (!await askConfirm(
+      'Marking this project completed sets progress to 100% and will make remaining construction installments due. Continue?',
+      { title: 'Mark completed', confirmLabel: 'Set completed' },
+    )) return;
+  }
   if (collectTemplatePayload() === false) return;
   await api(`/api/projects/${editProjectId}`, {
     method: 'PUT',
@@ -504,14 +549,11 @@ async function saveProjectEdit() {
 async function createProjectWithUnits(units) {
   const payload = collectProjectPayload();
   if (!payload) return;
-  if (collectTemplatePayload() === false) return;
 
   const created = await api('/api/projects', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
-  if (!(await saveProjectTemplate(created.id))) return;
-
   let createdCount = 0;
   for (const unit of units) {
     await api('/api/units', {
@@ -553,4 +595,6 @@ export function initProjectEvents() {
   $('btn-add-unit-row')?.addEventListener('click', addUnitRow);
   $('btn-add-tmpl-rule')?.addEventListener('click', () => addTemplateRuleRow());
   $('np-tmpl-enable')?.addEventListener('change', syncTemplateEnableUi);
+  $('np-type')?.addEventListener('change', syncProjectFormUi);
+  $('np-status')?.addEventListener('change', syncProjectFormUi);
 }

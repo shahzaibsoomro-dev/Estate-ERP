@@ -1,7 +1,41 @@
 """Super admin console, subscriptions, read-only on expiry, support mode."""
 from datetime import date, timedelta
 
+import pytest
 from conftest import EMAILS, login
+
+from backend.saas.phone import normalize_email, normalize_phone
+
+
+@pytest.mark.parametrize("raw,want", [
+    (None, None),
+    ("", None),
+    ("  ", None),
+    ("03001234567", "0300-1234567"),
+    ("0300-1234567", "0300-1234567"),
+    ("0300 1234567", "0300-1234567"),
+    ("+92 300 1234567", "0300-1234567"),
+    ("923001234567", "0300-1234567"),
+    ("00923001234567", "0300-1234567"),
+    ("3001234567", "0300-1234567"),
+    ("02134567890", "021-34567890"),
+    ("+971501234567", "+971501234567"),
+])
+def test_normalize_phone(raw, want):
+    assert normalize_phone(raw) == want
+
+
+@pytest.mark.parametrize("raw", ["123", "abc", "0300123", "not-a-phone", "00000000000"])
+def test_normalize_phone_rejects(raw):
+    with pytest.raises(ValueError):
+        normalize_phone(raw)
+
+
+def test_normalize_email():
+    assert normalize_email(None) is None
+    assert normalize_email("  Owner@Gamma.TEST ") == "owner@gamma.test"
+    with pytest.raises(ValueError):
+        normalize_email("not-an-email")
 
 
 def test_console_overview_and_companies(as_role):
@@ -28,6 +62,45 @@ def test_create_company_with_admin(as_role):
     assert owner.get("/api/projects").json() == []
     sub = owner.get("/api/company/subscription").json()
     assert sub["state"]["state"] == "trial" and sub["subscription"]["plan_name"] == plan["name"]
+    assert r.json()["company"]["contact_phone"] == "0300-1234567"
+
+
+def test_create_company_fills_plan_price_and_extra_inputs(as_role):
+    sa = as_role("superadmin")
+    plan = next(p for p in sa.get("/api/console/plans").json() if p["is_active"])
+    r = sa.post("/api/console/companies", json={
+        "name": "Delta Homes", "plan_id": plan["id"], "billing_cycle": "yearly",
+        "admin_name": "Delta Owner", "admin_email": "owner@delta.test",
+        "contact_phone": "+92 321 5556677", "contact_email": "office@delta.test",
+        "address": "Plot 12, DHA Phase 6, Karachi", "city": "Karachi",
+        "subscription_notes": "Founder discount for year one",
+    })
+    assert r.status_code == 200, r.text
+    cid = r.json()["company"]["id"]
+    assert r.json()["company"]["contact_phone"] == "0321-5556677"
+    assert r.json()["company"]["address"] == "Plot 12, DHA Phase 6, Karachi"
+    d = sa.get(f"/api/console/companies/{cid}").json()
+    assert d["subscription"]["amount"] == plan["price_yearly"]
+    assert d["subscription"]["billing_cycle"] == "yearly"
+    assert d["subscription"]["notes"] == "Founder discount for year one"
+    custom = sa.post("/api/console/companies", json={
+        "name": "Epsilon Co", "plan_id": plan["id"], "billing_cycle": "monthly",
+        "amount": 9999, "admin_name": "Eps", "admin_email": "owner@epsilon.test"})
+    assert custom.status_code == 200, custom.text
+    assert sa.get(f"/api/console/companies/{custom.json()['company']['id']}").json()["subscription"]["amount"] == 9999
+
+
+def test_create_company_rejects_bad_phone(as_role):
+    sa = as_role("superadmin")
+    plan = sa.get("/api/console/plans").json()[0]
+    r = sa.post("/api/console/companies", json={
+        "name": "Bad Phone Co", "plan_id": plan["id"],
+        "admin_name": "X", "admin_email": "x@badphone.test", "contact_phone": "12345"})
+    assert r.status_code == 400
+    r = sa.post("/api/console/companies", json={
+        "name": "Bad Email Co", "plan_id": plan["id"],
+        "admin_name": "X", "admin_email": "x@bademail.test", "contact_email": "not-an-email"})
+    assert r.status_code == 400
 
 
 def test_payment_extends_period_and_void_rolls_back(as_role, world):

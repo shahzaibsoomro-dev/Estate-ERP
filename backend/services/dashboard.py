@@ -23,10 +23,13 @@ def _last_12_months(by_ym: dict) -> list[dict]:
 
 OVERDUE_SQL = """
     SELECT i.id, i.booking_id, i.customer_id, i.unit_id, i.amount, i.remaining_amount,
-           i.due_date, i.type,
+           i.paid_amount, i.due_date, i.type, i.notes, i.status,
+           i.trigger_kind, i.trigger_label, i.trigger_progress,
+           bk.booking_no,
            c.name AS customer_name, c.contact_number AS phone, c.cnic,
            u.unit_no, p.name AS project_name, u.project_id,
-           CAST(julianday('now') - julianday(i.due_date) AS INT) AS days_overdue
+           CAST(julianday('now') - julianday(i.due_date) AS INT) AS days_overdue,
+           (SELECT MAX(py.payment_date) FROM payments py WHERE py.booking_id=i.booking_id) AS last_payment
     FROM installments i
     JOIN bookings bk ON bk.id=i.booking_id AND bk.status='active'
     JOIN customers c ON c.id=i.customer_id
@@ -37,12 +40,60 @@ OVERDUE_SQL = """
 """
 
 
+def explain_installment(row: dict, *, overdue: bool = True) -> dict:
+    """Plain-language why / when / what for demand notices and recovery."""
+    original = row.get("original_amount")
+    if original is None:
+        original = row.get("amount") or 0
+    remaining = row.get("remaining_amount")
+    if remaining is None:
+        remaining = row.get("amount") or 0
+    paid = row.get("paid_amount") or 0
+    due = row.get("due_date") or "—"
+    typ = (row.get("trigger_label") or row.get("type") or "Installment").strip()
+    construction = (row.get("trigger_kind") or "time") == "construction"
+    if construction:
+        pct = row.get("trigger_progress")
+        why = (
+            f"{typ} became payable when construction reached {pct}%."
+            if pct is not None else
+            f"{typ} became payable when its construction milestone was reached."
+        )
+    else:
+        why = f"{typ} was due on {due}."
+    if paid:
+        what = f"PKR {int(remaining):,} still unpaid (PKR {int(paid):,} received of PKR {int(original):,})."
+    elif overdue:
+        what = f"PKR {int(remaining):,} was not received by the due date."
+    else:
+        what = f"PKR {int(remaining):,} is scheduled against this installment."
+    if overdue:
+        days = row.get("days_overdue") or 0
+        when = f"{days} day{'s' if days != 1 else ''} overdue (due {due})"
+    else:
+        days = row.get("days_until")
+        when = f"Due {due}"
+        if days is not None:
+            if days == 0:
+                when += " · due today"
+            elif days > 0:
+                when += f" · in {days} day{'s' if days != 1 else ''}"
+    row["original_amount"] = original
+    row["why"] = why
+    row["what"] = what
+    row["when"] = when
+    row["reason"] = f"{why} {what}".strip()
+    return row
+
+
 def get_overdue_list(conn, project_ids: list[int] | None = None) -> list[dict]:
     inst_svc.refresh_statuses(conn)
     filt, params = sql_in("u.project_id", project_ids)
     rows = fetch_all(conn, OVERDUE_SQL + filt + " ORDER BY days_overdue DESC", params)
     for r in rows:
+        r["original_amount"] = r.get("amount")
         r["amount"] = r.get("remaining_amount") or r["amount"]
+        explain_installment(r, overdue=True)
     return rows
 
 

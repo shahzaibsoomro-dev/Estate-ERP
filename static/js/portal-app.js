@@ -84,7 +84,10 @@ function viewOverview(b) {
   const overdue = liveInstallments(b).filter((i) => i.status === 'overdue');
   const overdueAmt = overdue.reduce((a, i) => a + (i.remaining_amount || 0), 0);
   const u = b.unit || {};
-  const typeLine = [u.unit_type, u.residential_type].filter(Boolean).join(' · ');
+  const typeLine = [
+    u.type_label || (String(u.unit_type || '').toLowerCase() === 'commercial' ? 'Commercial' : (u.unit_type ? 'Residential' : '')),
+    String(u.unit_type || '').toLowerCase() === 'residential' ? u.residential_type : null,
+  ].filter(Boolean).join(' · ');
   const scheduledLeft = liveInstallments(b).reduce((a, i) => a + (i.remaining_amount || 0), 0);
   const unscheduled = Math.max(0, (s.outstanding || 0) - scheduledLeft);
   return `
